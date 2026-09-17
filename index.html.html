@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>ระบบตรวจเช็คเครื่องมือช่าง Team 3</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,'Segoe UI',Roboto,'Noto Sans Thai',sans-serif;background:#eef1f6;margin:0;color:#1a1a1a}
+.header{background:linear-gradient(135deg,#0d1b3e,#1a3a6b);color:#fff;padding:14px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.header img{height:46px;width:46px;object-fit:contain;border-radius:6px;background:rgba(255,255,255,.08);cursor:pointer;flex-shrink:0}
+.header h1{font-size:15.5px;margin:0;font-weight:700;line-height:1.3;flex:1}
+.header small{display:block;font-size:11px;opacity:.7;font-weight:400}
+.lockbtn{background:rgba(255,255,255,.14);border:none;color:#fff;font-size:19px;width:40px;height:40px;border-radius:9px;cursor:pointer;flex-shrink:0}
+.lockbtn.on{background:#d4af37;color:#0d1b3e}
+.tabs{display:flex;background:#fff;border-bottom:1px solid #dde2ea;position:sticky;top:0;z-index:20}
+.tab-btn{flex:1;padding:13px 4px;border:none;background:#fff;font-size:13px;font-weight:700;color:#8a93a3;cursor:pointer;font-family:inherit}
+.tab-btn.active{color:#1565c0;border-bottom:3px solid #1565c0;background:#f7faff}
+.container{max-width:520px;margin:0 auto;padding:16px 16px 40px}
+.tab-content{display:none}.tab-content.active{display:block}
+label{font-weight:700;display:block;margin-top:14px;margin-bottom:5px;font-size:13px;color:#33415c}
+select,input[type=text],input[type=date],input[type=password],textarea{width:100%;padding:11px;border-radius:9px;border:1.5px solid #ccd3de;font-size:15px;font-family:inherit;background:#fff}
+select:focus,input:focus,textarea:focus{outline:none;border-color:#1565c0}
+.btn{width:100%;padding:14px;margin-top:14px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
+.btn:active{transform:scale(.98)}
+.btn-camera{background:#1565c0;color:#fff}.btn-gallery{background:#eceff4;color:#33415c;border:1.5px solid #ccd3de}
+.btn-submit{background:#2e7d32;color:#fff;font-size:16px;padding:16px}
+.btn-export{background:#ef6c00;color:#fff}.btn-zip{background:#6a1b9a;color:#fff}
+.btn-print{background:#00695c;color:#fff}.btn-del{background:#c62828;color:#fff}
+.btn-danger{background:#fff;color:#c62828;border:1.5px solid #c62828}
+.btn-sm{padding:12px 8px;font-size:13px;margin-top:0}
+.row{display:flex;gap:8px;margin-top:14px}.row .btn{flex:1;margin-top:0}
+.fileinput{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;z-index:-1}
+label.btn{display:block;text-align:center;margin-top:0;font-weight:700}
+label.btn.mb{margin-bottom:9px}
+.thumbs{display:flex;flex-wrap:wrap;gap:9px;margin-top:11px}
+.thumb-wrap{position:relative}
+.thumb-wrap img{width:86px;height:86px;object-fit:cover;border-radius:9px;border:2.5px solid #dde2ea;background:#f0f0f0}
+.thumb-wrap.dup img{border-color:#d32f2f}
+.dup-badge{position:absolute;bottom:4px;left:4px;background:#d32f2f;color:#fff;font-size:9.5px;padding:2px 5px;border-radius:5px;font-weight:700}
+.remove{position:absolute;top:-7px;right:-7px;background:#c62828;color:#fff;border-radius:50%;width:22px;height:22px;text-align:center;line-height:21px;font-size:13px;cursor:pointer;font-weight:700}
+.status{margin-top:12px;font-size:13.5px;text-align:center;padding:10px;border-radius:8px;display:none;line-height:1.6;white-space:pre-line}
+.status.show{display:block}.status.ok{background:#e8f5e9;color:#1b5e20}
+.status.err{background:#ffebee;color:#b71c1c}.status.info{background:#e3f2fd;color:#0d47a1}
+.savecard{display:none;border:2px solid #3fbf67;background:#effcf2;border-radius:14px;padding:16px;margin-top:14px}
+.savecard.show{display:block}
+.savecard h3{margin:0 0 7px;font-size:18px;color:#1e9e4a;font-weight:700}
+.savecard .sub{font-size:13px;color:#5b6472;line-height:1.6;margin-bottom:11px}
+.savecard pre{background:#f7f9f8;border:1px solid #dfe6e1;border-radius:10px;padding:13px;margin:0;
+ font-family:inherit;font-size:14.5px;line-height:1.75;white-space:pre-wrap;word-break:break-word;color:#1a1a1a}
+.savecard .cpbtn{width:100%;margin-top:11px;padding:14px;border:1px solid #d6ded8;background:#fbfdfc;
+ border-radius:10px;font-family:inherit;font-size:16px;font-weight:700;color:#1a1a1a;cursor:pointer}
+.savecard .cpbtn:active{background:#e4ece7}
+.card{background:#fff;border-radius:12px;padding:12px;margin-top:11px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:flex;gap:12px;position:relative}
+.card img.ph{width:92px;height:92px;object-fit:cover;border-radius:9px;cursor:pointer;flex-shrink:0;border:1px solid #e5e9f0}
+.card-info{font-size:12.5px;line-height:1.75;flex:1;min-width:0;word-break:break-word;padding-right:34px}
+.card-info b{font-size:14px;color:#0d1b3e}
+.cbtns{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:5px}
+.cbtn{border-radius:7px;width:30px;height:30px;font-size:13px;cursor:pointer;line-height:1;border:1px solid}
+.cbtn.pr{background:#e0f2f1;color:#00695c;border-color:#80cbc4}
+.cbtn.dl2{background:#ffebee;color:#c62828;border-color:#ef9a9a}
+.logcard{background:#fff;border-radius:12px;padding:12px;margin-top:11px;box-shadow:0 1px 4px rgba(0,0,0,.08);display:flex;gap:12px;border-left:4px solid #c62828}
+.logcard img{width:66px;height:66px;object-fit:cover;border-radius:8px;flex-shrink:0;filter:grayscale(.55);cursor:pointer}
+.logcard .li{font-size:12px;line-height:1.7;flex:1;min-width:0;word-break:break-word}
+.logcard .li b{font-size:13px;color:#c62828}
+.tag{background:#e8eef7;color:#33415c;font-size:10px;padding:2px 7px;border-radius:6px;font-weight:700;margin-left:4px}
+.tag.dup{background:#d32f2f;color:#fff}.tag.shift{background:#1565c0;color:#fff}
+.tag.t1{background:#ef6c00;color:#fff}.tag.t2{background:#6a1b9a;color:#fff}.tag.t3{background:#b71c1c;color:#fff}
+.dl{display:inline-block;margin-top:5px;color:#1565c0;font-weight:700;font-size:12px;text-decoration:none;border:1.5px solid #1565c0;padding:4px 10px;border-radius:7px}
+.empty{text-align:center;padding:40px 16px;color:#98a2b3;font-size:14px}
+.stat{display:flex;gap:8px;margin-top:12px}
+.stat div{flex:1;background:#fff;border-radius:10px;padding:10px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.07)}
+.stat b{display:block;font-size:19px;color:#0d1b3e}.stat span{font-size:10.5px;color:#8a93a3}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:100;align-items:center;justify-content:center;padding:16px}
+.modal.show{display:flex}.modal img{max-width:100%;max-height:78vh;border-radius:8px}
+.modal .close{position:absolute;top:14px;right:18px;color:#fff;font-size:34px;cursor:pointer}
+.dlg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:200;align-items:center;justify-content:center;padding:20px;overflow-y:auto}
+.dlg.show{display:flex}
+.dlg-box{background:#fff;border-radius:14px;padding:22px;max-width:360px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto}
+.dlg-box h3{margin:0 0 6px;font-size:17px;color:#0d1b3e}
+.dlg-box p{margin:0 0 12px;font-size:12.5px;color:#8a93a3;line-height:1.6}
+.dlg-box label{margin-top:10px}
+.hint{font-size:11.5px;color:#8a93a3;margin-top:7px;line-height:1.5}
+.adminbar{background:#fff8e1;border:1.5px solid #d4af37;border-radius:10px;padding:10px 12px;margin-top:12px;font-size:12.5px;color:#7a5c00;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.adminbar button{background:#d4af37;border:none;color:#0d1b3e;font-weight:700;padding:6px 12px;border-radius:7px;font-size:11.5px;cursor:pointer;font-family:inherit}
+.lockmsg{background:#fff;border-radius:10px;padding:16px;margin-top:14px;text-align:center;font-size:12.5px;color:#8a93a3;border:1.5px dashed #ccd3de;line-height:1.7}
+.dangerzone{border:1.5px solid #ef9a9a;background:#fff5f5;border-radius:12px;padding:14px;margin-top:18px}
+.dangerzone h4{margin:0 0 4px;font-size:13.5px;color:#c62828}
+.dangerzone p{margin:0 0 4px;font-size:11.5px;color:#a06060;line-height:1.6}
+.notice{background:#e8f4fd;border:1.5px solid #90caf9;border-radius:10px;padding:11px 13px;margin-top:12px;font-size:12px;color:#0d47a1;line-height:1.7}
+hr{border:none;border-top:1px solid #dde2ea;margin:22px 0}
+.adminOnly{display:none}
+body.isAdmin .adminOnly{display:block}
+body.isAdmin .adminOnly.row{display:flex}
+body.isAdmin .tab-btn.adminOnly{display:block;flex:1}
+body.isAdmin .lockmsg{display:none}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img id="logo" onclick="logoInput.click()" title="คลิกเพื่อเปลี่ยนโลโก้"
+    src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTIwIj48cGF0aCBkPSJNNTAgNUw5NSAyMHY1MGMwIDI1LTIwIDQwLTQ1IDQ1QzI1IDExMCA1IDk1IDUgNzBWMjB6IiBmaWxsPSIjMTQzNTZkIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNSIvPjx0ZXh0IHg9IjUwIiB5PSI1MiIgZm9udC1zaXplPSIzMiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiNkNGFmMzciIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCI+TVQzPC90ZXh0PjxjaXJjbGUgY3g9IjM4IiBjeT0iNzUiIHI9IjkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Q0YWYzNyIgc3Ryb2tlLXdpZHRoPSI0Ii8+PHBhdGggZD0iTTU1IDgzbDE1LTE1TTYyIDY2aDEwdjEwIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+">
+  <input type="file" id="logoInput" accept="image/*" hidden>
+  <h1>ระบบตรวจเช็คเครื่องมือช่าง Team 3<small id="roleLabel">โหมดผู้ใช้ทั่วไป</small></h1>
+  <button class="lockbtn" id="lockBtn" onclick="toggleAdmin()">🔒</button>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="report">📝 ส่งรายงาน</button>
+  <button class="tab-btn" data-tab="history">📂 ประวัติ</button>
+  <button class="tab-btn adminOnly" data-tab="log">🗑 Log การลบ</button>
+</div>
+
+<!-- ========== แท็บ 1 : ส่งรายงาน ========== -->
+<div id="tab-report" class="tab-content container active">
+  <label>📍 พื้นที่ปฏิบัติงาน</label>
+  <select id="area"><option>MTB-West</option><option>MTB-East</option><option>SAT-East</option>
+  <option>SAT-West</option><option>Tunnel-West</option><option>Tunnel-East</option></select>
+
+  <label>⏰ รอบตรวจเช็ค</label>
+  <select id="shift"><option>รับกะ</option><option>ส่งคืน</option></select>
+
+  <label>👤 ชื่อผู้ตรวจเช็ค</label>
+  <input type="text" id="inspector" placeholder="กรอกชื่อ-นามสกุล">
+
+  <label>📝 คำอธิบาย / หมายเหตุ (ขึ้นบรรทัดใหม่ = 1 รายการในใบรายงาน)</label>
+  <textarea id="note" rows="4" placeholder="ประแจ 16 ไม่มี&#10;ค้อนยูริเทน ไม่มี&#10;ด้ามฟรีหัวไข่ ชำรุด"></textarea>
+
+  <label>📷 ภาพรายงาน (ถ่ายภาพเท่านั้น)</label>
+  <label class="btn btn-camera btn-sm mb">📷 เปิดกล้องถ่ายรูป
+    <input type="file" id="camInput" class="fileinput" accept="image/*" capture="environment">
+  </label>
+  <div class="hint">🔒 ระบบอนุญาตเฉพาะการถ่ายภาพสดจากกล้องเท่านั้น ไม่สามารถเลือกจากคลังภาพหรือไฟล์ในเครื่องได้<br>
+  กดถ่ายซ้ำได้เรื่อยๆ ระบบจะสะสมรูปและตรวจสอบภาพซ้ำอัตโนมัติ<br>
+  ⚠️ หากกดแล้วไม่มีอะไรเกิดขึ้น ให้เปิดไฟล์นี้ด้วย Safari หรือ Chrome โดยตรง (ไม่ใช่หน้าพรีวิวในแอป)</div>
+  <div class="thumbs" id="thumbs"></div>
+
+  <button class="btn btn-submit" onclick="submitReport()">✅ บันทึกรายงาน</button>
+  <div class="status" id="status"></div>
+
+  <!-- กล่องผลบันทึก + คัดลอกข้อความ -->
+  <div class="savecard" id="saveCard">
+    <h3>✓ บันทึกรายงานเรียบร้อย</h3>
+    <div class="sub">คัดลอกข้อความด้านล่างเพื่อวางแจ้งในไลน์กลุ่ม (ระบบไม่สามารถส่งเข้าไลน์อัตโนมัติได้โดยตรง)</div>
+    <pre id="saveText"></pre>
+    <button class="cpbtn" id="copyBtn" onclick="copyReportText()">📋 คัดลอกข้อความ</button>
+  </div>
+</div>
+
+<!-- ========== แท็บ 2 : ประวัติ ========== -->
+<div id="tab-history" class="tab-content container">
+  <div class="adminbar adminOnly">
+    <span>👑 ผู้ดูแล: <span id="adminNameLabel">-</span></span>
+    <span><button onclick="openDocSet()">⚙️ หัวกระดาษ</button>
+    <button onclick="openPinChange()" style="margin-left:5px">PIN</button></span>
+  </div>
+  <div class="stat">
+    <div><b id="stTotal">0</b><span>รายการทั้งหมด</span></div>
+    <div><b id="stToday">0</b><span>วันนี้</span></div>
+    <div><b id="stDup">0</b><span>ภาพซ้ำ</span></div>
+  </div>
+  <label>กรองตามพื้นที่</label>
+  <select id="fArea" onchange="loadHistory()"><option>ทั้งหมด</option><option>MTB-West</option>
+  <option>MTB-East</option><option>SAT-East</option><option>SAT-West</option>
+  <option>Tunnel-West</option><option>Tunnel-East</option></select>
+  <label>กรองตามรอบ</label>
+  <select id="fShift" onchange="loadHistory()"><option>ทั้งหมด</option><option>รับกะ</option><option>ส่งคืน</option></select>
+  <label>กรองตามวันที่</label><input type="date" id="fDate" onchange="loadHistory()">
+  <label>ค้นหาชื่อผู้ตรวจ</label>
+  <input type="text" id="fName" placeholder="พิมพ์ชื่อ..." onkeyup="loadHistory()">
+
+  <div class="adminOnly">
+    <button class="btn btn-print" onclick="printSummary()">🖨️ พิมพ์รายงานสรุป A4 (<span id="prCount">0</span> รายการ)</button>
+  </div>
+  <div class="row adminOnly">
+    <button class="btn btn-export btn-sm" onclick="exportExcel()">📊 Export Excel</button>
+    <button class="btn btn-zip btn-sm" onclick="exportZip()">🗂️ Export รูป (ZIP)</button>
+  </div>
+  <div class="lockmsg">🔒 การพิมพ์รายงาน Export ข้อมูล บันทึกรูปภาพ และลบรายการ<br>สงวนสิทธิ์เฉพาะผู้ดูแลระบบเท่านั้น</div>
+  <div class="status" id="expStatus"></div>
+  <div id="list"></div>
+
+  <hr class="adminOnly">
+  <div class="row adminOnly">
+    <button class="btn btn-gallery btn-sm" onclick="backupData()">💾 สำรองข้อมูล</button>
+    <label class="btn btn-gallery btn-sm" style="flex:1">♻️ กู้คืนข้อมูล
+      <input type="file" id="restoreInput" class="fileinput" accept=".json">
+    </label>
+  </div>
+  <div class="dangerzone adminOnly">
+    <h4>⚠️ พื้นที่อันตราย (Danger Zone)</h4>
+    <p>ทุกการลบจะถูกบันทึกลง Log อัตโนมัติ พร้อมชื่อผู้ลบและเหตุผล</p>
+    <button class="btn btn-del btn-sm" style="margin-top:10px" onclick="deleteFiltered()">🗑️ ลบรายการตามที่กรองอยู่ (<span id="delCount">0</span>)</button>
+    <button class="btn btn-danger btn-sm" style="margin-top:8px" onclick="deleteAll()">💥 ล้างข้อมูลทั้งหมดในระบบ</button>
+  </div>
+</div>
+
+<!-- ========== แท็บ 3 : Log ========== -->
+<div id="tab-log" class="tab-content container">
+  <div class="notice">🛡️ บันทึกหลักฐานการลบข้อมูลทั้งหมด — ระบบบันทึกอัตโนมัติทุกครั้งที่มีการลบ</div>
+  <div class="stat">
+    <div><b id="lgTotal">0</b><span>ครั้งที่ลบ</span></div>
+    <div><b id="lgItems">0</b><span>รายการที่ถูกลบ</span></div>
+    <div><b id="lgToday">0</b><span>ลบวันนี้</span></div>
+  </div>
+  <label>ค้นหา (ชื่อผู้ลบ / พื้นที่ / เหตุผล)</label>
+  <input type="text" id="lgSearch" placeholder="พิมพ์คำค้นหา..." onkeyup="loadLog()">
+  <label>กรองตามวันที่ลบ</label><input type="date" id="lgDate" onchange="loadLog()">
+  <div class="row">
+    <button class="btn btn-export btn-sm" onclick="exportLogExcel()">📊 Export Log</button>
+    <button class="btn btn-danger btn-sm" onclick="clearLog()">🧹 ล้าง Log</button>
+  </div>
+  <div class="status" id="lgStatus"></div>
+  <div id="logList"></div>
+</div>
+
+<div class="modal" id="modal" onclick="modal.classList.remove('show')">
+  <span class="close">&times;</span><img id="modalImg">
+</div>
+
+<!-- PIN -->
+<div class="dlg" id="pinDlg"><div class="dlg-box">
+  <h3 id="pinTitle">🔐 เข้าสู่ระบบผู้ดูแล</h3><p id="pinDesc">กรอกชื่อและรหัส PIN</p>
+  <div id="nameBox"><label style="margin-top:0">ชื่อผู้ดูแลระบบ</label>
+  <input type="text" id="adminName" placeholder="ชื่อ-นามสกุล (ใช้ใน Log และใบรายงาน)"></div>
+  <label>รหัส PIN</label>
+  <input type="password" id="pinInput" inputmode="numeric" placeholder="รหัส PIN" maxlength="10">
+  <div class="status" id="pinStatus"></div>
+  <div class="row"><button class="btn btn-gallery btn-sm" onclick="closePin()">ยกเลิก</button>
+  <button class="btn btn-camera btn-sm" onclick="confirmPin()">ยืนยัน</button></div>
+</div></div>
+
+<!-- เหตุผลลบ -->
+<div class="dlg" id="rsnDlg"><div class="dlg-box">
+  <h3>🗑 ยืนยันการลบข้อมูล</h3><p id="rsnDesc">-</p>
+  <label style="margin-top:0">เหตุผลในการลบ (จำเป็น)</label>
+  <select id="rsnSelect" onchange="toggleOtherReason()">
+    <option>ส่งรายงานผิดพลาด</option><option>ข้อมูลซ้ำซ้อน</option><option>ข้อมูลทดสอบระบบ</option>
+    <option>ภาพไม่ชัด / ภาพผิด</option><option>ล้างข้อมูลเก่าตามรอบ</option><option value="other">อื่นๆ (ระบุเอง)</option>
+  </select>
+  <input type="text" id="rsnOther" placeholder="ระบุเหตุผล..." style="margin-top:8px;display:none">
+  <div class="status" id="rsnStatus"></div>
+  <div class="row"><button class="btn btn-gallery btn-sm" onclick="closeRsn()">ยกเลิก</button>
+  <button class="btn btn-del btn-sm" onclick="confirmReason()">ยืนยันลบ</button></div>
+</div></div>
+
+<!-- หัวกระดาษ -->
+<div class="dlg" id="docDlg"><div class="dlg-box">
+  <h3>⚙️ ตั้งค่าหัวกระดาษรายงาน</h3>
+  <p>ข้อมูลนี้จะปรากฏบนใบรายงาน A4 ทุกฉบับ</p>
+  <label style="margin-top:0">ชื่อบริษัท (ไทย)</label>
+  <input type="text" id="dsComTH" placeholder="บริษัท ....... จำกัด">
+  <label>ชื่อบริษัท (อังกฤษ)</label>
+  <input type="text" id="dsComEN" placeholder="Company Co., Ltd.">
+  <label>สัญญาเลขที่</label><input type="text" id="dsContract" placeholder="GCS12-680538">
+  <label>ชื่องาน / โครงการ</label>
+  <textarea id="dsProject" rows="3"></textarea>
+  <label>ชื่อเอกสาร</label><input type="text" id="dsTitle">
+  <label>รหัสฟอร์ม (มุมล่างขวา)</label><input type="text" id="dsForm">
+  <label>หมายเหตุท้ายกระดาษ (มุมล่างซ้าย)</label>
+  <input type="text" id="dsFooter">
+  <label>โลโก้บนใบรายงาน</label>
+  <input type="file" id="dsLogoInput" accept="image/*">
+  <div class="hint">ไม่เลือก = ใช้โลโก้เดียวกับหัวแอพ</div>
+  <div class="status" id="dsStatus"></div>
+  <div class="row"><button class="btn btn-gallery btn-sm" onclick="closeDocSet()">ยกเลิก</button>
+  <button class="btn btn-camera btn-sm" onclick="saveDocSet()">บันทึก</button></div>
+</div></div>
+
+<script>
+const $=id=>document.getElementById(id);
+let photos=[],db=null,cache=[],logCache=[],isAdmin=false,pinMode='login',adminUser='-',rsnCallback=null;
+const DEFAULT_PIN='3333';
+const getPin=()=>localStorage.getItem('mt3_pin')||DEFAULT_PIN;
+
+/* ================== ตั้งค่าเอกสาร ================== */
+const DOC_DEF={comTH:'บริษัท ล็อกซเล่ย์ อีโวลูชั่น เทคโนโลยี จำกัด',comEN:'Loxley Evolution Technology Co., Ltd.',
+ contract:'GCS12-680538',project:'งานจ้างเหมาปฏิบัติการและซ่อมบำรุงรักษาระบบลำเลียงกระเป๋าสัมภาระสำหรับอาคารเทียบเครื่องบินรองหลังที่ 1 (SAT-1) ณ ท่าอากาศยานสุวรรณภูมิ',
+ title:'ใบรายงานตรวจเช็คเครื่องมือช่าง',form:'FM-MT3-TOOL-01 Rev.01',
+ footer:'บันทึก : ระยะเวลาจัดเก็บ 2 ปี, วิธีการทำลายทิ้งเมื่อไม่ใช้, ผู้รับผิดชอบ EN',logo:''};
+function docCfg(){try{return Object.assign({},DOC_DEF,JSON.parse(localStorage.getItem('mt3_doc')||'{}'));}catch(e){return DOC_DEF;}}
+function openDocSet(){const c=docCfg();
+  $('dsComTH').value=c.comTH;$('dsComEN').value=c.comEN;$('dsContract').value=c.contract;
+  $('dsProject').value=c.project;$('dsTitle').value=c.title;$('dsForm').value=c.form;$('dsFooter').value=c.footer;
+  $('dsStatus').className='status';$('docDlg').classList.add('show');}
+function closeDocSet(){$('docDlg').classList.remove('show');}
+let tmpLogo=null;
+$('dsLogoInput').onchange=e=>{const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();r.onload=()=>{tmpLogo=r.result;showStatus('dsStatus','✅ เลือกโลโก้ใหม่แล้ว','ok');};r.readAsDataURL(f);};
+function saveDocSet(){const c=docCfg();
+  const n={comTH:$('dsComTH').value.trim(),comEN:$('dsComEN').value.trim(),contract:$('dsContract').value.trim(),
+   project:$('dsProject').value.trim(),title:$('dsTitle').value.trim()||'ใบรายงานตรวจเช็คเครื่องมือช่าง',
+   form:$('dsForm').value.trim(),footer:$('dsFooter').value.trim(),logo:tmpLogo||c.logo||''};
+  localStorage.setItem('mt3_doc',JSON.stringify(n));tmpLogo=null;closeDocSet();
+  showStatus('expStatus','✅ บันทึกหัวกระดาษเรียบร้อย','ok');}
+
+/* ================== สิทธิ์ ================== */
+function toggleAdmin(){
+  if(isAdmin){if(confirm('ต้องการออกจากโหมดผู้ดูแลระบบหรือไม่?'))setAdmin(false);}
+  else{pinMode='login';$('nameBox').style.display='block';
+    openPin('🔐 เข้าสู่ระบบผู้ดูแล','กรอกชื่อและรหัส PIN เพื่อปลดล็อกสิทธิ์ผู้ดูแลระบบ');
+    $('adminName').value=localStorage.getItem('mt3_admin_name')||'';}}
+function setAdmin(v,name){
+  isAdmin=v;document.body.classList.toggle('isAdmin',v);
+  $('lockBtn').textContent=v?'👑':'🔒';$('lockBtn').classList.toggle('on',v);
+  $('roleLabel').textContent=v?'โหมดผู้ดูแลระบบ (Admin)':'โหมดผู้ใช้ทั่วไป';
+  if(v){adminUser=name||localStorage.getItem('mt3_admin_name')||'ผู้ดูแลระบบ';$('adminNameLabel').textContent=adminUser;}
+  else{adminUser='-';
+    document.querySelectorAll('.tab-content').forEach(e=>e.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active'));
+    $('tab-history').classList.add('active');document.querySelector('[data-tab="history"]').classList.add('active');}
+  sessionStorage.setItem('mt3_admin',v?'1':'0');loadHistory();if(v)loadLog();}
+function openPin(t,d){$('pinTitle').textContent=t;$('pinDesc').textContent=d;
+  $('pinInput').value='';$('pinStatus').className='status';
+  $('pinDlg').classList.add('show');setTimeout(()=>$('pinInput').focus(),100);}
+function closePin(){$('pinDlg').classList.remove('show');}
+function openPinChange(){pinMode='change';$('nameBox').style.display='none';
+  openPin('🔑 เปลี่ยนรหัส PIN','กรอกรหัส PIN ใหม่ (4 หลักขึ้นไป)');}
+function confirmPin(){const v=$('pinInput').value.trim();
+  if(pinMode==='login'){const nm=$('adminName').value.trim();
+    if(!nm)return showStatus('pinStatus','⚠️ กรุณากรอกชื่อผู้ดูแลระบบ','err');
+    if(v===getPin()){localStorage.setItem('mt3_admin_name',nm);closePin();setAdmin(true,nm);
+      showStatus('expStatus','👑 เข้าสู่ระบบสำเร็จ — '+nm,'ok');}
+    else showStatus('pinStatus','❌ รหัส PIN ไม่ถูกต้อง','err');
+  }else{if(v.length<4)return showStatus('pinStatus','⚠️ PIN ต้องมีอย่างน้อย 4 หลัก','err');
+    localStorage.setItem('mt3_pin',v);closePin();showStatus('expStatus','✅ เปลี่ยนรหัส PIN เรียบร้อย','ok');}}
+$('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')confirmPin();});
+
+/* ================== เหตุผลลบ ================== */
+function openRsn(desc,cb){$('rsnDesc').textContent=desc;$('rsnSelect').selectedIndex=0;
+  $('rsnOther').value='';$('rsnOther').style.display='none';$('rsnStatus').className='status';
+  rsnCallback=cb;$('rsnDlg').classList.add('show');}
+function closeRsn(){$('rsnDlg').classList.remove('show');rsnCallback=null;}
+function toggleOtherReason(){$('rsnOther').style.display=$('rsnSelect').value==='other'?'block':'none';}
+function confirmReason(){let r=$('rsnSelect').value;
+  if(r==='other'){r=$('rsnOther').value.trim();if(!r)return showStatus('rsnStatus','⚠️ กรุณาระบุเหตุผล','err');}
+  const cb=rsnCallback;closeRsn();if(cb)cb(r);}
+
+/* ================== IndexedDB ================== */
+function openDB(){return new Promise((res,rej)=>{
+  const r=indexedDB.open('mt3_tool_db',2);
+  r.onupgradeneeded=e=>{const d=e.target.result;
+    if(!d.objectStoreNames.contains('reports'))d.createObjectStore('reports',{keyPath:'id',autoIncrement:true});
+    if(!d.objectStoreNames.contains('dellog'))d.createObjectStore('dellog',{keyPath:'id',autoIncrement:true});};
+  r.onsuccess=e=>{db=e.target.result;res()};r.onerror=rej;});}
+function addRec(o){return new Promise(r=>{const t=db.transaction('reports','readwrite');t.objectStore('reports').add(o);t.oncomplete=r;});}
+function getAll(){return new Promise(r=>{const q=db.transaction('reports','readonly').objectStore('reports').getAll();q.onsuccess=()=>r(q.result);});}
+function delRec(id){return new Promise(r=>{const t=db.transaction('reports','readwrite');t.objectStore('reports').delete(id);t.oncomplete=r;});}
+function clearAllRec(){return new Promise(r=>{const t=db.transaction('reports','readwrite');t.objectStore('reports').clear();t.oncomplete=r;});}
+function addLog(o){return new Promise(r=>{const t=db.transaction('dellog','readwrite');t.objectStore('dellog').add(o);t.oncomplete=r;});}
+function getLogs(){return new Promise(r=>{const q=db.transaction('dellog','readonly').objectStore('dellog').getAll();q.onsuccess=()=>r(q.result);});}
+function clearLogs(){return new Promise(r=>{const t=db.transaction('dellog','readwrite');t.objectStore('dellog').clear();t.oncomplete=r;});}
+
+/* ================== แท็บ ================== */
+document.querySelectorAll('.tab-btn').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tab-content').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active'));
+  $('tab-'+b.dataset.tab).classList.add('active');b.classList.add('active');
+  if(b.dataset.tab==='history')loadHistory();if(b.dataset.tab==='log')loadLog();});
+
+$('logoInput').onchange=e=>{const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();r.onload=()=>{$('logo').src=r.result;localStorage.setItem('mt3_logo',r.result);};r.readAsDataURL(f);};
+if(localStorage.getItem('mt3_logo'))$('logo').src=localStorage.getItem('mt3_logo');
+
+/* ============ FIX: ระบบโหลดรูปแบบกันค้าง ============ */
+function fileToDataURL(file){return new Promise((res,rej)=>{
+  const r=new FileReader();
+  r.onload=()=>res(r.result);
+  r.onerror=()=>rej(new Error('อ่านไฟล์ไม่สำเร็จ'));
+  r.readAsDataURL(file);});}
+
+function loadImage(src){return new Promise((res,rej)=>{
+  const img=new Image();
+  const t=setTimeout(()=>rej(new Error('timeout')),15000);
+  img.onload=()=>{clearTimeout(t);res(img);};
+  img.onerror=()=>{clearTimeout(t);rej(new Error('decode error'));};
+  img.src=src;});}
+
+function drawResize(img,max,q){
+  let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
+  if(!w||!h)throw new Error('ขนาดภาพผิดพลาด');
+  if(w>max||h>max){const s=max/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s);}
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  c.getContext('2d').drawImage(img,0,0,w,h);
+  return c.toDataURL('image/jpeg',q);}
+
+function hashFromImage(img){
+  const c=document.createElement('canvas');c.width=9;c.height=8;
+  const x=c.getContext('2d');x.drawImage(img,0,0,9,8);
+  const d=x.getImageData(0,0,9,8).data,g=[];
+  for(let i=0;i<d.length;i+=4)g.push(d[i]*.299+d[i+1]*.587+d[i+2]*.114);
+  let s='';for(let y=0;y<8;y++)for(let i=0;i<8;i++){const k=y*9+i;s+=g[k]>g[k+1]?'1':'0';}
+  return s;}
+
+function makeThumb(b64,max=180){return loadImage(b64).then(im=>drawResize(im,max,.6)).catch(()=>'');}
+function ham(a,b){let d=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i])d++;return d;}
+async function findDup(hash){
+  if(!hash)return null;
+  const all=await getAll();
+  for(const r of all){if(r.hash&&r.hash.length===hash.length&&ham(hash,r.hash)<=5)return r;}
+  for(const p of photos){if(p.hash&&p.hash.length===hash.length&&ham(hash,p.hash)<=5)return{timestamp:'ในชุดที่กำลังส่งนี้',area:'-'};}
+  return null;}
+
+async function processFile(file){
+  const raw=await fileToDataURL(file);
+  let b64;
+  try{ b64=drawResize(await loadImage(raw),1280,.82); }
+  catch(e){ b64=raw; }                       /* HEIC หรือถอดรหัสไม่ได้ → ใช้ต้นฉบับ */
+  let hash='';
+  try{ hash=hashFromImage(await loadImage(b64)); }catch(e){ hash=''; }
+  const dup=await findDup(hash);
+  return {b64,hash,isDup:!!dup,dupInfo:dup};}
+
+async function handleFiles(files){
+  if(!files||!files.length)return;
+  showStatus('status','⏳ กำลังประมวลผลภาพ '+files.length+' รูป...','info');
+  let ok=0,fail=0;
+  for(const f of files){
+    try{ photos.push(await processFile(f)); ok++; renderThumbs(); }
+    catch(err){ fail++; console.error('ภาพผิดพลาด:',err); }
+  }
+  renderThumbs();
+  const n=photos.filter(p=>p.isDup).length;
+  if(!ok) showStatus('status','❌ เพิ่มภาพไม่สำเร็จ กรุณาลองใหม่อีกครั้ง','err');
+  else if(n) showStatus('status','⚠️ เพิ่มภาพแล้ว '+ok+' รูป — พบภาพซ้ำ '+n+' รูป (กรอบสีแดง)','err');
+  else showStatus('status','✅ เพิ่มภาพแล้ว รวม '+photos.length+' รูป'+(fail?' (ข้าม '+fail+' ไฟล์)':'')+' — ไม่พบภาพซ้ำ','ok');}
+
+/* ===== [1] รับภาพจากกล้องเท่านั้น ===== */
+$('camInput').addEventListener('change',async function(e){
+  const files=[...e.target.files].filter(f=>f.type.startsWith('image/'));
+  $('saveCard').classList.remove('show');
+  await handleFiles(files);
+  e.target.value='';
+});
+/* กันการลากไฟล์จากเครื่องมาวาง */
+['dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),false));
+
+function renderThumbs(){$('thumbs').innerHTML=photos.map((p,i)=>`
+  <div class="thumb-wrap ${p.isDup?'dup':''}"><img src="${p.b64}" onclick="showImg(${i})">
+  ${p.isDup?'<span class="dup-badge">⚠️ ซ้ำ</span>':''}
+  <span class="remove" onclick="rmPhoto(${i})">✕</span></div>`).join('');}
+function rmPhoto(i){photos.splice(i,1);renderThumbs();}
+function showImg(i){$('modalImg').src=photos[i].b64;$('modal').classList.add('show');}
+function showHistImg(i){$('modalImg').src=cache[i].img;$('modal').classList.add('show');}
+function showLogImg(i){const t=logCache[i].thumb;if(t){$('modalImg').src=t;$('modal').classList.add('show');}}
+
+/* ================== [4] เลขที่เอกสาร MT + ปี พ.ศ. + running ================== */
+const DOC_PREFIX='MT';
+const pad=(n,l)=>String(n).padStart(l,'0');
+function beYY(d){return pad((d.getFullYear()+543)%100,2);}
+function todayKey(){return new Date().toISOString().slice(0,10);}
+function _seq(){try{return JSON.parse(localStorage.getItem('mt3_docseq')||'{}');}catch(e){return{};}}
+function _saveSeq(o){localStorage.setItem('mt3_docseq',JSON.stringify(o));}
+/* วันเดียวกัน = เลขเดียวกัน / วันใหม่ที่มีการส่งรายงาน = +1 / ขึ้นปี พ.ศ.ใหม่ = เริ่ม 0001 */
+function getDocNoForDate(dateKey){
+  const s=_seq();s.map=s.map||{};s.last=s.last||{};
+  if(s.map[dateKey])return s.map[dateKey];
+  const yy=beYY(new Date(dateKey+'T00:00:00'));
+  const n=(s.last[yy]||0)+1;
+  s.last[yy]=n;
+  s.map[dateKey]=DOC_PREFIX+yy+'/'+pad(n,4);
+  _saveSeq(s);
+  return s.map[dateKey];}
+function docNo(rec){
+  if(rec&&rec.docNo)return rec.docNo;
+  return getDocNoForDate((rec&&rec.dateKey)||todayKey());}
+
+/* ================== [2] บันทึกรายงาน + ข้อความคัดลอก ================== */
+let saveClipText='';
+function thTime(d){return pad(d.getHours(),2)+':'+pad(d.getMinutes(),2);}
+function showSaveCard(o){
+  saveClipText=
+`🧰 รายงานตรวจเช็คเครื่องมือ
+พื้นที่: ${o.area}
+รอบ: ${o.shift}
+ผู้ตรวจเช็ค: ${o.inspector}
+เวลา: ${o.ts}
+จำนวนภาพ: ${o.count} ภาพ
+รายละเอียด: ${o.note?o.note.replace(/\n/g,' / '):'-'}
+สถานะ: ${o.dup?'⚠️ พบภาพซ้ำ กรุณาตรวจสอบ':'ผ่านการตรวจสอบภาพซ้ำ ✓'}`;
+  $('saveText').textContent=saveClipText;
+  $('copyBtn').textContent='📋 คัดลอกข้อความ';
+  $('saveCard').classList.add('show');
+  setTimeout(()=>$('saveCard').scrollIntoView({behavior:'smooth',block:'center'}),120);}
+async function copyReportText(){
+  const b=$('copyBtn');
+  try{ await navigator.clipboard.writeText(saveClipText); }
+  catch(e){ const t=document.createElement('textarea');t.value=saveClipText;
+    t.style.position='fixed';t.style.opacity='0';document.body.appendChild(t);
+    t.select();t.setSelectionRange(0,999999);
+    try{document.execCommand('copy');}catch(e2){}
+    document.body.removeChild(t); }
+  b.textContent='✅ คัดลอกแล้ว';
+  setTimeout(()=>b.textContent='📋 คัดลอกข้อความ',1800);}
+
+async function submitReport(){
+  const area=$('area').value,shift=$('shift').value;
+  const inspector=$('inspector').value.trim(),note=$('note').value.trim();
+  if(!inspector)return showStatus('status','⚠️ กรุณากรอกชื่อผู้ตรวจเช็ค','err');
+  if(!photos.length)return showStatus('status','⚠️ กรุณาถ่ายภาพอย่างน้อย 1 รูป','err');
+  const dups=photos.filter(p=>p.isDup);
+  if(dups.length){const i=dups[0].dupInfo;
+    if(!confirm(`⚠️ พบภาพซ้ำ ${dups.length} รูป\nตรงกับรายงานเมื่อ: ${i?i.timestamp:'-'} (${i?i.area:'-'})\n\nยืนยันบันทึกต่อหรือไม่?`))return;}
+  const now=new Date();
+  const ts=now.toLocaleString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','');
+  const dateKey=now.toISOString().slice(0,10);
+  const batch='B'+now.getTime();
+  showStatus('status','⏳ กำลังบันทึก...','info');
+  const dno=getDocNoForDate(dateKey);
+  const cnt=photos.length,hasDup=photos.some(p=>p.isDup);
+  for(const p of photos)
+    await addRec({timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:p.b64,isDup:p.isDup,batch,docNo:dno});
+  showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป\n${area} • ${shift} • ${inspector}`,'ok');
+  showSaveCard({area,shift,inspector,ts:thDate(now)+' '+thTime(now),count:cnt,note,dup:hasDup});
+  photos=[];renderThumbs();$('note').value='';}
+function showStatus(id,msg,type){const e=$(id);if(!e)return;e.className='status show '+type;e.innerText=msg;
+  if(type==='ok')setTimeout(()=>e.classList.remove('show'),6000);}
+
+/* ================== ประวัติ ================== */
+async function loadHistory(){
+  if(!db)return;
+  let all=(await getAll()).reverse();
+  $('stTotal').innerText=all.length;
+  const today=new Date().toISOString().slice(0,10);
+  $('stToday').innerText=all.filter(r=>r.dateKey===today).length;
+  $('stDup').innerText=all.filter(r=>r.isDup).length;
+  const a=$('fArea').value,s=$('fShift').value,d=$('fDate').value,n=$('fName').value.trim().toLowerCase();
+  if(a!=='ทั้งหมด')all=all.filter(r=>r.area===a);
+  if(s!=='ทั้งหมด')all=all.filter(r=>r.shift===s);
+  if(d)all=all.filter(r=>r.dateKey===d);
+  if(n)all=all.filter(r=>r.inspector.toLowerCase().includes(n));
+  cache=all;$('delCount').innerText=all.length;$('prCount').innerText=all.length;
+  $('list').innerHTML=all.length?all.map((r,i)=>`
+    <div class="card">
+      ${isAdmin?`<div class="cbtns">
+        <button class="cbtn pr" onclick="printSingle(${r.id})" title="พิมพ์ใบรายงาน">🖨</button>
+        <button class="cbtn dl2" onclick="deleteOne(${r.id})" title="ลบรายการนี้">🗑</button></div>`:''}
+      <img class="ph" src="${r.img}" onclick="showHistImg(${i})">
+      <div class="card-info">
+        <b>${r.area}</b><span class="tag shift">${r.shift}</span>${r.isDup?'<span class="tag dup">ภาพซ้ำ</span>':''}<br>
+        👤 ${r.inspector}<br>📝 ${(r.note||'-').replace(/\n/g,' / ')}<br>🕐 ${r.timestamp}<br>
+        ${isAdmin?`<a class="dl" href="${r.img}" download="${r.area}_${r.shift}_${r.timestamp.replace(/[\/:\s]/g,'-')}.jpg">⬇️ เซฟรูปภาพ</a>`:''}
+      </div></div>`).join(''):'<div class="empty">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</div>';}
+
+/* ================== ใบรายงาน A4 ================== */
+function thDate(d){const m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543);}
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function printCSS(){return `
+@page{size:A4 portrait;margin:10mm}
+*{box-sizing:border-box}
+body{font-family:'TH Sarabun New','Sarabun','Noto Sans Thai','Tahoma',sans-serif;font-size:15px;color:#000;margin:0;background:#fff;line-height:1.55}
+.sheet{width:190mm;min-height:272mm;margin:0 auto;padding:4mm 2mm;page-break-after:always;position:relative;display:flex;flex-direction:column}
+.sheet:last-child{page-break-after:auto}
+.hd{display:flex;gap:8px;align-items:flex-start}
+.hd img{width:58px;height:58px;object-fit:contain;flex-shrink:0}
+.hd .com{font-size:13.5px;font-weight:700;line-height:1.35;padding-top:4px;min-width:150px}
+.hd .com span{display:block;font-weight:400;font-size:12px}
+.hd .prj{font-size:12px;line-height:1.5;flex:1;padding-top:2px}
+.tt{text-align:center;font-size:20px;font-weight:700;margin:10px 0 2px;position:relative}
+.tt .rt{position:absolute;right:0;top:6px;font-size:12.5px;font-weight:700}
+.meta{display:flex;justify-content:space-between;margin-top:8px;font-size:14px}
+.fl{margin-top:7px;display:flex;font-size:14px}
+.fl .lb{width:38mm;flex-shrink:0}
+.fl .vl{flex:1;border-bottom:1px dotted #555;padding-left:4px;min-height:20px}
+table{width:100%;border-collapse:collapse;margin-top:6px}
+th,td{border:1px solid #000;padding:4px 6px;font-size:13.5px;vertical-align:top}
+th{background:#f0f0f0;text-align:center;font-weight:700}
+td.c{text-align:center}
+.chk{display:flex;gap:14px;margin:12px 0 4px;flex-wrap:wrap;justify-content:center}
+.chk div{display:flex;align-items:center;gap:6px;font-size:14px}
+.bx{width:17px;height:17px;border:1.6px solid #000;display:inline-block;text-align:center;line-height:14px;font-weight:700;font-size:14px}
+.ph{display:flex;flex-wrap:wrap;gap:4mm;margin-top:6px}
+.ph figure{margin:0;width:88mm;border:1px solid #666;padding:3px}
+.ph img{width:100%;height:62mm;object-fit:contain;background:#fafafa;display:block}
+.ph figcaption{font-size:11.5px;text-align:center;padding-top:2px;border-top:1px solid #ddd;margin-top:2px}
+.p2 .ph{margin-top:8px}
+.p2 .ph figure{page-break-inside:avoid}
+.p2 .ph img{height:78mm}
+.p2s .ph img{height:56mm}
+.p2s .ph figure{page-break-inside:avoid}
+.ahd{margin-top:9px;font-weight:700;font-size:15px;border-left:4px solid #000;padding-left:6px}
+.ahd span{font-weight:400;font-size:13px}
+.sig{display:flex;gap:6mm;margin-top:auto;padding-top:14mm}
+.sig div{flex:1;text-align:center;font-size:13px}
+.sig .ln{border-bottom:1px dotted #000;height:16mm}
+.ft{display:flex;justify-content:space-between;font-size:10.5px;border-top:1px solid #000;margin-top:8px;padding-top:3px}
+.rm{border:1px solid #000;padding:6px;min-height:20mm;margin-top:4px;font-size:13.5px;white-space:pre-line}
+.noprint{text-align:center;padding:10px;background:#00695c;color:#fff;font-family:sans-serif}
+.noprint button{font-size:15px;padding:9px 22px;margin:0 5px;border:none;border-radius:8px;cursor:pointer;font-weight:700}
+@media print{.noprint{display:none}}`;}
+function docHead(c,logo,pageTag){
+  return `<div class="hd"><img src="${logo}">
+    <div class="com">${esc(c.comTH)}<span>${esc(c.comEN)}</span></div>
+    <div class="prj"><b>สัญญาเลขที่</b> ${esc(c.contract)}<br>${esc(c.project)}</div></div>
+  <div class="tt">${esc(c.title)}<span class="rt">${pageTag}</span></div>`;}
+function docFoot(c){return `<div class="ft"><span>${esc(c.footer)}</span><span>${esc(c.form)}</span></div>`;}
+function openPrint(html){
+  const w=window.open('','_blank');
+  if(!w)return alert('เบราว์เซอร์บล็อกหน้าต่างใหม่ กรุณาอนุญาต Pop-up แล้วลองอีกครั้ง');
+  w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8">
+  <title>ใบรายงานตรวจเช็คเครื่องมือ Team 3</title><style>${printCSS()}</style></head><body>
+  <div class="noprint">📄 ตรวจทานเอกสารก่อนพิมพ์
+  <button onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>
+  <button onclick="window.close()">ปิด</button></div>${html}</body></html>`);
+  w.document.close();setTimeout(()=>{try{w.focus();}catch(e){}},400);}
+
+async function printSingle(id){
+  if(!guard())return;
+  const all=await getAll();
+  const rec=all.find(r=>r.id===id);if(!rec)return;
+  const grp=rec.batch?all.filter(r=>r.batch===rec.batch):[rec];
+  const c=docCfg(),logo=c.logo||$('logo').src;
+  const dno=docNo(rec);
+  const items=(rec.note||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const normal=items.length===0;
+  let rows='';
+  for(let i=0;i<Math.max(items.length,5);i++){
+    const t=items[i]||'';
+    rows+=`<tr><td class="c" style="width:12mm">${t?i+1:''}</td><td>${esc(t)}</td>
+      <td class="c" style="width:30mm">${t?'ตรวจพบ':''}</td><td style="width:38mm"></td></tr>`;}
+  const phHtml=grp.map((r,i)=>`<figure><img src="${r.img}">
+    <figcaption>ภาพที่ ${i+1} — ${esc(r.area)} / ${esc(r.shift)} / ${esc(r.timestamp)}</figcaption></figure>`).join('');
+
+  const page1=`<div class="sheet">
+    ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P01/02')}
+    <div class="meta"><span>วันที่ออกเอกสาร&nbsp;&nbsp;<b>${thDate(new Date())}</b></span>
+      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
+    <div class="fl"><div class="lb">เรียน</div><div class="vl">ผู้ควบคุมงาน / ผู้ช่วยผู้ควบคุมงาน / หัวหน้าชุดปฏิบัติงาน</div></div>
+    <div class="fl"><div class="lb">พื้นที่รับผิดชอบ</div><div class="vl"><b>${esc(rec.area)}</b></div>
+      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">รอบตรวจเช็ค</div>
+      <div class="vl" style="max-width:40mm"><b>${esc(rec.shift)}</b></div></div>
+    <div class="fl"><div class="lb">ผู้ตรวจเช็ค</div><div class="vl">${esc(rec.inspector)}</div>
+      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">วันเวลาที่ตรวจ</div>
+      <div class="vl" style="max-width:40mm">${esc(rec.timestamp)}</div></div>
+    <div style="margin-top:12px;font-weight:700">รายการเครื่องมือที่ตรวจพบความผิดปกติ</div>
+    <table><tr><th>ลำดับ</th><th>รายการ / อาการที่พบ</th><th>สถานะ</th><th>หมายเหตุ</th></tr>${rows}</table>
+    <div class="chk">
+      <div><span class="bx">${normal?'✓':''}</span> ครบถ้วนสมบูรณ์</div>
+      <div><span class="bx">${!normal?'✓':''}</span> พบชำรุด / สูญหาย</div>
+      <div><span class="bx"></span> ส่งซ่อม</div>
+      <div><span class="bx"></span> เบิกทดแทน</div>
+      <div><span class="bx">${grp.some(r=>r.isDup)?'✓':''}</span> ระบบแจ้งเตือนภาพซ้ำ</div>
+    </div>
+    <div class="rm" style="min-height:auto">ภาพถ่ายประกอบการตรวจเช็คทั้งหมด แสดงอยู่ในหน้าที่ 2 ของเอกสารฉบับนี้</div>
+    <div class="sig">
+      <div><div class="ln"></div>ผู้ตรวจเช็ค<br>( ${esc(rec.inspector)} )<br>วันที่ ......../......../........</div>
+      <div><div class="ln"></div>ผู้ตรวจสอบ / หัวหน้าชุด<br>(................................)<br>วันที่ ......../......../........</div>
+      <div><div class="ln"></div>Shift Maintenance Manager<br>(................................)<br>วันที่ ......../......../........</div>
+    </div>${docFoot(c)}</div>`;
+
+  const page2=`<div class="sheet p2">
+    ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P02/02')}
+    <div class="meta"><span>ภาพถ่ายประกอบการตรวจเช็ค&nbsp;&nbsp;<b>(${grp.length} ภาพ)</b></span>
+      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
+    <div class="fl"><div class="lb">พื้นที่ / รอบตรวจ</div><div class="vl"><b>${esc(rec.area)}</b> / <b>${esc(rec.shift)}</b></div>
+      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">ผู้ตรวจเช็ค</div>
+      <div class="vl" style="max-width:40mm">${esc(rec.inspector)}</div></div>
+    <div class="ph">${phHtml||'<div class="rm">ไม่มีภาพประกอบ</div>'}</div>
+    <div style="margin-top:auto"></div>
+    ${docFoot(c)}</div>`;
+
+  openPrint(page1+page2);showStatus('expStatus','🖨️ เปิดหน้าใบรายงานแล้ว (2 หน้า)','ok');}
+
+/* ========== รายงานสรุป A4 ========== */
+function printSummary(){
+  if(!guard())return;
+  if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลให้พิมพ์','err');
+  const c=docCfg(),logo=c.logo||$('logo').src;
+  
+  // จัดกลุ่มข้อมูลตาม Batch (ส่งพร้อมกันถือเป็น 1 รายการ)
+  const grouped=[];
+  const batches=[...new Set(cache.map(r=>r.batch))];
+  batches.forEach(b=>{
+    const items=cache.filter(r=>r.batch===b);
+    grouped.push({
+      timestamp:items[0].timestamp,
+      area:items[0].area,
+      shift:items[0].shift,
+      inspector:items[0].inspector,
+      note:items[0].note,
+      isDup:items.some(r=>r.isDup),
+      count:items.length
+    });
+  });
+
+  const per=18,tablePages=Math.ceil(grouped.length/per);
+  const fA=$('fArea').value,fS=$('fShift').value,fD=$('fDate').value;
+  const sumDoc=getDocNoForDate(todayKey());
+
+  const PH_PER=6;
+  const areaList=[...new Set(cache.map(r=>r.area))];
+  const phChunks=[];
+  areaList.forEach(a=>{
+    const items=cache.filter(r=>r.area===a);
+    const tot=Math.ceil(items.length/PH_PER);
+    for(let i=0;i<items.length;i+=PH_PER)
+      phChunks.push({area:a,items:items.slice(i,i+PH_PER),
+        part:Math.floor(i/PH_PER)+1,tot,offset:i,all:items.length});
+  });
+  const totalPages=tablePages+phChunks.length;
+  const tag=p=>'หน้า&nbsp;&nbsp;P'+pad(p,2)+'/'+pad(totalPages,2);
+  const sigBlock=`<div class="sig">
+      <div><div class="ln"></div>ผู้จัดทำรายงาน<br>( ${esc(adminUser)} )<br>วันที่ ......../......../........</div>
+      <div><div class="ln"></div>ผู้ตรวจสอบ<br>(................................)<br>วันที่ ......../......../........</div>
+      <div><div class="ln"></div>ผู้อนุมัติ<br>(................................)<br>วันที่ ......../......../........</div>
+    </div>`;
+
+  let html='',pg=0;
+
+  for(let p=0;p<tablePages;p++){
+    pg++;
+    const part=grouped.slice(p*per,(p+1)*per);
+    const rows=part.map((r,i)=>`<tr>
+      <td class="c" style="width:11mm">${p*per+i+1}</td>
+      <td class="c" style="width:26mm">${esc(r.timestamp)}</td>
+      <td class="c" style="width:24mm">${esc(r.area)}</td>
+      <td class="c" style="width:17mm">${esc(r.shift)}</td>
+      <td style="width:32mm">${esc(r.inspector)}</td>
+      <td>${esc((r.note||'-').replace(/\n/g,' / '))}</td>
+      <td class="c" style="width:16mm">${r.isDup?'ซ้ำ ⚠':'ปกติ'}</td></tr>`).join('');
+    html+=`<div class="sheet">
+      ${docHead(c,logo,tag(pg))}
+      <div class="meta"><span>วันที่ออกเอกสาร&nbsp;&nbsp;<b>${thDate(new Date())}</b></span>
+        <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${sumDoc}</b></span></div>
+      <div class="fl"><div class="lb">ขอบเขตรายงาน</div><div class="vl">
+        พื้นที่: <b>${esc(fA)}</b> | รอบตรวจ: <b>${esc(fS)}</b> | วันที่: <b>${fD?esc(fD):'ทั้งหมด'}</b>
+        | จำนวนรายการ: <b>${grouped.length}</b> รายการ</div></div>
+      <div class="fl"><div class="lb">ผู้จัดทำรายงาน</div><div class="vl">${esc(adminUser)}</div></div>
+      <table><tr><th>ลำดับ</th><th>วันเวลา</th><th>พื้นที่</th><th>รอบ</th><th>ผู้ตรวจเช็ค</th>
+        <th>รายการที่ตรวจพบ / หมายเหตุ</th><th>สถานะ</th></tr>${rows}</table>
+      ${p===tablePages-1?`<div style="margin-top:10px;font-weight:700">สรุปภาพรวม</div>
+        <div class="rm">• จำนวนรายการทั้งหมด ${grouped.length} รายการ
+• พบรายการแจ้งเตือนภาพซ้ำ ${grouped.filter(r=>r.isDup).length} รายการ
+• ภาพถ่ายประกอบทั้งหมด ${cache.length} ภาพ แสดงในหน้าที่ ${tablePages+1}${phChunks.length>1?' ถึง '+totalPages:''} ของเอกสารฉบับนี้</div>
+        ${sigBlock}`:'<div style="margin-top:auto"></div>'}
+      ${docFoot(c)}</div>`;
+  }
+
+  phChunks.forEach((ck,ci)=>{
+    pg++;
+    const figs=ck.items.map((r,i)=>`<figure><img src="${r.img}">
+      <figcaption>ภาพที่ ${ck.offset+i+1} — ${esc(r.shift)} / ${esc(r.inspector)}<br>
+      ${esc(r.timestamp)}${r.isDup?' · ⚠ ภาพซ้ำ':''}</figcaption></figure>`).join('');
+    html+=`<div class="sheet p2s">
+      ${docHead(c,logo,tag(pg))}
+      <div class="meta"><span>สรุปภาพถ่ายประกอบการตรวจเช็ค (แยกตามพื้นที่)</span>
+        <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${sumDoc}</b></span></div>
+      <div class="ahd">📍 พื้นที่: ${esc(ck.area)}
+        <span>— รวม ${ck.all} ภาพ (แผ่นที่ ${ck.part}/${ck.tot})</span></div>
+      <div class="ph">${figs}</div>
+      <div style="margin-top:auto"></div>
+      ${docFoot(c)}</div>`;
+  });
+
+  openPrint(html);
+  showStatus('expStatus','🖨️ เปิดรายงานสรุปแล้ว ('+cache.length+' รายการ / '+totalPages+' หน้า)','ok');
+}
+
+/* ================== ลบ + Log ================== */
+function guard(){if(!isAdmin){showStatus('expStatus','🔒 เฉพาะผู้ดูแลระบบเท่านั้น','err');return false;}return true;}
+function nowStr(){return new Date().toLocaleString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}).replace(',','');}
+async function writeLog(type,items,reason){
+  const thumb=items[0]&&items[0].img?await makeThumb(items[0].img):'';
+  await addLog({delAt:nowStr(),delDateKey:new Date().toISOString().slice(0,10),admin:adminUser,type,reason,
+    count:items.length,thumb,detail:items.map(r=>({area:r.area,shift:r.shift,inspector:r.inspector,timestamp:r.timestamp,note:r.note||''}))});}
+async function deleteOne(id){
+  if(!guard())return;
+  const rec=(await getAll()).find(r=>r.id===id);if(!rec)return;
+  openRsn(`ลบรายการ: ${rec.area} • ${rec.shift} • ${rec.inspector}\nบันทึกเมื่อ ${rec.timestamp}`,async reason=>{
+    await writeLog('ลบรายการเดี่ยว',[rec],reason);await delRec(id);
+    showStatus('expStatus','✅ ลบรายการเรียบร้อย — บันทึกลง Log แล้ว','ok');loadHistory();loadLog();});}
+async function deleteFiltered(){
+  if(!guard())return;
+  if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีรายการให้ลบ','err');
+  const items=[...cache],n=items.length;
+  openRsn(`ลบ ${n} รายการที่กรองอยู่ในขณะนี้\nการลบไม่สามารถกู้คืนได้`,async reason=>{
+    if(!confirm(`⚠️ ยืนยันอีกครั้ง\nกำลังจะลบ ${n} รายการถาวร\nเหตุผล: ${reason}`))return;
+    showStatus('expStatus','⏳ กำลังลบ...','info');
+    await writeLog('ลบตามตัวกรอง',items,reason);
+    for(const r of items)await delRec(r.id);
+    showStatus('expStatus',`✅ ลบเรียบร้อย ${n} รายการ — บันทึกลง Log แล้ว`,'ok');loadHistory();loadLog();});}
+async function deleteAll(){
+  if(!guard())return;
+  const all=await getAll();
+  if(!all.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลในระบบ','err');
+  openRsn(`ล้างข้อมูลทั้งหมด ${all.length} รายการ\n⚠️ ไม่สามารถย้อนกลับได้`,async reason=>{
+    const t=prompt('พิมพ์คำว่า  ลบทั้งหมด  เพื่อยืนยันขั้นสุดท้าย:');
+    if(t!=='ลบทั้งหมด')return showStatus('expStatus','❌ ยกเลิกการลบ','err');
+    showStatus('expStatus','⏳ กำลังล้างข้อมูล...','info');
+    await writeLog('ล้างข้อมูลทั้งหมด',all,reason);await clearAllRec();
+    showStatus('expStatus',`✅ ล้างข้อมูลทั้งหมดแล้ว (${all.length} รายการ)`,'ok');loadHistory();loadLog();});}
+
+async function loadLog(){
+  if(!db||!isAdmin)return;
+  let logs=(await getLogs()).reverse();
+  $('lgTotal').innerText=logs.length;
+  $('lgItems').innerText=logs.reduce((s,l)=>s+l.count,0);
+  const today=new Date().toISOString().slice(0,10);
+  $('lgToday').innerText=logs.filter(l=>l.delDateKey===today).length;
+  const q=$('lgSearch').value.trim().toLowerCase(),d=$('lgDate').value;
+  if(d)logs=logs.filter(l=>l.delDateKey===d);
+  if(q)logs=logs.filter(l=>(l.admin+l.reason+l.type+l.detail.map(x=>x.area+x.inspector).join('')).toLowerCase().includes(q));
+  logCache=logs;
+  $('logList').innerHTML=logs.length?logs.map((l,i)=>{
+    const areas=[...new Set(l.detail.map(x=>x.area))].join(', ');
+    const tc=l.type==='ลบรายการเดี่ยว'?'t1':l.type==='ลบตามตัวกรอง'?'t2':'t3';
+    return `<div class="logcard">${l.thumb?`<img src="${l.thumb}" onclick="showLogImg(${i})">`:''}
+      <div class="li"><b>ลบ ${l.count} รายการ</b><span class="tag ${tc}">${l.type}</span><br>
+      👤 ผู้ลบ: <b style="color:#0d1b3e">${l.admin}</b><br>🕐 ${l.delAt}<br>📍 ${areas||'-'}<br>💬 ${l.reason}<br>
+      <span style="color:#8a93a3">ผู้ตรวจในรายการ: ${[...new Set(l.detail.map(x=>x.inspector))].join(', ')||'-'}</span>
+      </div></div>`;}).join(''):'<div class="empty">ยังไม่มีประวัติการลบข้อมูล</div>';}
+
+function exportLogExcel(){
+  if(!guard())return;
+  if(!logCache.length)return showStatus('lgStatus','⚠️ ไม่มี Log ให้ Export','err');
+  const rows=[];
+  logCache.forEach((l,i)=>l.detail.forEach(dt=>rows.push({'ครั้งที่':i+1,'วันเวลาที่ลบ':l.delAt,'ผู้ลบ':l.admin,
+    'ประเภทการลบ':l.type,'เหตุผล':l.reason,'จำนวนในครั้งนี้':l.count,'พื้นที่':dt.area,'รอบ':dt.shift,
+    'ผู้ตรวจเช็คเดิม':dt.inspector,'เวลารายงานเดิม':dt.timestamp,'หมายเหตุเดิม':dt.note||'-'})));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:8},{wch:20},{wch:18},{wch:16},{wch:24},{wch:13},{wch:13},{wch:9},{wch:18},{wch:18},{wch:34}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'ประวัติการลบ');
+  XLSX.writeFile(wb,'Log_การลบข้อมูล_Team3_'+stamp()+'.xlsx');
+  showStatus('lgStatus','✅ ดาวน์โหลด Log แล้ว','ok');}
+async function clearLog(){
+  if(!guard())return;
+  const logs=await getLogs();
+  if(!logs.length)return showStatus('lgStatus','⚠️ ไม่มี Log ในระบบ','err');
+  if(!confirm(`🧹 ล้างประวัติการลบทั้งหมด ${logs.length} รายการ?`))return;
+  const t=prompt('พิมพ์คำว่า  ล้างlog  เพื่อยืนยัน:');
+  if(t!=='ล้างlog')return showStatus('lgStatus','❌ ยกเลิก','err');
+  await clearLogs();showStatus('lgStatus','✅ ล้าง Log เรียบร้อย','ok');loadLog();}
+
+/* ================== Export ================== */
+function exportExcel(){
+  if(!guard())return;
+  if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลให้ Export','err');
+  const rows=cache.map((r,i)=>({'ลำดับ':i+1,'เลขที่เอกสาร':docNo(r),'วันเวลา':r.timestamp,'พื้นที่':r.area,'รอบตรวจ':r.shift,
+    'ผู้ตรวจเช็ค':r.inspector,'หมายเหตุ':(r.note||'-').replace(/\n/g,' / '),'ภาพซ้ำ':r.isDup?'ใช่ ⚠️':'ปกติ'}));
+  const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:6},{wch:14},{wch:18},{wch:13},{wch:9},{wch:20},{wch:42},{wch:10}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'รายงานตรวจเช็ค');
+  XLSX.writeFile(wb,'รายงานตรวจเช็คเครื่องมือ_Team3_'+stamp()+'.xlsx');
+  showStatus('expStatus','✅ ดาวน์โหลดไฟล์ Excel แล้ว','ok');}
+async function exportZip(){
+  if(!guard())return;
+  if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีรูปภาพให้ Export','err');
+  showStatus('expStatus','⏳ กำลังรวมไฟล์ ZIP...','info');
+  const zip=new JSZip();
+  cache.forEach((r,i)=>zip.folder(r.area).file(
+    `${r.shift}_${r.inspector}_${r.timestamp.replace(/[\/:\s]/g,'-')}_${i+1}.jpg`,r.img.split(',')[1],{base64:true}));
+  const blob=await zip.generateAsync({type:'blob'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='รูปภาพตรวจเช็ค_Team3_'+stamp()+'.zip';a.click();
+  showStatus('expStatus','✅ ดาวน์โหลด ZIP สำเร็จ','ok');}
+async function backupData(){
+  if(!guard())return;
+  const data={reports:await getAll(),dellog:await getLogs(),doc:docCfg(),docseq:_seq()};
+  const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='MT3_Backup_'+stamp()+'.json';a.click();
+  showStatus('expStatus',`✅ สำรองข้อมูลแล้ว (รายงาน ${data.reports.length} / Log ${data.dellog.length})`,'ok');}
+$('restoreInput').onchange=e=>{
+  if(!guard())return;
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=async()=>{try{
+    const j=JSON.parse(r.result);
+    const reps=Array.isArray(j)?j:(j.reports||[]),lgs=Array.isArray(j)?[]:(j.dellog||[]);
+    if(j.doc)localStorage.setItem('mt3_doc',JSON.stringify(j.doc));
+    if(j.docseq)_saveSeq(j.docseq);
+    for(const o of reps){delete o.id;await addRec(o);}
+    for(const o of lgs){delete o.id;await addLog(o);}
+    showStatus('expStatus',`✅ กู้คืนแล้ว (รายงาน ${reps.length} / Log ${lgs.length})`,'ok');
+    loadHistory();loadLog();
+  }catch(err){showStatus('expStatus','❌ ไฟล์สำรองไม่ถูกต้อง','err');}};
+  r.readAsText(f);e.target.value='';};
+function stamp(){const d=new Date();
+  return `${d.getDate()}-${d.getMonth()+1}-${d.getFullYear()}_${d.getHours()}${('0'+d.getMinutes()).slice(-2)}`;}
+
+openDB().then(()=>{if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true);else loadHistory();})
+ .catch(()=>alert('เบราว์เซอร์ไม่รองรับฐานข้อมูลในเครื่อง กรุณาเปิดด้วย Chrome หรือ Safari'));
+</script>
+</body>
+</html>
