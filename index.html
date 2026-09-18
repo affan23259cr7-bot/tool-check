@@ -6,6 +6,8 @@
 <title>ระบบตรวจเช็คเครื่องมือช่าง Team 3</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{font-family:-apple-system,'Segoe UI',Roboto,'Noto Sans Thai',sans-serif;background:#eef1f6;margin:0;color:#1a1a1a}
@@ -96,6 +98,9 @@ body.isAdmin .adminOnly{display:block}
 body.isAdmin .adminOnly.row{display:flex}
 body.isAdmin .tab-btn.adminOnly{display:block;flex:1}
 body.isAdmin .lockmsg{display:none}
+.syncbar{border-radius:10px;padding:8px 12px;margin-top:12px;font-size:12px;font-weight:700;text-align:center;background:#e8f5e9;color:#1b5e20;border:1.5px solid #a5d6a7}
+.syncbar.off{background:#ffebee;color:#b71c1c;border-color:#ef9a9a}
+.syncbar.wait{background:#e3f2fd;color:#0d47a1;border-color:#90caf9}
 </style>
 </head>
 <body>
@@ -152,6 +157,7 @@ body.isAdmin .lockmsg{display:none}
 
 <!-- ========== แท็บ 2 : ประวัติ ========== -->
 <div id="tab-history" class="tab-content container">
+  <div class="syncbar wait" id="syncBar">⏳ กำลังเชื่อมต่อฐานข้อมูลกลาง...</div>
   <div class="adminbar adminOnly">
     <span>👑 ผู้ดูแล: <span id="adminNameLabel">-</span></span>
     <span><button onclick="openDocSet()">⚙️ หัวกระดาษ</button>
@@ -276,6 +282,49 @@ let photos=[],db=null,cache=[],logCache=[],isAdmin=false,pinMode='login',adminUs
 const DEFAULT_PIN='3333';
 const getPin=()=>localStorage.getItem('mt3_pin')||DEFAULT_PIN;
 
+/* ================== [NEW] Firebase Firestore — ฐานข้อมูลกลาง Real-time ================== */
+const firebaseConfig = {
+  apiKey: "ใส่_API_KEY_ของคุณ",
+  authDomain: "mt3-tool-team3.firebaseapp.com",
+  projectId: "mt3-tool-team3",
+  storageBucket: "mt3-tool-team3.firebasestorage.app",
+  messagingSenderId: "139772822552",
+  appId: "1:139772822552:web:fce63632318882a4e36f6d",
+  measurementId: "G-Y1FXTCJ3TK"
+};
+let fdb=null,COL=null,LOGCOL=null,cloudOK=false;
+let cloudRecs=[],cloudLogs=[];
+function initCloud(){
+  try{
+    firebase.initializeApp(firebaseConfig);
+    fdb=firebase.firestore();
+    try{ fdb.enablePersistence({synchronizeTabs:true}).catch(()=>{}); }catch(e){}
+    COL=fdb.collection('reports'); LOGCOL=fdb.collection('dellog');
+    return true;
+  }catch(e){ console.error('Firebase init error',e); return false; }
+}
+function setSync(txt,cls){const b=$('syncBar');if(!b)return;b.className='syncbar '+(cls||'');b.textContent=txt;}
+function startCloudSync(){
+  if(!COL)return;
+  COL.orderBy('createdAt','desc').limit(800).onSnapshot(snap=>{
+      cloudRecs=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
+      cloudOK=true;
+      setSync('🟢 เชื่อมต่อฐานข้อมูลกลางแล้ว — ข้อมูลซิงค์อัตโนมัติทุกเครื่อง ('+cloudRecs.length+' รายการ)','');
+      loadHistory();
+    },err=>{ cloudOK=false;
+      setSync('🔴 เชื่อมต่อฐานข้อมูลกลางไม่ได้: '+err.message,'off');
+      console.error(err); });
+  LOGCOL.orderBy('createdAt','desc').limit(500).onSnapshot(snap=>{
+      cloudLogs=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
+      loadLog();
+    },err=>console.error(err));
+}
+function cloudAdd(o){ return COL.add(Object.assign({createdAt:Date.now()},o)); }
+function cloudDel(id){ return COL.doc(id).delete(); }
+async function cloudDelMany(ids){ for(const id of ids){ try{ await cloudDel(id); }catch(e){ console.error(e); } } }
+function cloudAddLog(o){ return LOGCOL.add(Object.assign({createdAt:Date.now()},o)); }
+async function cloudClearLogs(){ const s=await LOGCOL.get(); for(const d of s.docs){ await d.ref.delete(); } }
+
 /* ================== ตั้งค่าเอกสาร ================== */
 const DOC_DEF={comTH:'บริษัท ล็อกซเล่ย์ อีโวลูชั่น เทคโนโลยี จำกัด',comEN:'Loxley Evolution Technology Co., Ltd.',
  contract:'GCS12-680538',project:'งานจ้างเหมาปฏิบัติการและซ่อมบำรุงรักษาระบบลำเลียงกระเป๋าสัมภาระสำหรับอาคารเทียบเครื่องบินรองหลังที่ 1 (SAT-1) ณ ท่าอากาศยานสุวรรณภูมิ',
@@ -339,7 +388,7 @@ function confirmReason(){let r=$('rsnSelect').value;
   if(r==='other'){r=$('rsnOther').value.trim();if(!r)return showStatus('rsnStatus','⚠️ กรุณาระบุเหตุผล','err');}
   const cb=rsnCallback;closeRsn();if(cb)cb(r);}
 
-/* ================== IndexedDB ================== */
+/* ================== IndexedDB (สำรองในเครื่อง — คงไว้เหมือนเดิม) ================== */
 function openDB(){return new Promise((res,rej)=>{
   const r=indexedDB.open('mt3_tool_db',2);
   r.onupgradeneeded=e=>{const d=e.target.result;
@@ -395,11 +444,17 @@ function hashFromImage(img){
   let s='';for(let y=0;y<8;y++)for(let i=0;i<8;i++){const k=y*9+i;s+=g[k]>g[k+1]?'1':'0';}
   return s;}
 
-function makeThumb(b64,max=180){return loadImage(b64).then(im=>drawResize(im,max,.6)).catch(()=>'');}
+function makeThumb(b64,max=180,q=.6){return loadImage(b64).then(im=>drawResize(im,max,q)).catch(()=>'');}
+/* [NEW] ย่อภาพสำหรับอัปขึ้นคลาวด์ ให้ไม่เกินลิมิตเอกสาร Firestore */
+async function makeCloudImg(b64){
+  let out=await makeThumb(b64,1000,.62);
+  if(out&&out.length>950000) out=await makeThumb(b64,780,.5);
+  if(out&&out.length>950000) out=await makeThumb(b64,620,.42);
+  return out||b64;}
 function ham(a,b){let d=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i])d++;return d;}
 async function findDup(hash){
   if(!hash)return null;
-  const all=await getAll();
+  const all=cloudRecs.length?cloudRecs:(db?await getAll():[]);
   for(const r of all){if(r.hash&&r.hash.length===hash.length&&ham(hash,r.hash)<=5)return r;}
   for(const p of photos){if(p.hash&&p.hash.length===hash.length&&ham(hash,p.hash)<=5)return{timestamp:'ในชุดที่กำลังส่งนี้',area:'-'};}
   return null;}
@@ -456,10 +511,17 @@ function _seq(){try{return JSON.parse(localStorage.getItem('mt3_docseq')||'{}');
 function _saveSeq(o){localStorage.setItem('mt3_docseq',JSON.stringify(o));}
 /* วันเดียวกัน = เลขเดียวกัน / วันใหม่ที่มีการส่งรายงาน = +1 / ขึ้นปี พ.ศ.ใหม่ = เริ่ม 0001 */
 function getDocNoForDate(dateKey){
+  /* [NEW] ถ้ามีเลขของวันนั้นอยู่บนคลาวด์แล้ว ให้ใช้เลขเดียวกันทุกเครื่อง */
+  const fromCloud=cloudRecs.find(r=>r.dateKey===dateKey&&r.docNo);
+  if(fromCloud){const s0=_seq();s0.map=s0.map||{};s0.last=s0.last||{};
+    s0.map[dateKey]=fromCloud.docNo;_saveSeq(s0);return fromCloud.docNo;}
   const s=_seq();s.map=s.map||{};s.last=s.last||{};
   if(s.map[dateKey])return s.map[dateKey];
   const yy=beYY(new Date(dateKey+'T00:00:00'));
-  const n=(s.last[yy]||0)+1;
+  let n=(s.last[yy]||0)+1;
+  /* กันเลขชนกันข้ามเครื่อง: ดูเลขสูงสุดที่มีบนคลาวด์ในปีเดียวกัน */
+  cloudRecs.forEach(r=>{if(r.docNo&&r.docNo.indexOf(DOC_PREFIX+yy+'/')===0){
+    const v=parseInt(r.docNo.split('/')[1],10);if(!isNaN(v)&&v>=n)n=v+1;}});
   s.last[yy]=n;
   s.map[dateKey]=DOC_PREFIX+yy+'/'+pad(n,4);
   _saveSeq(s);
@@ -508,21 +570,32 @@ async function submitReport(){
   const ts=now.toLocaleString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','');
   const dateKey=now.toISOString().slice(0,10);
   const batch='B'+now.getTime();
-  showStatus('status','⏳ กำลังบันทึก...','info');
+  showStatus('status','⏳ กำลังบันทึกและส่งขึ้นฐานข้อมูลกลาง...','info');
   const dno=getDocNoForDate(dateKey);
   const cnt=photos.length,hasDup=photos.some(p=>p.isDup);
-  for(const p of photos)
-    await addRec({timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:p.b64,isDup:p.isDup,batch,docNo:dno});
-  showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป\n${area} • ${shift} • ${inspector}`,'ok');
+  let up=0,upFail=0;
+  for(const p of photos){
+    /* สำรองในเครื่อง (เหมือนเดิม) */
+    try{ await addRec({timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:p.b64,isDup:p.isDup,batch,docNo:dno}); }catch(e){}
+    /* [NEW] ส่งขึ้นฐานข้อมูลกลาง Firestore */
+    try{
+      const cimg=await makeCloudImg(p.b64);
+      await cloudAdd({timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:cimg,isDup:p.isDup,batch,docNo:dno,device:navigator.userAgent.slice(0,80)});
+      up++;
+    }catch(e){ upFail++; console.error('อัปโหลดคลาวด์ไม่สำเร็จ',e); }
+  }
+  if(upFail) showStatus('status',`⚠️ บันทึกในเครื่องแล้ว ${cnt} รูป\nแต่ส่งขึ้นฐานข้อมูลกลางไม่สำเร็จ ${upFail} รูป\nตรวจสอบอินเทอร์เน็ต / ค่า Firebase`,'err');
+  else showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป (ซิงค์ขึ้นฐานข้อมูลกลางแล้ว)\n${area} • ${shift} • ${inspector}`,'ok');
   showSaveCard({area,shift,inspector,ts:thDate(now)+' '+thTime(now),count:cnt,note,dup:hasDup});
-  photos=[];renderThumbs();$('note').value='';}
+  photos=[];renderThumbs();$('note').value='';
+  loadHistory();}
 function showStatus(id,msg,type){const e=$(id);if(!e)return;e.className='status show '+type;e.innerText=msg;
   if(type==='ok')setTimeout(()=>e.classList.remove('show'),6000);}
 
-/* ================== ประวัติ ================== */
+/* ================== ประวัติ (อ่านจากฐานข้อมูลกลาง Real-time) ================== */
 async function loadHistory(){
-  if(!db)return;
-  let all=(await getAll()).reverse();
+  let all=cloudRecs.slice();
+  if(!all.length&&db){ try{ all=(await getAll()).reverse(); }catch(e){ all=[]; } }
   $('stTotal').innerText=all.length;
   const today=new Date().toISOString().slice(0,10);
   $('stToday').innerText=all.filter(r=>r.dateKey===today).length;
@@ -531,18 +604,18 @@ async function loadHistory(){
   if(a!=='ทั้งหมด')all=all.filter(r=>r.area===a);
   if(s!=='ทั้งหมด')all=all.filter(r=>r.shift===s);
   if(d)all=all.filter(r=>r.dateKey===d);
-  if(n)all=all.filter(r=>r.inspector.toLowerCase().includes(n));
+  if(n)all=all.filter(r=>(r.inspector||'').toLowerCase().includes(n));
   cache=all;$('delCount').innerText=all.length;$('prCount').innerText=all.length;
   $('list').innerHTML=all.length?all.map((r,i)=>`
     <div class="card">
       ${isAdmin?`<div class="cbtns">
-        <button class="cbtn pr" onclick="printSingle(${r.id})" title="พิมพ์ใบรายงาน">🖨</button>
-        <button class="cbtn dl2" onclick="deleteOne(${r.id})" title="ลบรายการนี้">🗑</button></div>`:''}
+        <button class="cbtn pr" onclick="printSingle('${r.id}')" title="พิมพ์ใบรายงาน">🖨</button>
+        <button class="cbtn dl2" onclick="deleteOne('${r.id}')" title="ลบรายการนี้">🗑</button></div>`:''}
       <img class="ph" src="${r.img}" onclick="showHistImg(${i})">
       <div class="card-info">
         <b>${r.area}</b><span class="tag shift">${r.shift}</span>${r.isDup?'<span class="tag dup">ภาพซ้ำ</span>':''}<br>
         👤 ${r.inspector}<br>📝 ${(r.note||'-').replace(/\n/g,' / ')}<br>🕐 ${r.timestamp}<br>
-        ${isAdmin?`<a class="dl" href="${r.img}" download="${r.area}_${r.shift}_${r.timestamp.replace(/[\/:\s]/g,'-')}.jpg">⬇️ เซฟรูปภาพ</a>`:''}
+        ${isAdmin?`<a class="dl" href="${r.img}" download="${r.area}_${r.shift}_${String(r.timestamp).replace(/[\/:\s]/g,'-')}.jpg">⬇️ เซฟรูปภาพ</a>`:''}
       </div></div>`).join(''):'<div class="empty">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</div>';}
 
 /* ================== ใบรายงาน A4 ================== */
@@ -610,8 +683,8 @@ function openPrint(html){
 
 async function printSingle(id){
   if(!guard())return;
-  const all=await getAll();
-  const rec=all.find(r=>r.id===id);if(!rec)return;
+  const all=cloudRecs.length?cloudRecs:(await getAll());
+  const rec=all.find(r=>String(r.id)===String(id));if(!rec)return;
   const grp=rec.batch?all.filter(r=>r.batch===rec.batch):[rec];
   const c=docCfg(),logo=c.logo||$('logo').src;
   const dno=docNo(rec);
@@ -670,7 +743,7 @@ function printSummary(){
   if(!guard())return;
   if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลให้พิมพ์','err');
   const c=docCfg(),logo=c.logo||$('logo').src;
-  
+
   // จัดกลุ่มข้อมูลตาม Batch (ส่งพร้อมกันถือเป็น 1 รายการ)
   const grouped=[];
   const batches=[...new Set(cache.map(r=>r.batch))];
@@ -760,19 +833,24 @@ function printSummary(){
   showStatus('expStatus','🖨️ เปิดรายงานสรุปแล้ว ('+cache.length+' รายการ / '+totalPages+' หน้า)','ok');
 }
 
-/* ================== ลบ + Log ================== */
+/* ================== ลบ + Log (ซิงค์ทุกเครื่อง) ================== */
 function guard(){if(!isAdmin){showStatus('expStatus','🔒 เฉพาะผู้ดูแลระบบเท่านั้น','err');return false;}return true;}
 function nowStr(){return new Date().toLocaleString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}).replace(',','');}
 async function writeLog(type,items,reason){
   const thumb=items[0]&&items[0].img?await makeThumb(items[0].img):'';
-  await addLog({delAt:nowStr(),delDateKey:new Date().toISOString().slice(0,10),admin:adminUser,type,reason,
-    count:items.length,thumb,detail:items.map(r=>({area:r.area,shift:r.shift,inspector:r.inspector,timestamp:r.timestamp,note:r.note||''}))});}
+  const entry={delAt:nowStr(),delDateKey:new Date().toISOString().slice(0,10),admin:adminUser,type,reason,
+    count:items.length,thumb,detail:items.map(r=>({area:r.area,shift:r.shift,inspector:r.inspector,timestamp:r.timestamp,note:r.note||''}))};
+  try{ await cloudAddLog(entry); }catch(e){ console.error(e); }
+  try{ if(db) await addLog(entry); }catch(e){}
+}
 async function deleteOne(id){
   if(!guard())return;
-  const rec=(await getAll()).find(r=>r.id===id);if(!rec)return;
+  const rec=cloudRecs.find(r=>String(r.id)===String(id));if(!rec)return;
   openRsn(`ลบรายการ: ${rec.area} • ${rec.shift} • ${rec.inspector}\nบันทึกเมื่อ ${rec.timestamp}`,async reason=>{
-    await writeLog('ลบรายการเดี่ยว',[rec],reason);await delRec(id);
-    showStatus('expStatus','✅ ลบรายการเรียบร้อย — บันทึกลง Log แล้ว','ok');loadHistory();loadLog();});}
+    showStatus('expStatus','⏳ กำลังลบ...','info');
+    await writeLog('ลบรายการเดี่ยว',[rec],reason);
+    try{ await cloudDel(rec.id); }catch(e){ return showStatus('expStatus','❌ ลบไม่สำเร็จ: '+e.message,'err'); }
+    showStatus('expStatus','✅ ลบรายการเรียบร้อย — บันทึกลง Log แล้ว','ok');});}
 async function deleteFiltered(){
   if(!guard())return;
   if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีรายการให้ลบ','err');
@@ -781,44 +859,47 @@ async function deleteFiltered(){
     if(!confirm(`⚠️ ยืนยันอีกครั้ง\nกำลังจะลบ ${n} รายการถาวร\nเหตุผล: ${reason}`))return;
     showStatus('expStatus','⏳ กำลังลบ...','info');
     await writeLog('ลบตามตัวกรอง',items,reason);
-    for(const r of items)await delRec(r.id);
-    showStatus('expStatus',`✅ ลบเรียบร้อย ${n} รายการ — บันทึกลง Log แล้ว`,'ok');loadHistory();loadLog();});}
+    await cloudDelMany(items.map(r=>r.id));
+    showStatus('expStatus',`✅ ลบเรียบร้อย ${n} รายการ — บันทึกลง Log แล้ว`,'ok');});}
 async function deleteAll(){
   if(!guard())return;
-  const all=await getAll();
+  const all=cloudRecs.slice();
   if(!all.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลในระบบ','err');
   openRsn(`ล้างข้อมูลทั้งหมด ${all.length} รายการ\n⚠️ ไม่สามารถย้อนกลับได้`,async reason=>{
     const t=prompt('พิมพ์คำว่า  ลบทั้งหมด  เพื่อยืนยันขั้นสุดท้าย:');
     if(t!=='ลบทั้งหมด')return showStatus('expStatus','❌ ยกเลิกการลบ','err');
     showStatus('expStatus','⏳ กำลังล้างข้อมูล...','info');
-    await writeLog('ล้างข้อมูลทั้งหมด',all,reason);await clearAllRec();
-    showStatus('expStatus',`✅ ล้างข้อมูลทั้งหมดแล้ว (${all.length} รายการ)`,'ok');loadHistory();loadLog();});}
+    await writeLog('ล้างข้อมูลทั้งหมด',all,reason);
+    await cloudDelMany(all.map(r=>r.id));
+    try{ if(db) await clearAllRec(); }catch(e){}
+    showStatus('expStatus',`✅ ล้างข้อมูลทั้งหมดแล้ว (${all.length} รายการ)`,'ok');});}
 
 async function loadLog(){
-  if(!db||!isAdmin)return;
-  let logs=(await getLogs()).reverse();
+  if(!isAdmin)return;
+  let logs=cloudLogs.slice();
+  if(!logs.length&&db){ try{ logs=(await getLogs()).reverse(); }catch(e){ logs=[]; } }
   $('lgTotal').innerText=logs.length;
-  $('lgItems').innerText=logs.reduce((s,l)=>s+l.count,0);
+  $('lgItems').innerText=logs.reduce((s,l)=>s+(l.count||0),0);
   const today=new Date().toISOString().slice(0,10);
   $('lgToday').innerText=logs.filter(l=>l.delDateKey===today).length;
   const q=$('lgSearch').value.trim().toLowerCase(),d=$('lgDate').value;
   if(d)logs=logs.filter(l=>l.delDateKey===d);
-  if(q)logs=logs.filter(l=>(l.admin+l.reason+l.type+l.detail.map(x=>x.area+x.inspector).join('')).toLowerCase().includes(q));
+  if(q)logs=logs.filter(l=>(l.admin+l.reason+l.type+(l.detail||[]).map(x=>x.area+x.inspector).join('')).toLowerCase().includes(q));
   logCache=logs;
   $('logList').innerHTML=logs.length?logs.map((l,i)=>{
-    const areas=[...new Set(l.detail.map(x=>x.area))].join(', ');
+    const areas=[...new Set((l.detail||[]).map(x=>x.area))].join(', ');
     const tc=l.type==='ลบรายการเดี่ยว'?'t1':l.type==='ลบตามตัวกรอง'?'t2':'t3';
     return `<div class="logcard">${l.thumb?`<img src="${l.thumb}" onclick="showLogImg(${i})">`:''}
       <div class="li"><b>ลบ ${l.count} รายการ</b><span class="tag ${tc}">${l.type}</span><br>
       👤 ผู้ลบ: <b style="color:#0d1b3e">${l.admin}</b><br>🕐 ${l.delAt}<br>📍 ${areas||'-'}<br>💬 ${l.reason}<br>
-      <span style="color:#8a93a3">ผู้ตรวจในรายการ: ${[...new Set(l.detail.map(x=>x.inspector))].join(', ')||'-'}</span>
+      <span style="color:#8a93a3">ผู้ตรวจในรายการ: ${[...new Set((l.detail||[]).map(x=>x.inspector))].join(', ')||'-'}</span>
       </div></div>`;}).join(''):'<div class="empty">ยังไม่มีประวัติการลบข้อมูล</div>';}
 
 function exportLogExcel(){
   if(!guard())return;
   if(!logCache.length)return showStatus('lgStatus','⚠️ ไม่มี Log ให้ Export','err');
   const rows=[];
-  logCache.forEach((l,i)=>l.detail.forEach(dt=>rows.push({'ครั้งที่':i+1,'วันเวลาที่ลบ':l.delAt,'ผู้ลบ':l.admin,
+  logCache.forEach((l,i)=>(l.detail||[]).forEach(dt=>rows.push({'ครั้งที่':i+1,'วันเวลาที่ลบ':l.delAt,'ผู้ลบ':l.admin,
     'ประเภทการลบ':l.type,'เหตุผล':l.reason,'จำนวนในครั้งนี้':l.count,'พื้นที่':dt.area,'รอบ':dt.shift,
     'ผู้ตรวจเช็คเดิม':dt.inspector,'เวลารายงานเดิม':dt.timestamp,'หมายเหตุเดิม':dt.note||'-'})));
   const ws=XLSX.utils.json_to_sheet(rows);
@@ -828,12 +909,15 @@ function exportLogExcel(){
   showStatus('lgStatus','✅ ดาวน์โหลด Log แล้ว','ok');}
 async function clearLog(){
   if(!guard())return;
-  const logs=await getLogs();
+  const logs=cloudLogs.slice();
   if(!logs.length)return showStatus('lgStatus','⚠️ ไม่มี Log ในระบบ','err');
   if(!confirm(`🧹 ล้างประวัติการลบทั้งหมด ${logs.length} รายการ?`))return;
   const t=prompt('พิมพ์คำว่า  ล้างlog  เพื่อยืนยัน:');
   if(t!=='ล้างlog')return showStatus('lgStatus','❌ ยกเลิก','err');
-  await clearLogs();showStatus('lgStatus','✅ ล้าง Log เรียบร้อย','ok');loadLog();}
+  showStatus('lgStatus','⏳ กำลังล้าง Log...','info');
+  try{ await cloudClearLogs(); }catch(e){ return showStatus('lgStatus','❌ ล้างไม่สำเร็จ: '+e.message,'err'); }
+  try{ if(db) await clearLogs(); }catch(e){}
+  showStatus('lgStatus','✅ ล้าง Log เรียบร้อย','ok');}
 
 /* ================== Export ================== */
 function exportExcel(){
@@ -852,14 +936,14 @@ async function exportZip(){
   showStatus('expStatus','⏳ กำลังรวมไฟล์ ZIP...','info');
   const zip=new JSZip();
   cache.forEach((r,i)=>zip.folder(r.area).file(
-    `${r.shift}_${r.inspector}_${r.timestamp.replace(/[\/:\s]/g,'-')}_${i+1}.jpg`,r.img.split(',')[1],{base64:true}));
+    `${r.shift}_${r.inspector}_${String(r.timestamp).replace(/[\/:\s]/g,'-')}_${i+1}.jpg`,r.img.split(',')[1],{base64:true}));
   const blob=await zip.generateAsync({type:'blob'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='รูปภาพตรวจเช็ค_Team3_'+stamp()+'.zip';a.click();
   showStatus('expStatus','✅ ดาวน์โหลด ZIP สำเร็จ','ok');}
 async function backupData(){
   if(!guard())return;
-  const data={reports:await getAll(),dellog:await getLogs(),doc:docCfg(),docseq:_seq()};
+  const data={reports:cloudRecs.slice(),dellog:cloudLogs.slice(),doc:docCfg(),docseq:_seq()};
   const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='MT3_Backup_'+stamp()+'.json';a.click();
@@ -873,17 +957,21 @@ $('restoreInput').onchange=e=>{
     const reps=Array.isArray(j)?j:(j.reports||[]),lgs=Array.isArray(j)?[]:(j.dellog||[]);
     if(j.doc)localStorage.setItem('mt3_doc',JSON.stringify(j.doc));
     if(j.docseq)_saveSeq(j.docseq);
-    for(const o of reps){delete o.id;await addRec(o);}
-    for(const o of lgs){delete o.id;await addLog(o);}
+    showStatus('expStatus','⏳ กำลังกู้คืนขึ้นฐานข้อมูลกลาง...','info');
+    for(const o of reps){const c=Object.assign({},o);delete c.id;await cloudAdd(c);}
+    for(const o of lgs){const c=Object.assign({},o);delete c.id;await cloudAddLog(c);}
     showStatus('expStatus',`✅ กู้คืนแล้ว (รายงาน ${reps.length} / Log ${lgs.length})`,'ok');
-    loadHistory();loadLog();
   }catch(err){showStatus('expStatus','❌ ไฟล์สำรองไม่ถูกต้อง','err');}};
   r.readAsText(f);e.target.value='';};
 function stamp(){const d=new Date();
   return `${d.getDate()}-${d.getMonth()+1}-${d.getFullYear()}_${d.getHours()}${('0'+d.getMinutes()).slice(-2)}`;}
 
+/* ================== เริ่มระบบ ================== */
+if(initCloud()){ startCloudSync(); }
+else { setSync('🔴 ตั้งค่า Firebase ไม่ถูกต้อง — ข้อมูลจะเก็บเฉพาะในเครื่อง','off'); }
+
 openDB().then(()=>{if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true);else loadHistory();})
- .catch(()=>alert('เบราว์เซอร์ไม่รองรับฐานข้อมูลในเครื่อง กรุณาเปิดด้วย Chrome หรือ Safari'));
+ .catch(()=>{ if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true); else loadHistory(); });
 </script>
 </body>
 </html>
