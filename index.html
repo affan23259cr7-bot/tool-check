@@ -12,7 +12,7 @@
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{font-family:-apple-system,'Segoe UI',Roboto,'Noto Sans Thai',sans-serif;background:#eef1f6;margin:0;color:#1a1a1a}
 .header{background:linear-gradient(135deg,#0d1b3e,#1a3a6b);color:#fff;padding:14px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
-.header img{height:46px;width:46px;object-fit:contain;border-radius:6px;background:rgba(255,255,255,.08);cursor:pointer;flex-shrink:0}
+.header img{height:46px;width:46px;object-fit:contain;border-radius:6px;background:rgba(255,255,255,.08);flex-shrink:0;cursor:default}
 .header h1{font-size:15.5px;margin:0;font-weight:700;line-height:1.3;flex:1}
 .header small{display:block;font-size:11px;opacity:.7;font-weight:400}
 .lockbtn{background:rgba(255,255,255,.14);border:none;color:#fff;font-size:19px;width:40px;height:40px;border-radius:9px;cursor:pointer;flex-shrink:0}
@@ -101,14 +101,13 @@ body.isAdmin .lockmsg{display:none}
 .syncbar{border-radius:10px;padding:8px 12px;margin-top:12px;font-size:12px;font-weight:700;text-align:center;background:#e8f5e9;color:#1b5e20;border:1.5px solid #a5d6a7}
 .syncbar.off{background:#ffebee;color:#b71c1c;border-color:#ef9a9a}
 .syncbar.wait{background:#e3f2fd;color:#0d47a1;border-color:#90caf9}
+.lockedlogo{background:#f4f6fa;border:1.5px dashed #ccd3de;border-radius:9px;padding:9px 11px;font-size:11.5px;color:#8a93a3;line-height:1.6;margin-top:10px}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <img id="logo" onclick="logoInput.click()" title="คลิกเพื่อเปลี่ยนโลโก้"
-    src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTIwIj48cGF0aCBkPSJNNTAgNUw5NSAyMHY1MGMwIDI1LTIwIDQwLTQ1IDQ1QzI1IDExMCA1IDk1IDUgNzBWMjB6IiBmaWxsPSIjMTQzNTZkIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNSIvPjx0ZXh0IHg9IjUwIiB5PSI1MiIgZm9udC1zaXplPSIzMiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiNkNGFmMzciIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCI+TVQzPC90ZXh0PjxjaXJjbGUgY3g9IjM4IiBjeT0iNzUiIHI9IjkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Q0YWYzNyIgc3Ryb2tlLXdpZHRoPSI0Ii8+PHBhdGggZD0iTTU1IDgzbDE1LTE1TTYyIDY2aDEwdjEwIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+">
-  <input type="file" id="logoInput" accept="image/*" hidden>
+  <img id="logo" alt="MT3">
   <h1>ระบบตรวจเช็คเครื่องมือช่าง Team 3<small id="roleLabel">โหมดผู้ใช้ทั่วไป</small></h1>
   <button class="lockbtn" id="lockBtn" onclick="toggleAdmin()">🔒</button>
 </div>
@@ -258,9 +257,9 @@ body.isAdmin .lockmsg{display:none}
   <h3>⚙️ ตั้งค่าหัวกระดาษรายงาน</h3>
   <p>ข้อมูลนี้จะปรากฏบนใบรายงาน A4 ทุกฉบับ</p>
   <label style="margin-top:0">ชื่อบริษัท (ไทย)</label>
-  <input type="text" id="dsComTH" placeholder="บริษัท ....... จำกัด">
+  <input type="text" id="dsComTH" placeholder="การบริหารจัดการแผนกซ่อมบำรุงทีม 3">
   <label>ชื่อบริษัท (อังกฤษ)</label>
-  <input type="text" id="dsComEN" placeholder="Company Co., Ltd.">
+  <input type="text" id="dsComEN" placeholder="Management Maintenance Team 3">
   <label>สัญญาเลขที่</label><input type="text" id="dsContract" placeholder="GCS12-680538">
   <label>ชื่องาน / โครงการ</label>
   <textarea id="dsProject" rows="3"></textarea>
@@ -268,9 +267,7 @@ body.isAdmin .lockmsg{display:none}
   <label>รหัสฟอร์ม (มุมล่างขวา)</label><input type="text" id="dsForm">
   <label>หมายเหตุท้ายกระดาษ (มุมล่างซ้าย)</label>
   <input type="text" id="dsFooter">
-  <label>โลโก้บนใบรายงาน</label>
-  <input type="file" id="dsLogoInput" accept="image/*">
-  <div class="hint">ไม่เลือก = ใช้โลโก้เดียวกับหัวแอพ</div>
+  <div class="lockedlogo">🔒 <b>โลโก้ถูกล็อกไว้แล้ว</b><br>ใช้โลโก้กลางเดียวกันทุกเครื่องและทุกใบรายงาน ไม่สามารถเปลี่ยนได้</div>
   <div class="status" id="dsStatus"></div>
   <div class="row"><button class="btn btn-gallery btn-sm" onclick="closeDocSet()">ยกเลิก</button>
   <button class="btn btn-camera btn-sm" onclick="saveDocSet()">บันทึก</button></div>
@@ -281,6 +278,18 @@ const $=id=>document.getElementById(id);
 let photos=[],db=null,cache=[],logCache=[],isAdmin=false,pinMode='login',adminUser='-',rsnCallback=null;
 const DEFAULT_PIN='3333';
 const getPin=()=>localStorage.getItem('mt3_pin')||DEFAULT_PIN;
+
+/* ================== [LOCKED] โลโก้กลาง — ล็อกตายตัวทุกเครื่อง ================== */
+const LOGO_URL='https://affan23259cr7-bot.github.io/tool-check/logo.png';
+const LOGO_FALLBACK='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTIwIj48cGF0aCBkPSJNNTAgNUw5NSAyMHY1MGMwIDI1LTIwIDQwLTQ1IDQ1QzI1IDExMCA1IDk1IDUgNzBWMjB6IiBmaWxsPSIjMTQzNTZkIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNSIvPjx0ZXh0IHg9IjUwIiB5PSI1MiIgZm9udC1zaXplPSIzMiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiNkNGFmMzciIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCI+TVQzPC90ZXh0PjxjaXJjbGUgY3g9IjM4IiBjeT0iNzUiIHI9IjkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Q0YWYzNyIgc3Ryb2tlLXdpZHRoPSI0Ii8+PHBhdGggZD0iTTU1IDgzbDE1LTE1TTYyIDY2aDEwdjEwIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+';
+let LOGO_SRC=LOGO_URL;
+(function(){
+  const el=$('logo');
+  el.onerror=()=>{LOGO_SRC=LOGO_FALLBACK;el.onerror=null;el.src=LOGO_FALLBACK;};
+  el.src=LOGO_URL;
+  /* ล้างโลโก้เก่าที่เคยเก็บไว้ในเครื่อง เพื่อให้ทุกเครื่องเหมือนกัน */
+  localStorage.removeItem('mt3_logo');
+})();
 
 /* ================== [NEW] Firebase Firestore — ฐานข้อมูลกลาง Real-time ================== */
 const firebaseConfig = {
@@ -326,24 +335,34 @@ function cloudAddLog(o){ return LOGCOL.add(Object.assign({createdAt:Date.now()},
 async function cloudClearLogs(){ const s=await LOGCOL.get(); for(const d of s.docs){ await d.ref.delete(); } }
 
 /* ================== ตั้งค่าเอกสาร ================== */
-const DOC_DEF={comTH:'บริษัท ล็อกซเล่ย์ อีโวลูชั่น เทคโนโลยี จำกัด',comEN:'Loxley Evolution Technology Co., Ltd.',
+const DOC_VER='v2';
+const DOC_DEF={comTH:'การบริหารจัดการแผนกซ่อมบำรุงทีม 3',comEN:'Management Maintenance Team 3',
  contract:'GCS12-680538',project:'งานจ้างเหมาปฏิบัติการและซ่อมบำรุงรักษาระบบลำเลียงกระเป๋าสัมภาระสำหรับอาคารเทียบเครื่องบินรองหลังที่ 1 (SAT-1) ณ ท่าอากาศยานสุวรรณภูมิ',
  title:'ใบรายงานตรวจเช็คเครื่องมือช่าง',form:'FM-MT3-TOOL-01 Rev.01',
- footer:'บันทึก : ระยะเวลาจัดเก็บ 2 ปี, วิธีการทำลายทิ้งเมื่อไม่ใช้, ผู้รับผิดชอบ EN',logo:''};
-function docCfg(){try{return Object.assign({},DOC_DEF,JSON.parse(localStorage.getItem('mt3_doc')||'{}'));}catch(e){return DOC_DEF;}}
+ footer:'บันทึก : ระยะเวลาจัดเก็บ 2 ปี, วิธีการทำลายทิ้งเมื่อไม่ใช้, ผู้รับผิดชอบ EN'};
+function docCfg(){
+  let s={};
+  try{ s=JSON.parse(localStorage.getItem('mt3_doc')||'{}'); }catch(e){ s={}; }
+  /* migration: อัปเดตชื่อหน่วยงานใหม่ + ตัดโลโก้เก่าทิ้ง (ทำครั้งเดียวต่อเครื่อง) */
+  if(localStorage.getItem('mt3_doc_ver')!==DOC_VER){
+    delete s.comTH; delete s.comEN; delete s.logo;
+    localStorage.setItem('mt3_doc',JSON.stringify(s));
+    localStorage.setItem('mt3_doc_ver',DOC_VER);
+  }
+  delete s.logo;
+  return Object.assign({},DOC_DEF,s,{logo:LOGO_SRC});
+}
 function openDocSet(){const c=docCfg();
   $('dsComTH').value=c.comTH;$('dsComEN').value=c.comEN;$('dsContract').value=c.contract;
   $('dsProject').value=c.project;$('dsTitle').value=c.title;$('dsForm').value=c.form;$('dsFooter').value=c.footer;
   $('dsStatus').className='status';$('docDlg').classList.add('show');}
 function closeDocSet(){$('docDlg').classList.remove('show');}
-let tmpLogo=null;
-$('dsLogoInput').onchange=e=>{const f=e.target.files[0];if(!f)return;
-  const r=new FileReader();r.onload=()=>{tmpLogo=r.result;showStatus('dsStatus','✅ เลือกโลโก้ใหม่แล้ว','ok');};r.readAsDataURL(f);};
-function saveDocSet(){const c=docCfg();
-  const n={comTH:$('dsComTH').value.trim(),comEN:$('dsComEN').value.trim(),contract:$('dsContract').value.trim(),
+function saveDocSet(){
+  const n={comTH:$('dsComTH').value.trim()||DOC_DEF.comTH,comEN:$('dsComEN').value.trim()||DOC_DEF.comEN,
+   contract:$('dsContract').value.trim(),
    project:$('dsProject').value.trim(),title:$('dsTitle').value.trim()||'ใบรายงานตรวจเช็คเครื่องมือช่าง',
-   form:$('dsForm').value.trim(),footer:$('dsFooter').value.trim(),logo:tmpLogo||c.logo||''};
-  localStorage.setItem('mt3_doc',JSON.stringify(n));tmpLogo=null;closeDocSet();
+   form:$('dsForm').value.trim(),footer:$('dsFooter').value.trim()};
+  localStorage.setItem('mt3_doc',JSON.stringify(n));closeDocSet();
   showStatus('expStatus','✅ บันทึกหัวกระดาษเรียบร้อย','ok');}
 
 /* ================== สิทธิ์ ================== */
@@ -388,7 +407,7 @@ function confirmReason(){let r=$('rsnSelect').value;
   if(r==='other'){r=$('rsnOther').value.trim();if(!r)return showStatus('rsnStatus','⚠️ กรุณาระบุเหตุผล','err');}
   const cb=rsnCallback;closeRsn();if(cb)cb(r);}
 
-/* ================== IndexedDB (สำรองในเครื่อง — คงไว้เหมือนเดิม) ================== */
+/* ================== IndexedDB (สำรองในเครื่อง) ================== */
 function openDB(){return new Promise((res,rej)=>{
   const r=indexedDB.open('mt3_tool_db',2);
   r.onupgradeneeded=e=>{const d=e.target.result;
@@ -410,11 +429,7 @@ document.querySelectorAll('.tab-btn').forEach(b=>b.onclick=()=>{
   $('tab-'+b.dataset.tab).classList.add('active');b.classList.add('active');
   if(b.dataset.tab==='history')loadHistory();if(b.dataset.tab==='log')loadLog();});
 
-$('logoInput').onchange=e=>{const f=e.target.files[0];if(!f)return;
-  const r=new FileReader();r.onload=()=>{$('logo').src=r.result;localStorage.setItem('mt3_logo',r.result);};r.readAsDataURL(f);};
-if(localStorage.getItem('mt3_logo'))$('logo').src=localStorage.getItem('mt3_logo');
-
-/* ============ FIX: ระบบโหลดรูปแบบกันค้าง ============ */
+/* ============ ระบบโหลดรูปแบบกันค้าง ============ */
 function fileToDataURL(file){return new Promise((res,rej)=>{
   const r=new FileReader();
   r.onload=()=>res(r.result);
@@ -445,7 +460,6 @@ function hashFromImage(img){
   return s;}
 
 function makeThumb(b64,max=180,q=.6){return loadImage(b64).then(im=>drawResize(im,max,q)).catch(()=>'');}
-/* [NEW] ย่อภาพสำหรับอัปขึ้นคลาวด์ ให้ไม่เกินลิมิตเอกสาร Firestore */
 async function makeCloudImg(b64){
   let out=await makeThumb(b64,1000,.62);
   if(out&&out.length>950000) out=await makeThumb(b64,780,.5);
@@ -463,7 +477,7 @@ async function processFile(file){
   const raw=await fileToDataURL(file);
   let b64;
   try{ b64=drawResize(await loadImage(raw),1280,.82); }
-  catch(e){ b64=raw; }                       /* HEIC หรือถอดรหัสไม่ได้ → ใช้ต้นฉบับ */
+  catch(e){ b64=raw; }
   let hash='';
   try{ hash=hashFromImage(await loadImage(b64)); }catch(e){ hash=''; }
   const dup=await findDup(hash);
@@ -483,14 +497,12 @@ async function handleFiles(files){
   else if(n) showStatus('status','⚠️ เพิ่มภาพแล้ว '+ok+' รูป — พบภาพซ้ำ '+n+' รูป (กรอบสีแดง)','err');
   else showStatus('status','✅ เพิ่มภาพแล้ว รวม '+photos.length+' รูป'+(fail?' (ข้าม '+fail+' ไฟล์)':'')+' — ไม่พบภาพซ้ำ','ok');}
 
-/* ===== [1] รับภาพจากกล้องเท่านั้น ===== */
 $('camInput').addEventListener('change',async function(e){
   const files=[...e.target.files].filter(f=>f.type.startsWith('image/'));
   $('saveCard').classList.remove('show');
   await handleFiles(files);
   e.target.value='';
 });
-/* กันการลากไฟล์จากเครื่องมาวาง */
 ['dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),false));
 
 function renderThumbs(){$('thumbs').innerHTML=photos.map((p,i)=>`
@@ -502,16 +514,14 @@ function showImg(i){$('modalImg').src=photos[i].b64;$('modal').classList.add('sh
 function showHistImg(i){$('modalImg').src=cache[i].img;$('modal').classList.add('show');}
 function showLogImg(i){const t=logCache[i].thumb;if(t){$('modalImg').src=t;$('modal').classList.add('show');}}
 
-/* ================== [4] เลขที่เอกสาร MT + ปี พ.ศ. + running ================== */
+/* ================== เลขที่เอกสาร MT + ปี พ.ศ. + running ================== */
 const DOC_PREFIX='MT';
 const pad=(n,l)=>String(n).padStart(l,'0');
 function beYY(d){return pad((d.getFullYear()+543)%100,2);}
 function todayKey(){return new Date().toISOString().slice(0,10);}
 function _seq(){try{return JSON.parse(localStorage.getItem('mt3_docseq')||'{}');}catch(e){return{};}}
 function _saveSeq(o){localStorage.setItem('mt3_docseq',JSON.stringify(o));}
-/* วันเดียวกัน = เลขเดียวกัน / วันใหม่ที่มีการส่งรายงาน = +1 / ขึ้นปี พ.ศ.ใหม่ = เริ่ม 0001 */
 function getDocNoForDate(dateKey){
-  /* [NEW] ถ้ามีเลขของวันนั้นอยู่บนคลาวด์แล้ว ให้ใช้เลขเดียวกันทุกเครื่อง */
   const fromCloud=cloudRecs.find(r=>r.dateKey===dateKey&&r.docNo);
   if(fromCloud){const s0=_seq();s0.map=s0.map||{};s0.last=s0.last||{};
     s0.map[dateKey]=fromCloud.docNo;_saveSeq(s0);return fromCloud.docNo;}
@@ -519,7 +529,6 @@ function getDocNoForDate(dateKey){
   if(s.map[dateKey])return s.map[dateKey];
   const yy=beYY(new Date(dateKey+'T00:00:00'));
   let n=(s.last[yy]||0)+1;
-  /* กันเลขชนกันข้ามเครื่อง: ดูเลขสูงสุดที่มีบนคลาวด์ในปีเดียวกัน */
   cloudRecs.forEach(r=>{if(r.docNo&&r.docNo.indexOf(DOC_PREFIX+yy+'/')===0){
     const v=parseInt(r.docNo.split('/')[1],10);if(!isNaN(v)&&v>=n)n=v+1;}});
   s.last[yy]=n;
@@ -530,7 +539,7 @@ function docNo(rec){
   if(rec&&rec.docNo)return rec.docNo;
   return getDocNoForDate((rec&&rec.dateKey)||todayKey());}
 
-/* ================== [2] บันทึกรายงาน + ข้อความคัดลอก ================== */
+/* ================== บันทึกรายงาน + ข้อความคัดลอก ================== */
 let saveClipText='';
 function thTime(d){return pad(d.getHours(),2)+':'+pad(d.getMinutes(),2);}
 function showSaveCard(o){
@@ -575,9 +584,7 @@ async function submitReport(){
   const cnt=photos.length,hasDup=photos.some(p=>p.isDup);
   let up=0,upFail=0;
   for(const p of photos){
-    /* สำรองในเครื่อง (เหมือนเดิม) */
-    try{ await addRec({timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:p.b64,isDup:p.isDup,batch,docNo:dno}); }catch(e){}
-    /* [NEW] ส่งขึ้นฐานข้อมูลกลาง Firestore */
+    try{ if(db) await addRec({timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:p.b64,isDup:p.isDup,batch,docNo:dno}); }catch(e){}
     try{
       const cimg=await makeCloudImg(p.b64);
       await cloudAdd({timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:cimg,isDup:p.isDup,batch,docNo:dno,device:navigator.userAgent.slice(0,80)});
@@ -592,7 +599,7 @@ async function submitReport(){
 function showStatus(id,msg,type){const e=$(id);if(!e)return;e.className='status show '+type;e.innerText=msg;
   if(type==='ok')setTimeout(()=>e.classList.remove('show'),6000);}
 
-/* ================== ประวัติ (อ่านจากฐานข้อมูลกลาง Real-time) ================== */
+/* ================== ประวัติ (Real-time) ================== */
 async function loadHistory(){
   let all=cloudRecs.slice();
   if(!all.length&&db){ try{ all=(await getAll()).reverse(); }catch(e){ all=[]; } }
@@ -686,7 +693,7 @@ async function printSingle(id){
   const all=cloudRecs.length?cloudRecs:(await getAll());
   const rec=all.find(r=>String(r.id)===String(id));if(!rec)return;
   const grp=rec.batch?all.filter(r=>r.batch===rec.batch):[rec];
-  const c=docCfg(),logo=c.logo||$('logo').src;
+  const c=docCfg(),logo=LOGO_SRC;
   const dno=docNo(rec);
   const items=(rec.note||'').split('\n').map(s=>s.trim()).filter(Boolean);
   const normal=items.length===0;
@@ -742,9 +749,8 @@ async function printSingle(id){
 function printSummary(){
   if(!guard())return;
   if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลให้พิมพ์','err');
-  const c=docCfg(),logo=c.logo||$('logo').src;
+  const c=docCfg(),logo=LOGO_SRC;
 
-  // จัดกลุ่มข้อมูลตาม Batch (ส่งพร้อมกันถือเป็น 1 รายการ)
   const grouped=[];
   const batches=[...new Set(cache.map(r=>r.batch))];
   batches.forEach(b=>{
@@ -833,7 +839,7 @@ function printSummary(){
   showStatus('expStatus','🖨️ เปิดรายงานสรุปแล้ว ('+cache.length+' รายการ / '+totalPages+' หน้า)','ok');
 }
 
-/* ================== ลบ + Log (ซิงค์ทุกเครื่อง) ================== */
+/* ================== ลบ + Log ================== */
 function guard(){if(!isAdmin){showStatus('expStatus','🔒 เฉพาะผู้ดูแลระบบเท่านั้น','err');return false;}return true;}
 function nowStr(){return new Date().toLocaleString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}).replace(',','');}
 async function writeLog(type,items,reason){
@@ -955,7 +961,7 @@ $('restoreInput').onchange=e=>{
   r.onload=async()=>{try{
     const j=JSON.parse(r.result);
     const reps=Array.isArray(j)?j:(j.reports||[]),lgs=Array.isArray(j)?[]:(j.dellog||[]);
-    if(j.doc)localStorage.setItem('mt3_doc',JSON.stringify(j.doc));
+    if(j.doc){const dd=Object.assign({},j.doc);delete dd.logo;localStorage.setItem('mt3_doc',JSON.stringify(dd));}
     if(j.docseq)_saveSeq(j.docseq);
     showStatus('expStatus','⏳ กำลังกู้คืนขึ้นฐานข้อมูลกลาง...','info');
     for(const o of reps){const c=Object.assign({},o);delete c.id;await cloudAdd(c);}
