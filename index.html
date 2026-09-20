@@ -183,7 +183,7 @@ body.isAdmin .lockmsg{display:none}
     <button class="btn btn-print" onclick="printSummary()">🖨️ พิมพ์รายงานสรุป A4 (<span id="prCount">0</span> รายการ)</button>
   </div>
   <div class="adminOnly">
-    <button class="btn btn-xls" onclick="exportSummaryExcel()">📗 รายงานสรุป A4 เป็น Excel (แก้ไขได้)</button>
+    <button class="btn btn-xls" onclick="exportSummaryExcel()">📗 พิมพ์รายงานสรุป A4 (Excel)</button>
   </div>
   <div class="row adminOnly">
     <button class="btn btn-export btn-sm" onclick="exportExcel()">📊 Export Excel</button>
@@ -890,80 +890,93 @@ function printSummary(){
   showStatus('expStatus','🖨️ เปิดรายงานสรุปแล้ว ('+cache.length+' รายการ / '+totalPages+' หน้า)','ok');
 }
 
-/* ========== [2] รายงานสรุป A4 → Excel (แก้ไขด้วยมือได้) ========== */
+/* ========== [NEW] พิมพ์รายงานสรุป A4 (Excel) — ไฟล์ Excel จัดหน้าพร้อมสั่งพิมพ์ ========== */
 function exportSummaryExcel(){
   if(!guard())return;
-  if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลให้ Export','err');
+  if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลให้พิมพ์','err');
   const c=docCfg();
   const grouped=groupByBatch();
   const fA=$('fArea').value,fS=$('fShift').value,fD=$('fDate').value;
   const sumDoc=getDocNoForDate(todayKey());
+  const SH='รายงานสรุป A4';
+
+  const A=[],merges=[],rowsMeta=[];
+  const M=(r1,c1,r2,c2)=>merges.push({s:{r:r1,c:c1},e:{r:r2,c:c2}});
+  const push=(arr,h)=>{A.push(arr);if(h)rowsMeta[A.length-1]={hpt:h};return A.length-1;};
+  const E7=()=>['','','','','','',''];
+  let r;
+
+  /* ---------- หัวกระดาษ ---------- */
+  r=push([c.comTH,'','','','','',''],21);                          M(r,0,r,6);
+  r=push([c.comEN,'','','','','',''],16);                          M(r,0,r,6);
+  r=push(['สัญญาเลขที่  '+(c.contract||'-'),'','','','','',''],16); M(r,0,r,6);
+  r=push([c.project,'','','','','',''],32);                        M(r,0,r,6);
+  push(E7(),7);
+  r=push([c.title,'','','','','',''],28);                          M(r,0,r,6);
+  push(E7(),7);
+
+  /* ---------- ข้อมูลหัวเรื่อง ---------- */
+  r=push(['วันที่ออกเอกสาร',thDate(new Date()),'','','เลขที่เอกสาร',sumDoc,''],19);
+  M(r,1,r,2); M(r,5,r,6);
+  r=push(['ขอบเขตรายงาน','พื้นที่: '+fA,'รอบตรวจ: '+fS,'วันที่: '+(fD||'ทั้งหมด'),
+          'จำนวนรายงาน: '+grouped.length+' รายการ','',''],19);
+  M(r,4,r,6);
+  r=push(['ผู้จัดทำรายงาน',adminUser,'','','','',''],19);          M(r,1,r,6);
+  push(E7(),7);
+
+  /* ---------- ตารางรายการ ---------- */
+  const headRow=push(['ลำดับ','วันเวลา','พื้นที่','รอบ','ผู้ตรวจเช็ค','รายการที่ตรวจพบ / หมายเหตุ','สถานะ'],22);
+  grouped.forEach((g,i)=>{
+    push([i+1,g.timestamp,g.area,g.shift,g.inspector,
+          (g.note||'-').replace(/\n/g,' / '),g.isDup?'ซ้ำ ⚠':'ปกติ'],18);
+  });
+  for(let i=0;i<3;i++)push(E7(),18);   /* แถวว่างสำรองเขียนมือ */
+  push(E7(),7);
+
+  /* ---------- สรุปภาพรวม ---------- */
+  r=push(['สรุปภาพรวม','','','','','',''],19);                     M(r,0,r,6);
+  r=push(['• จำนวนรายงานทั้งหมด '+grouped.length+' รายการ   |   พบแจ้งเตือนภาพซ้ำ '
+          +grouped.filter(x=>x.isDup).length+' รายการ   |   ภาพถ่ายประกอบ '+cache.length+' ภาพ',
+          '','','','','',''],18);                                  M(r,0,r,6);
+  r=push(['• พื้นที่ในรายงาน: '+[...new Set(cache.map(x=>x.area))].join(', '),'','','','','',''],18);
+  M(r,0,r,6);
+  r=push(['• ผู้ตรวจเช็คในรายงาน: '+[...new Set(cache.map(x=>x.inspector))].join(', '),'','','','','',''],18);
+  M(r,0,r,6);
+  push(E7(),12);
+
+  /* ---------- ช่องลงนาม ---------- */
+  r=push(['ผู้จัดทำรายงาน','','ผู้ตรวจสอบ','','ผู้อนุมัติ','',''],19);
+  M(r,0,r,1); M(r,2,r,3); M(r,4,r,6);
+  push(E7(),46);
+  r=push(['(...............................)','','(...............................)','',
+          '(...............................)','',''],19);
+  M(r,0,r,1); M(r,2,r,3); M(r,4,r,6);
+  r=push(['( '+adminUser+' )','','','','','',''],18);
+  M(r,0,r,1); M(r,2,r,3); M(r,4,r,6);
+  r=push(['วันที่ ......../......../........','','วันที่ ......../......../........','',
+          'วันที่ ......../......../........','',''],19);
+  M(r,0,r,1); M(r,2,r,3); M(r,4,r,6);
+  push(E7(),10);
+  r=push([c.footer,'','','','',c.form,''],16);                     M(r,0,r,4); M(r,5,r,6);
+  const lastRow=r;
+
+  /* ---------- สร้างชีต + ตั้งค่าหน้ากระดาษ ---------- */
+  const ws=XLSX.utils.aoa_to_sheet(A);
+  ws['!cols']=[{wch:6},{wch:17},{wch:13},{wch:8},{wch:18},{wch:40},{wch:10}];
+  ws['!rows']=rowsMeta;
+  ws['!merges']=merges;
+  ws['!margins']={left:0.35,right:0.35,top:0.4,bottom:0.4,header:0.2,footer:0.2};
+  ws['!pageSetup']={orientation:'portrait',paperSize:9,fitToWidth:1,fitToHeight:0,scale:100};
+
   const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,ws,SH);
+  wb.Workbook={Names:[
+    {Name:'_xlnm.Print_Area',  Sheet:0, Ref:"'"+SH+"'!$A$1:$G$"+(lastRow+1)},
+    {Name:'_xlnm.Print_Titles',Sheet:0, Ref:"'"+SH+"'!$"+(headRow+1)+":$"+(headRow+1)}
+  ]};
 
-  /* ---- ชีตที่ 1 : ใบรายงานสรุป (จัดหน้าเหมือน A4) ---- */
-  const aoa=[];
-  aoa.push([c.comTH,'','','','','','']);
-  aoa.push([c.comEN,'','','','','','']);
-  aoa.push(['สัญญาเลขที่',c.contract,'','','','','']);
-  aoa.push([c.project,'','','','','','']);
-  aoa.push([]);
-  aoa.push([c.title,'','','','','','']);
-  aoa.push([]);
-  aoa.push(['วันที่ออกเอกสาร',thDate(new Date()),'','','เลขที่เอกสาร',sumDoc,'']);
-  aoa.push(['ขอบเขตรายงาน','พื้นที่: '+fA,'รอบตรวจ: '+fS,'วันที่: '+(fD||'ทั้งหมด'),'จำนวนรายการ: '+grouped.length,'','']);
-  aoa.push(['ผู้จัดทำรายงาน',adminUser,'','','','','']);
-  aoa.push([]);
-  aoa.push(['ลำดับ','วันเวลา','พื้นที่','รอบ','ผู้ตรวจเช็ค','รายการที่ตรวจพบ / หมายเหตุ','สถานะ']);
-  grouped.forEach((r,i)=>{
-    aoa.push([i+1,r.timestamp,r.area,r.shift,r.inspector,(r.note||'-').replace(/\n/g,' / '),r.isDup?'ซ้ำ ⚠':'ปกติ']);
-  });
-  aoa.push([]);
-  aoa.push(['สรุปภาพรวม','','','','','','']);
-  aoa.push(['• จำนวนรายการทั้งหมด',grouped.length,'รายการ','','','','']);
-  aoa.push(['• พบรายการแจ้งเตือนภาพซ้ำ',grouped.filter(r=>r.isDup).length,'รายการ','','','','']);
-  aoa.push(['• ภาพถ่ายประกอบทั้งหมด',cache.length,'ภาพ','','','','']);
-  aoa.push([]);
-  aoa.push(['ผู้จัดทำรายงาน','','ผู้ตรวจสอบ','','ผู้อนุมัติ','','']);
-  aoa.push(['(.................................)','','(.................................)','','(.................................)','','']);
-  aoa.push(['( '+adminUser+' )','','','','','','']);
-  aoa.push(['วันที่ ......../......../........','','วันที่ ......../......../........','','วันที่ ......../......../........','','']);
-  aoa.push([]);
-  aoa.push([c.footer,'','','','',c.form,'']);
-
-  const ws1=XLSX.utils.aoa_to_sheet(aoa);
-  ws1['!cols']=[{wch:10},{wch:20},{wch:15},{wch:10},{wch:22},{wch:46},{wch:11}];
-  ws1['!merges']=[
-    {s:{r:0,c:0},e:{r:0,c:6}},
-    {s:{r:1,c:0},e:{r:1,c:6}},
-    {s:{r:3,c:0},e:{r:3,c:6}},
-    {s:{r:5,c:0},e:{r:5,c:6}}
-  ];
-  XLSX.utils.book_append_sheet(wb,ws1,'ใบรายงานสรุป');
-
-  /* ---- ชีตที่ 2 : รายการแยกรูป (ทุกภาพ) ---- */
-  const rows2=cache.map((r,i)=>({
-    'ลำดับ':i+1,'เลขที่เอกสาร':docNo(r),'วันเวลา':r.timestamp,'พื้นที่':r.area,'รอบตรวจ':r.shift,
-    'ผู้ตรวจเช็ค':r.inspector,'หมายเหตุ':(r.note||'-').replace(/\n/g,' / '),
-    'ภาพซ้ำ':r.isDup?'ใช่ ⚠️':'ปกติ','รหัสชุด(Batch)':r.batch||'-'
-  }));
-  const ws2=XLSX.utils.json_to_sheet(rows2);
-  ws2['!cols']=[{wch:6},{wch:14},{wch:18},{wch:13},{wch:9},{wch:20},{wch:44},{wch:10},{wch:16}];
-  XLSX.utils.book_append_sheet(wb,ws2,'รายการแยกภาพ');
-
-  /* ---- ชีตที่ 3 : สรุปตามพื้นที่ ---- */
-  const areaList=[...new Set(cache.map(r=>r.area))];
-  const rows3=areaList.map(a=>{
-    const g=grouped.filter(r=>r.area===a);
-    return {'พื้นที่':a,'จำนวนรายงาน(ชุด)':g.length,'จำนวนภาพ':cache.filter(r=>r.area===a).length,
-      'พบภาพซ้ำ(ชุด)':g.filter(r=>r.isDup).length,
-      'รายการที่พบ':g.map(r=>(r.note||'').replace(/\n/g,' / ')).filter(Boolean).join(' | ')||'-'};
-  });
-  const ws3=XLSX.utils.json_to_sheet(rows3);
-  ws3['!cols']=[{wch:15},{wch:18},{wch:12},{wch:15},{wch:60}];
-  XLSX.utils.book_append_sheet(wb,ws3,'สรุปตามพื้นที่');
-
-  XLSX.writeFile(wb,'รายงานสรุปตรวจเช็คเครื่องมือ_Team3_'+stamp()+'.xlsx');
-  showStatus('expStatus','✅ ดาวน์โหลดรายงานสรุปเป็น Excel แล้ว (3 ชีต — แก้ไขด้วยมือได้)','ok');
+  XLSX.writeFile(wb,'รายงานสรุปตรวจเช็คเครื่องมือ_A4_Team3_'+stamp()+'.xlsx');
+  showStatus('expStatus','✅ สร้างไฟล์ Excel พร้อมปริ้นแล้ว\nเปิดไฟล์ → Ctrl+P → A4 แนวตั้ง → Fit All Columns on One Page','ok');
 }
 
 /* ================== ลบ + Log — [FIX-1] ลบทั้งคลาวด์และในเครื่องพร้อมกัน ================== */
