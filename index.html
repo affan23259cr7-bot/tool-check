@@ -298,7 +298,7 @@ let LOGO_SRC=LOGO_URL;
 })();
 
 /* ================== [3] แจ้งเตือนเข้าไลน์ผ่าน Google Apps Script ================== */
-const LINE_HOOK_URL='https://script.google.com/macros/s/AKfycbwyNpRbwIwfr6Rcf0WJvQOz6SvzzfQ6Vly3VTO-iqXSBN9rGvUirPo1D5CjLBzsXER8/exec';
+const LINE_HOOK_URL='https://script.google.com/macros/s/AKfycbx4mwbsMlOfLayMjIT0lyyGzozu268sYlYQk2auEKgMftBPeiBf8MyDazFOUj-HwurY/exec';
 async function notifyLine(payload){
   if(!LINE_HOOK_URL||LINE_HOOK_URL.indexOf('script.google.com')<0)return false;
   try{
