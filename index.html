@@ -611,6 +611,7 @@ function newDocNo(){
   return DOC_PREFIX+yy+'/'+pad(n,4);
 }
 
+/* [FIX] ค้นหาใบเบิกที่ยังไม่ครบ 12 รายการมาใช้ต่อทันที */
 function openCycleDocNo(area,shift){
   const yy=beYY(new Date());
   const m=cycleMap();
@@ -618,9 +619,9 @@ function openCycleDocNo(area,shift){
     parseInt(b.split('/')[1],10)-parseInt(a.split('/')[1],10));
   for(const dno of keys){
     const set=m[dno];
-    if(set.size>=CYCLE_SIZE)continue;
-    if(set.has(area+'|'+shift))continue;
-    return dno;
+    if(set.size < CYCLE_SIZE && !set.has(area+'|'+shift)){
+      return dno;
+    }
   }
   return null;
 }
@@ -651,7 +652,7 @@ function updateCycleHint(){
   }else{
     const yy=beYY(new Date());
     el.className='cyclebox newc';
-    el.innerHTML='🆕 รอบก่อนหน้าครบแล้ว — รายการนี้จะ <b>เปิดเลขที่เอกสารใหม่</b> '+
+    el.innerHTML='🆕 รายการนี้จะ <b>เปิดเลขที่เอกสารใหม่</b> '+
       '<b>'+DOC_PREFIX+yy+'/'+pad(maxDocNum()+1,4)+'</b>';
   }
 }
