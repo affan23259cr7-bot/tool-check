@@ -309,21 +309,24 @@ let LOGO_SRC=LOGO_URL;
   localStorage.removeItem('mt3_logo');
 })();
 
-/* ================== แจ้งเตือนเข้าไลน์ ================== */
+/* ================== แจ้งเตือนเข้าไลน์แบบ POST ================== */
 const LINE_HOOK_URL='https://script.google.com/macros/s/AKfycbx4mwbsMlOfLayMjIT0lyyGzozu268sYlYQk2auEKgMftBPeiBf8MyDazFOUj-HwurY/exec';
 async function notifyLine(payload){
   if(!LINE_HOOK_URL||LINE_HOOK_URL.indexOf('/exec')<0)return false;
-  if(LINE_HOOK_URL.indexOf('วาง_URL')>=0)return false;
   try{
-    const url=LINE_HOOK_URL+'?data='+encodeURIComponent(JSON.stringify(payload));
-    await fetch(url,{method:'GET',mode:'no-cors',cache:'no-store'});
+    await fetch(LINE_HOOK_URL,{
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify(payload)
+    });
     return true;
   }catch(e){ console.error('LINE notify error',e); return false; }
 }
 
 /* ================== Firebase Firestore ================== */
 const firebaseConfig = {
-  apiKey: "AIzaSyD_EXAMPLE_API_KEY_REPLACE_ME", // แทนที่ด้วย apiKey จริงของคุณถ้ายังไม่ได้เปลี่ยน
+  apiKey: "AIzaSyD_EXAMPLE_API_KEY_REPLACE_ME",
   authDomain: "mt3-tool-team3.firebaseapp.com",
   projectId: "mt3-tool-team3",
   storageBucket: "mt3-tool-team3.firebasestorage.app",
@@ -869,19 +872,73 @@ async function printSingle(id){
 
   openPrint(page1+page2);showStatus('expStatus','🖨️ เปิดหน้าใบรายงานแล้ว (2 หน้า)','ok');}
 
-/* ================== จัดกลุ่มตาม batch ================== */
+/* ================== [FIX] รวมกลุ่มและยุบรายการส่งซ้ำรอบสองในเวลาใกล้เคียงกัน ================== */
 function groupByBatch(){
-  const grouped=[];
-  const batches=[...new Set(cache.map(r=>r.batch))];
-  batches.forEach(b=>{
-    const items=cache.filter(r=>r.batch===b);
-    grouped.push({
-      timestamp:items[0].timestamp, dateKey:items[0].dateKey, docNo:items[0].docNo,
-      area:items[0].area, shift:items[0].shift, inspector:items[0].inspector,
-      note:items[0].note, isDup:items.some(r=>r.isDup), count:items.length
+  const rawGrouped = [];
+  const batches = [...new Set(cache.map(r => r.batch))];
+  
+  batches.forEach(b => {
+    const items = cache.filter(r => r.batch === b);
+    if (!items.length) return;
+    
+    const timeStr = items[0].timestamp; // เช่น "21/09/2569 21:50"
+    
+    rawGrouped.push({
+      batch: b,
+      timestamp: timeStr,
+      sortTime: parseThTimestamp(timeStr),
+      dateKey: items[0].dateKey,
+      docNo: items[0].docNo,
+      area: items[0].area,
+      shift: items[0].shift,
+      inspector: items[0].inspector,
+      note: items.map(x => x.note).filter(Boolean).join(' / '),
+      isDup: items.some(r => r.isDup),
+      count: items.length
     });
   });
-  return grouped;
+
+  // เรียงลำดับตามเวลาใหม่ -> เก่า
+  rawGrouped.sort((a, b) => b.sortTime - a.sortTime);
+
+  // ยุบรวม (Merge) ถ้ารูป/พื้นที่เดียวกัน และรอบเดียวกัน ห่างกันไม่เกิน 10 นาที (600,000 ms)
+  const merged = [];
+  rawGrouped.forEach(curr => {
+    const found = merged.find(m => 
+      m.area === curr.area && 
+      m.shift === curr.shift && 
+      Math.abs(m.sortTime - curr.sortTime) <= 10 * 60 * 1000
+    );
+
+    if (found) {
+      if (curr.note && curr.note !== '-' && !found.note.includes(curr.note)) {
+        found.note = found.note ? found.note + ' / ' + curr.note : curr.note;
+      }
+      if (curr.isDup) found.isDup = true;
+      found.count += curr.count;
+      // คงเวลาของ "ครั้งแรก" เอาไว้
+      if (curr.sortTime < found.sortTime) {
+        found.sortTime = curr.sortTime;
+        found.timestamp = curr.timestamp;
+      }
+    } else {
+      merged.push(curr);
+    }
+  });
+
+  return merged;
+}
+
+function parseThTimestamp(str) {
+  try {
+    const parts = str.split(' ');
+    const dmy = parts[0].split('/');
+    const hm = parts[1].split(':');
+    const year = parseInt(dmy[2], 10) - 543;
+    return new Date(year, parseInt(dmy[1], 10) - 1, parseInt(dmy[0], 10), parseInt(hm[0], 10), parseInt(hm[1], 10)).getTime();
+  } catch (e) {
+    return Date.now();
+  }
 }
 
 /* ================== รายงานสรุป A4 (พิมพ์/PDF) ================== */
