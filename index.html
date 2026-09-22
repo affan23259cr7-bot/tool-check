@@ -130,13 +130,13 @@ body.isAdmin .lockmsg{display:none}
 <!-- ========== แท็บ 1 : ส่งรายงาน ========== -->
 <div id="tab-report" class="tab-content container active">
   <label>📍 พื้นที่ปฏิบัติงาน</label>
-  <select id="area"><option>MTB-West</option><option>MTB-East</option><option>SAT-East</option>
+  <select id="area" onchange="updateCycleHint()"><option>MTB-West</option><option>MTB-East</option><option>SAT-East</option>
   <option>SAT-West</option><option>Tunnel-West</option><option>Tunnel-East</option></select>
 
   <label>⏰ รอบตรวจเช็ค</label>
-  <select id="shift"><option>รับกะ</option><option>ส่งคืน</option></select>
+  <select id="shift" onchange="updateCycleHint()"><option>รับกะ</option><option>ส่งคืน</option></select>
 
-  <div class="cyclebox newc" id="cycleHint">⏳ กำลังตรวจสอบเลขที่เอกสาร...</div>
+  <div class="cyclebox" id="cycleHint">⏳ กำลังตรวจสอบเลขที่ใบเบิก...</div>
 
   <label>👤 ชื่อผู้ตรวจเช็ค</label>
   <input type="text" id="inspector" placeholder="กรอกชื่อ-นามสกุล">
@@ -186,7 +186,7 @@ body.isAdmin .lockmsg{display:none}
   <label>กรองตามรอบ</label>
   <select id="fShift" onchange="loadHistory()"><option>ทั้งหมด</option><option>รับกะ</option><option>ส่งคืน</option></select>
   <label>กรองตามวันที่</label><input type="date" id="fDate" onchange="loadHistory()">
-  <label>ค้นหาชื่อผู้ตรวจ / เลขที่เอกสาร</label>
+  <label>ค้นหาชื่อผู้ตรวจ / เลขที่ใบเบิก</label>
   <input type="text" id="fName" placeholder="พิมพ์ชื่อ หรือ MT69/0001 ..." onkeyup="loadHistory()">
 
   <div class="adminOnly">
@@ -300,7 +300,7 @@ const getPin=()=>localStorage.getItem('mt3_pin')||DEFAULT_PIN;
 
 /* ================== [LOCKED] โลโก้กลาง ================== */
 const LOGO_URL='https://affan23259cr7-bot.github.io/tool-check/logo.png';
-const LOGO_FALLBACK='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTIwIj48cGF0aCBkPSJNNTAgNUw5NSAyMHY1MGMwIDI1LTIwIDQwLTQ1IDQ1QzI1IDExMCA1IDk1IDUgNzBWMjB6IiBmaWxsPSIjMTQzNTZkIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNSIvPjx0ZXh0IHg9IjUwIiB5PSI1MiIgZm9udC1zaXplPSIzMiIgZm9udC13ZWlnaHQ9ImJvbGQiIGJpbGw9IiNkNGFmMzciIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCI+TVQzPC90ZXh0PjxjaXJjbGUgY3g9IjM4IiBjeT0iNzUiIHI9IjkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Q0YWYzNyIgc3Ryb2tlLXdpZHRoPSI0Ii8+PHBhdGggZD0iTTU1IDgzbDE1LTE1TTYyIDY2aDEwdjEwIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+';
+const LOGO_FALLBACK='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTIwIj48cGF0aCBkPSJNNTAgNUw5NSAyMHY1MGMwIDI1LTIwIDQwLTQ1IDQ1QzI1IDExMCA1IDk1IDUgNzBWMjB6IiBmaWxsPSIjMTQzNTZkIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNSIvPjx0ZXh0IHg9IjUwIiB5PSI1MiIgZm9udC1zaXplPSIzMiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiNkNGFmMzciIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCI+TVQzPC90ZXh0PjxjaXJjbGUgY3g9IjM4IiBjeT0iNzUiIHI9IjkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Q0YWYzNyIgc3Ryb2tlLXdpZHRoPSI0Ii8+PHBhdGggZD0iTTU1IDgzbDE1LTE1TTYyIDY2aDEwdjEwIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+';
 let LOGO_SRC=LOGO_URL;
 (function(){
   const el=$('logo');
@@ -569,7 +569,7 @@ function showImg(i){$('modalImg').src=photos[i].b64;$('modal').classList.add('sh
 function showHistImg(i){$('modalImg').src=cache[i].img;$('modal').classList.add('show');}
 function showLogImg(i){const t=logCache[i].thumb;if(t){$('modalImg').src=t;$('modal').classList.add('show');}}
 
-/* ================== เลขที่เอกสารอิงตามวันที่ (ทุกพื้นที่ในวันเดียวกันใช้เลขเดียวกัน) ================== */
+/* ================== เลขที่ใบเบิกแบบผูกรอบ รับกะ ↔ ส่งคืน ================== */
 const DOC_PREFIX='MT';
 const pad=(n,l)=>String(n).padStart(l,'0');
 function beYY(d){return pad((d.getFullYear()+543)%100,2);}
@@ -577,15 +577,8 @@ function todayKey(){return new Date().toISOString().slice(0,10);}
 function _seq(){try{return JSON.parse(localStorage.getItem('mt3_docseq')||'{}');}catch(e){return{};}}
 function _saveSeq(o){localStorage.setItem('mt3_docseq',JSON.stringify(o));}
 
-function getDocNoForDate(dateKey){
-  const d=dateKey?new Date(dateKey):new Date();
-  const yy=beYY(d);
-  const dk=dateKey||todayKey();
-  
-  // เช็คจาก cloudRecs หากวันนี้มีเลขเอกสารออกไปแล้ว ให้ใช้เลขเดิม
-  const existing=cloudRecs.find(r=>r.dateKey===dk&&r.docNo&&r.docNo.indexOf(DOC_PREFIX+yy+'/')===0);
-  if(existing&&existing.docNo)return existing.docNo;
-  
+function nextDocNo(){
+  const yy=beYY(new Date());
   let n=0;
   cloudRecs.forEach(r=>{
     if(r.docNo&&r.docNo.indexOf(DOC_PREFIX+yy+'/')===0){
@@ -599,18 +592,50 @@ function getDocNoForDate(dateKey){
   return DOC_PREFIX+yy+'/'+pad(n,4);
 }
 
-function docNo(rec){
-  if(rec&&rec.docNo)return rec.docNo;
-  const dk=(rec&&rec.dateKey)?rec.dateKey:todayKey();
-  return getDocNoForDate(dk);
+function findOpenCycle(area){
+  const recvs=cloudRecs.filter(r=>r.area===area&&r.shift==='รับกะ'&&r.docNo)
+    .sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  const seen={};
+  for(const r of recvs){
+    if(seen[r.docNo])continue;
+    seen[r.docNo]=1;
+    const closed=cloudRecs.some(x=>x.docNo===r.docNo&&x.shift==='ส่งคืน');
+    if(!closed)return r.docNo;
+  }
+  return null;
 }
+
+function resolveDocNo(area,shift){
+  if(shift==='ส่งคืน'){
+    const open=findOpenCycle(area);
+    if(open)return open;
+  }
+  return nextDocNo();
+}
+
+function summaryDocNo(){
+  const d=new Date();
+  return DOC_PREFIX+beYY(d)+'/SUM-'+pad(d.getDate(),2)+pad(d.getMonth()+1,2);
+}
+function docNo(rec){ return (rec&&rec.docNo)?rec.docNo:'-'; }
 
 function updateCycleHint(){
   const el=$('cycleHint'); if(!el)return;
-  const dk=todayKey();
-  const currentDno=getDocNoForDate(dk);
-  el.className='cyclebox newc';
-  el.innerHTML='📅 เลขที่เอกสารประจำวันนี้: <b>'+currentDno+'</b><br><span style="opacity:.8">ทุกพื้นที่และทุกรอบการตรวจในวันนี้จะใช้หมายเลขเดียวกันนี้</span>';
+  const a=$('area').value,s=$('shift').value;
+  if(!cloudReady){ el.className='cyclebox'; el.innerHTML='⏳ กำลังเชื่อมต่อฐานข้อมูล...'; return; }
+  if(s==='ส่งคืน'){
+    const open=findOpenCycle(a);
+    if(open){
+      el.className='cyclebox';
+      el.innerHTML='🔗 รอบนี้จะผูกกับใบเบิกเลขที่ <b>'+open+'</b><br><span style="opacity:.8">(ปิดรอบของ “รับกะ” ที่ยังค้างอยู่ในพื้นที่ '+a+')</span>';
+    }else{
+      el.className='cyclebox newc';
+      el.innerHTML='⚠️ ไม่พบรอบ “รับกะ” ที่ค้างอยู่ในพื้นที่ '+a+'<br><span style="opacity:.8">ระบบจะออกเลขที่ใบเบิกใหม่ให้อัตโนมัติ</span>';
+    }
+  }else{
+    el.className='cyclebox newc';
+    el.innerHTML='🆕 รอบนี้จะ <b>เปิดใบเบิกใหม่</b><br><span style="opacity:.8">เมื่อส่งคืนพื้นที่เดียวกัน ระบบจะใช้เลขเดียวกันนี้โดยอัตโนมัติ</span>';
+  }
 }
 
 /* ================== บันทึกรายงาน ================== */
@@ -619,7 +644,7 @@ function thTime(d){return pad(d.getHours(),2)+':'+pad(d.getMinutes(),2);}
 function showSaveCard(o){
   saveClipText=
 `🧰 รายงานตรวจเช็คเครื่องมือ
-เลขที่เอกสาร: ${o.docNo}
+เลขที่ใบเบิก: ${o.docNo}
 พื้นที่: ${o.area}
 รอบ: ${o.shift}
 ผู้ตรวจเช็ค: ${o.inspector}
@@ -661,7 +686,7 @@ async function submitReport(){
     const batch='B'+now.getTime();
     showStatus('status','⏳ กำลังบันทึกและส่งขึ้นฐานข้อมูลกลาง...','info');
 
-    const dno=getDocNoForDate(dateKey);
+    const dno=resolveDocNo(area,shift);
     const cnt=photos.length,hasDup=photos.some(p=>p.isDup);
     let upFail=0;
 
@@ -678,7 +703,7 @@ async function submitReport(){
     const lineOK=await notifyLine({ts,dateKey,area,shift,inspector,note,docNo:dno,count:cnt,dup:hasDup,batch});
 
     if(upFail) showStatus('status',`⚠️ บันทึกในเครื่องแล้ว ${cnt} รูป\nแต่ส่งขึ้นฐานข้อมูลกลางไม่สำเร็จ ${upFail} รูป\nตรวจสอบอินเทอร์เน็ต / ค่า Firebase`,'err');
-    else showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป\n📄 เลขที่เอกสาร ${dno}\n${lineOK?'📨 แจ้งเตือนเข้าไลน์กลุ่มแล้ว':'⚠️ ยังไม่ได้ตั้งค่าแจ้งเตือนไลน์'}\n${area} • ${shift} • ${inspector}`,'ok');
+    else showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป\n📄 เลขที่ใบเบิก ${dno}${shift==='ส่งคืน'?' (ปิดรอบแล้ว)':' (เปิดรอบใหม่)'}\n${lineOK?'📨 แจ้งเตือนเข้าไลน์กลุ่มแล้ว':'⚠️ ยังไม่ได้ตั้งค่าแจ้งเตือนไลน์'}\n${area} • ${shift} • ${inspector}`,'ok');
 
     showSaveCard({area,shift,inspector,docNo:dno,ts:thDate(now)+' '+thTime(now),count:cnt,note,dup:hasDup});
     photos=[];renderThumbs();$('note').value='';
@@ -793,6 +818,8 @@ async function printSingle(id){
   const grp=rec.batch?all.filter(r=>r.batch===rec.batch):[rec];
   const c=docCfg(),logo=LOGO_SRC;
   const dno=docNo(rec);
+  const cyc=all.filter(r=>r.docNo===dno);
+  const hasRecv=cyc.some(r=>r.shift==='รับกะ'),hasRet=cyc.some(r=>r.shift==='ส่งคืน');
   const items=(rec.note||'').split('\n').map(s=>s.trim()).filter(Boolean);
   const normal=items.length===0;
   let rows='';
@@ -806,7 +833,7 @@ async function printSingle(id){
   const page1=`<div class="sheet">
     ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P01/02')}
     <div class="meta"><span>วันที่ออกเอกสาร&nbsp;&nbsp;<b>${thDate(new Date())}</b></span>
-      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
+      <span>เลขที่ใบเบิก&nbsp;&nbsp;<b>${dno}</b></span></div>
     <div class="fl"><div class="lb">เรียน</div><div class="vl">ผู้ควบคุมงาน / ผู้ช่วยผู้ควบคุมงาน / หัวหน้าชุดปฏิบัติงาน</div></div>
     <div class="fl"><div class="lb">พื้นที่รับผิดชอบ</div><div class="vl"><b>${esc(rec.area)}</b></div>
       <div class="lb" style="width:26mm;text-align:right;padding-right:5px">รอบตรวจเช็ค</div>
@@ -814,6 +841,8 @@ async function printSingle(id){
     <div class="fl"><div class="lb">ผู้ตรวจเช็ค</div><div class="vl">${esc(rec.inspector)}</div>
       <div class="lb" style="width:26mm;text-align:right;padding-right:5px">วันเวลาที่ตรวจ</div>
       <div class="vl" style="max-width:40mm">${esc(rec.timestamp)}</div></div>
+    <div class="fl"><div class="lb">สถานะรอบใบเบิก</div><div class="vl">
+      ${hasRecv?'✓ รับกะแล้ว':'— ยังไม่มีรับกะ'} &nbsp;|&nbsp; ${hasRet?'✓ ส่งคืนแล้ว (ปิดรอบ)':'— ยังไม่ส่งคืน (รอปิดรอบ)'}</div></div>
     <div style="margin-top:12px;font-weight:700">รายการเครื่องมือที่ตรวจพบความผิดปกติ</div>
     <table><tr><th>ลำดับ</th><th>รายการ / อาการที่พบ</th><th>สถานะ</th><th>หมายเหตุ</th></tr>${rows}</table>
     <div class="chk">
@@ -833,7 +862,7 @@ async function printSingle(id){
   const page2=`<div class="sheet p2">
     ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P02/02')}
     <div class="meta"><span>ภาพถ่ายประกอบการตรวจเช็ค&nbsp;&nbsp;<b>(${grp.length} ภาพ)</b></span>
-      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
+      <span>เลขที่ใบเบิก&nbsp;&nbsp;<b>${dno}</b></span></div>
     <div class="fl"><div class="lb">พื้นที่ / รอบตรวจ</div><div class="vl"><b>${esc(rec.area)}</b> / <b>${esc(rec.shift)}</b></div>
       <div class="lb" style="width:26mm;text-align:right;padding-right:5px">ผู้ตรวจเช็ค</div>
       <div class="vl" style="max-width:40mm">${esc(rec.inspector)}</div></div>
@@ -843,7 +872,7 @@ async function printSingle(id){
 
   openPrint(page1+page2);showStatus('expStatus','🖨️ เปิดหน้าใบรายงานแล้ว (2 หน้า)','ok');}
 
-/* ================== รวมกลุ่มและแสดงข้อความตามที่ช่างพิมพ์ส่งตรงๆ ================== */
+/* ================== [FIX] รวมกลุ่มและยุบรายการส่งซ้ำรอบสองในเวลาใกล้เคียงกัน ================== */
 function groupByBatch(){
   const rawGrouped = [];
   const batches = [...new Set(cache.map(r => r.batch))];
@@ -852,9 +881,8 @@ function groupByBatch(){
     const items = cache.filter(r => r.batch === b);
     if (!items.length) return;
     
-    const timeStr = items[0].timestamp;
-    const uniqueNotes = [...new Set(items.map(x => x.note).filter(Boolean))];
-
+    const timeStr = items[0].timestamp; // เช่น "21/09/2569 21:50"
+    
     rawGrouped.push({
       batch: b,
       timestamp: timeStr,
@@ -864,14 +892,16 @@ function groupByBatch(){
       area: items[0].area,
       shift: items[0].shift,
       inspector: items[0].inspector,
-      note: uniqueNotes.join(' / '),
+      note: items.map(x => x.note).filter(Boolean).join(' / '),
       isDup: items.some(r => r.isDup),
       count: items.length
     });
   });
 
+  // เรียงลำดับตามเวลาใหม่ -> เก่า
   rawGrouped.sort((a, b) => b.sortTime - a.sortTime);
 
+  // ยุบรวม (Merge) ถ้ารูป/พื้นที่เดียวกัน และรอบเดียวกัน ห่างกันไม่เกิน 10 นาที (600,000 ms)
   const merged = [];
   rawGrouped.forEach(curr => {
     const found = merged.find(m => 
@@ -886,6 +916,7 @@ function groupByBatch(){
       }
       if (curr.isDup) found.isDup = true;
       found.count += curr.count;
+      // คงเวลาของ "ครั้งแรก" เอาไว้
       if (curr.sortTime < found.sortTime) {
         found.sortTime = curr.sortTime;
         found.timestamp = curr.timestamp;
@@ -919,7 +950,7 @@ function printSummary(){
 
   const per=18,tablePages=Math.ceil(grouped.length/per);
   const fA=$('fArea').value,fS=$('fShift').value,fD=$('fDate').value;
-  const dnoLabel=docRangeLabel(grouped);
+  const sumDoc=summaryDocNo();
 
   const PH_PER=6;
   const areaList=[...new Set(cache.map(r=>r.area))];
@@ -956,16 +987,16 @@ function printSummary(){
     html+=`<div class="sheet">
       ${docHead(c,logo,tag(pg))}
       <div class="meta"><span>วันที่ออกเอกสาร&nbsp;&nbsp;<b>${thDate(new Date())}</b></span>
-        <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dnoLabel}</b></span></div>
+        <span>เลขที่เอกสารสรุป&nbsp;&nbsp;<b>${sumDoc}</b></span></div>
       <div class="fl"><div class="lb">ขอบเขตรายงาน</div><div class="vl">
         พื้นที่: <b>${esc(fA)}</b> | รอบตรวจ: <b>${esc(fS)}</b> | วันที่: <b>${fD?esc(fD):'ทั้งหมด'}</b>
         | จำนวนรายการ: <b>${grouped.length}</b> รายการ</div></div>
       <div class="fl"><div class="lb">ผู้จัดทำรายงาน</div><div class="vl">${esc(adminUser)}</div></div>
-      <table><tr><th>ลำดับ</th><th>เลขที่เอกสาร</th><th>วันเวลา</th><th>พื้นที่</th><th>รอบ</th><th>ผู้ตรวจเช็ค</th>
+      <table><tr><th>ลำดับ</th><th>เลขที่ใบเบิก</th><th>วันเวลา</th><th>พื้นที่</th><th>รอบ</th><th>ผู้ตรวจเช็ค</th>
         <th>รายการที่ตรวจพบ / หมายเหตุ</th><th>สถานะ</th></tr>${rows}</table>
       ${p===tablePages-1?`<div style="margin-top:10px;font-weight:700">สรุปภาพรวม</div>
         <div class="rm">• จำนวนรายการทั้งหมด ${grouped.length} รายการ
-• จำนวนเอกสารที่เกี่ยวข้อง ${[...new Set(grouped.map(r=>r.docNo))].length} ฉบับ
+• จำนวนใบเบิกที่เกี่ยวข้อง ${[...new Set(grouped.map(r=>r.docNo))].length} ใบ
 • พบรายการแจ้งเตือนภาพซ้ำ ${grouped.filter(r=>r.isDup).length} รายการ
 • ภาพถ่ายประกอบทั้งหมด ${cache.length} ภาพ แสดงในหน้าที่ ${tablePages+1}${phChunks.length>1?' ถึง '+totalPages:''} ของเอกสารฉบับนี้</div>
         ${sigBlock}`:'<div style="margin-top:auto"></div>'}
@@ -980,7 +1011,7 @@ function printSummary(){
     html+=`<div class="sheet p2s">
       ${docHead(c,logo,tag(pg))}
       <div class="meta"><span>สรุปภาพถ่ายประกอบการตรวจเช็ค (แยกตามพื้นที่)</span>
-        <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dnoLabel}</b></span></div>
+        <span>เลขที่เอกสารสรุป&nbsp;&nbsp;<b>${sumDoc}</b></span></div>
       <div class="ahd">📍 พื้นที่: ${esc(ck.area)}
         <span>— รวม ${ck.all} ภาพ (แผ่นที่ ${ck.part}/${ck.tot})</span></div>
       <div class="ph">${figs}</div>
@@ -999,7 +1030,7 @@ function exportSummaryExcel(){
   const c=docCfg();
   const grouped=groupByBatch();
   const fA=$('fArea').value,fS=$('fShift').value,fD=$('fDate').value;
-  const dnoLabel=docRangeLabel(grouped);
+  const sumDoc=summaryDocNo();
   const wb=XLSX.utils.book_new();
 
   const aoa=[];
@@ -1010,18 +1041,18 @@ function exportSummaryExcel(){
   aoa.push([]);
   aoa.push([c.title,'','','','','','','']);
   aoa.push([]);
-  aoa.push(['วันที่ออกเอกสาร',thDate(new Date()),'','','เลขที่เอกสาร',dnoLabel,'','']);
+  aoa.push(['วันที่ออกเอกสาร',thDate(new Date()),'','','เลขที่เอกสารสรุป',sumDoc,'','']);
   aoa.push(['ขอบเขตรายงาน','พื้นที่: '+fA,'รอบตรวจ: '+fS,'วันที่: '+(fD||'ทั้งหมด'),'จำนวนรายการ: '+grouped.length,'','','']);
   aoa.push(['ผู้จัดทำรายงาน',adminUser,'','','','','','']);
   aoa.push([]);
-  aoa.push(['ลำดับ','เลขที่เอกสาร','วันเวลา','พื้นที่','รอบ','ผู้ตรวจเช็ค','รายการที่ตรวจพบ / หมายเหตุ','สถานะ']);
+  aoa.push(['ลำดับ','เลขที่ใบเบิก','วันเวลา','พื้นที่','รอบ','ผู้ตรวจเช็ค','รายการที่ตรวจพบ / หมายเหตุ','สถานะ']);
   grouped.forEach((r,i)=>{
     aoa.push([i+1,r.docNo||'-',r.timestamp,r.area,r.shift,r.inspector,(r.note||'-').replace(/\n/g,' / '),r.isDup?'ซ้ำ ⚠':'ปกติ']);
   });
   aoa.push([]);
   aoa.push(['สรุปภาพรวม','','','','','','','']);
   aoa.push(['• จำนวนรายการทั้งหมด',grouped.length,'รายการ','','','','','']);
-  aoa.push(['• จำนวนเอกสารที่เกี่ยวข้อง',[...new Set(grouped.map(r=>r.docNo))].length,'ฉบับ','','','','','']);
+  aoa.push(['• จำนวนใบเบิกที่เกี่ยวข้อง',[...new Set(grouped.map(r=>r.docNo))].length,'ใบ','','','','','']);
   aoa.push(['• พบรายการแจ้งเตือนภาพซ้ำ',grouped.filter(r=>r.isDup).length,'รายการ','','','','','']);
   aoa.push(['• ภาพถ่ายประกอบทั้งหมด',cache.length,'ภาพ','','','','','']);
   aoa.push([]);
@@ -1041,7 +1072,7 @@ function exportSummaryExcel(){
   XLSX.utils.book_append_sheet(wb,ws1,'ใบรายงานสรุป');
 
   const rows2=cache.map((r,i)=>({
-    'ลำดับ':i+1,'เลขที่เอกสาร':r.docNo||'-','วันเวลา':r.timestamp,'พื้นที่':r.area,'รอบตรวจ':r.shift,
+    'ลำดับ':i+1,'เลขที่ใบเบิก':r.docNo||'-','วันเวลา':r.timestamp,'พื้นที่':r.area,'รอบตรวจ':r.shift,
     'ผู้ตรวจเช็ค':r.inspector,'หมายเหตุ':(r.note||'-').replace(/\n/g,' / '),
     'ภาพซ้ำ':r.isDup?'ใช่ ⚠️':'ปกติ','รหัสชุด(Batch)':r.batch||'-'
   }));
@@ -1052,30 +1083,36 @@ function exportSummaryExcel(){
   const docs=[...new Set(cache.map(r=>r.docNo).filter(Boolean))];
   const rows3=docs.map(dn=>{
     const g=grouped.filter(r=>r.docNo===dn);
+    const recv=g.find(r=>r.shift==='รับกะ'),ret=g.find(r=>r.shift==='ส่งคืน');
     return {
-      'เลขที่เอกสาร':dn,
-      'พื้นที่ทั้งหมด':g.map(r=>r.area).join(', '),
-      'จำนวนรายการย่อย':g.length,
+      'เลขที่ใบเบิก':dn,
+      'พื้นที่':g[0]?g[0].area:'-',
+      'รับกะ - เวลา':recv?recv.timestamp:'-',
+      'รับกะ - ผู้ตรวจ':recv?recv.inspector:'-',
+      'ส่งคืน - เวลา':ret?ret.timestamp:'ยังไม่ส่งคืน',
+      'ส่งคืน - ผู้ตรวจ':ret?ret.inspector:'-',
+      'สถานะรอบ':ret?'ปิดรอบแล้ว':'ค้างอยู่ ⚠',
       'รายการที่พบ':g.map(r=>(r.note||'').replace(/\n/g,' / ')).filter(Boolean).join(' | ')||'-'
     };
   });
   const ws3=XLSX.utils.json_to_sheet(rows3);
-  ws3['!cols']=[{wch:16},{wch:25},{wch:15},{wch:50}];
-  XLSX.utils.book_append_sheet(wb,ws3,'สรุปตามเลขที่เอกสาร');
+  ws3['!cols']=[{wch:16},{wch:14},{wch:19},{wch:20},{wch:19},{wch:20},{wch:14},{wch:50}];
+  XLSX.utils.book_append_sheet(wb,ws3,'สรุปตามใบเบิก');
 
   const areaList=[...new Set(cache.map(r=>r.area))];
   const rows4=areaList.map(a=>{
     const g=grouped.filter(r=>r.area===a);
     return {'พื้นที่':a,'จำนวนรายงาน(ชุด)':g.length,'จำนวนภาพ':cache.filter(r=>r.area===a).length,
+      'จำนวนใบเบิก':[...new Set(g.map(r=>r.docNo))].length,
       'พบภาพซ้ำ(ชุด)':g.filter(r=>r.isDup).length,
       'รายการที่พบ':g.map(r=>(r.note||'').replace(/\n/g,' / ')).filter(Boolean).join(' | ')||'-'};
   });
   const ws4=XLSX.utils.json_to_sheet(rows4);
-  ws4['!cols']=[{wch:15},{wch:18},{wch:12},{wch:15},{wch:55}];
+  ws4['!cols']=[{wch:15},{wch:18},{wch:12},{wch:13},{wch:15},{wch:55}];
   XLSX.utils.book_append_sheet(wb,ws4,'สรุปตามพื้นที่');
 
   XLSX.writeFile(wb,'รายงานสรุปตรวจเช็คเครื่องมือ_Team3_'+stamp()+'.xlsx');
-  showStatus('expStatus','✅ ดาวน์โหลดรายงานสรุปเป็น Excel แล้ว (4 ชีต)','ok');
+  showStatus('expStatus','✅ ดาวน์โหลดรายงานสรุปเป็น Excel แล้ว (4 ชีต — แก้ไขด้วยมือได้)','ok');
 }
 
 /* ================== ลบ + Log ================== */
@@ -1105,94 +1142,119 @@ async function removeDupRecords(){
     if(seen[k])dups.push(r); else seen[k]=1;
   });
   if(!dups.length)return showStatus('expStatus','✅ ไม่พบรายการซ้ำในระบบ','ok');
-  if(!confirm(`🧹 ตรวจพบรายการซ้ำ ${dups.length} รายการ\nดำเนินการต่อหรือไม่?`))return;
+  if(!confirm(`🧹 ตรวจพบรายการซ้ำ ${dups.length} รายการ\n(ภาพ/เวลา/ผู้ตรวจ/พื้นที่ เหมือนกันทุกประการ)\n\nระบบจะเก็บรายการแรกไว้ และลบตัวซ้ำทั้งหมด\nดำเนินการต่อหรือไม่?`))return;
   showStatus('expStatus','⏳ กำลังลบรายการซ้ำ...','info');
-  await writeLog('ลบรายการซ้ำอัตโนมัติ',dups,'ระบบตรวจพบข้อมูลซ้ำซ้อน');
+  await writeLog('ลบรายการซ้ำอัตโนมัติ',dups,'ระบบตรวจพบข้อมูลซ้ำซ้อนจากการกดส่งซ้ำ');
   const res=await cloudDelMany(dups.map(r=>r.id));
-  showStatus('expStatus',`✅ ลบรายการซ้ำเรียบร้อย ${res.ok} รายการ`,'ok');
+  if(res.fail) showStatus('expStatus',`⚠️ ลบสำเร็จ ${res.ok} / ไม่สำเร็จ ${res.fail}\nตรวจสอบ Firestore Rules`,'err');
+  else showStatus('expStatus',`✅ ลบรายการซ้ำเรียบร้อย ${res.ok} รายการ`,'ok');
   loadHistory();
 }
 
 async function deleteOne(id){
   if(!guard())return;
   const rec=cloudRecs.find(r=>String(r.id)===String(id));if(!rec)return;
-  openRsn(`ลบรายการ: ${rec.docNo||'-'} • ${rec.area} • ${rec.shift} • ${rec.inspector}`,async reason=>{
+  openRsn(`ลบรายการ: ${rec.docNo||'-'} • ${rec.area} • ${rec.shift} • ${rec.inspector}\nบันทึกเมื่อ ${rec.timestamp}`,async reason=>{
     showStatus('expStatus','⏳ กำลังลบ...','info');
     await writeLog('ลบรายการเดี่ยว',[rec],reason);
-    try{ await cloudDel(rec.id); }catch(e){ return showStatus('expStatus','❌ ลบไม่สำเร็จ: '+e.message,'err'); }
+    try{ await cloudDel(rec.id); }
+    catch(e){ return showStatus('expStatus','❌ ลบไม่สำเร็จ: '+e.message+'\n(ตรวจสอบ Firestore Rules ว่าอนุญาต delete)','err'); }
     await purgeLocalByBatches([rec.batch]);
-    showStatus('expStatus','✅ ลบรายการเรียบร้อย','ok');
+    showStatus('expStatus','✅ ลบรายการเรียบร้อย — บันทึกลง Log แล้ว','ok');
     loadHistory();});}
-
 async function deleteFiltered(){
   if(!guard())return;
   if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีรายการให้ลบ','err');
   const items=[...cache],n=items.length;
-  openRsn(`ลบ ${n} รายการที่กรองอยู่ในขณะนี้`,async reason=>{
-    if(!confirm(`⚠️ ยืนยันลบ ${n} รายการถาวร`))return;
+  openRsn(`ลบ ${n} รายการที่กรองอยู่ในขณะนี้\nการลบไม่สามารถกู้คืนได้`,async reason=>{
+    if(!confirm(`⚠️ ยืนยันอีกครั้ง\nกำลังจะลบ ${n} รายการถาวร\nเหตุผล: ${reason}`))return;
     showStatus('expStatus','⏳ กำลังลบ...','info');
     await writeLog('ลบตามตัวกรอง',items,reason);
     const res=await cloudDelMany(items.map(r=>r.id));
     await purgeLocalByBatches([...new Set(items.map(r=>r.batch))]);
-    showStatus('expStatus',`✅ ลบเรียบร้อย ${res.ok} รายการ`,'ok');
+    if(res.fail) showStatus('expStatus',`⚠️ ลบสำเร็จ ${res.ok} รายการ / ไม่สำเร็จ ${res.fail} รายการ\nตรวจสอบ Firestore Rules`,'err');
+    else showStatus('expStatus',`✅ ลบเรียบร้อย ${res.ok} รายการ — บันทึกลง Log แล้ว`,'ok');
     loadHistory();});}
-
 async function deleteAll(){
   if(!guard())return;
   const all=cloudReady?cloudRecs.slice():[];
   if(!all.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลในระบบ','err');
-  openRsn(`ล้างข้อมูลทั้งหมด ${all.length} รายการ`,async reason=>{
-    const t=prompt('พิมพ์คำว่า  ลบทั้งหมด  เพื่อยืนยัน:');
-    if(t!=='ลบทั้งหมด')return showStatus('expStatus','❌ ยกเลิก','err');
+  openRsn(`ล้างข้อมูลทั้งหมด ${all.length} รายการ\n⚠️ ไม่สามารถย้อนกลับได้`,async reason=>{
+    const t=prompt('พิมพ์คำว่า  ลบทั้งหมด  เพื่อยืนยันขั้นสุดท้าย:');
+    if(t!=='ลบทั้งหมด')return showStatus('expStatus','❌ ยกเลิกการลบ','err');
     showStatus('expStatus','⏳ กำลังล้างข้อมูล...','info');
     await writeLog('ล้างข้อมูลทั้งหมด',all,reason);
     const res=await cloudDelMany(all.map(r=>r.id));
     try{ if(db) await clearAllRec(); }catch(e){}
-    showStatus('expStatus',`✅ ล้างข้อมูลทั้งหมดแล้ว (${res.ok} รายการ)`,'ok');
+    if(res.fail) showStatus('expStatus',`⚠️ ลบสำเร็จ ${res.ok} / ไม่สำเร็จ ${res.fail}\nตรวจสอบ Firestore Rules`,'err');
+    else showStatus('expStatus',`✅ ล้างข้อมูลทั้งหมดแล้ว (${res.ok} รายการ)`,'ok');
     loadHistory();});}
 
 async function loadLog(){
   if(!isAdmin)return;
-  let logs=logReady?cloudLogs.slice():[];
+  let logs;
+  if(logReady){ logs=cloudLogs.slice(); }
+  else if(db){ try{ logs=(await getLogs()).reverse(); }catch(e){ logs=[]; } }
+  else { logs=[]; }
   $('lgTotal').innerText=logs.length;
   $('lgItems').innerText=logs.reduce((s,l)=>s+(l.count||0),0);
   const today=new Date().toISOString().slice(0,10);
   $('lgToday').innerText=logs.filter(l=>l.delDateKey===today).length;
+  const q=$('lgSearch').value.trim().toLowerCase(),d=$('lgDate').value;
+  if(d)logs=logs.filter(l=>l.delDateKey===d);
+  if(q)logs=logs.filter(l=>(l.admin+l.reason+l.type+(l.detail||[]).map(x=>x.area+x.inspector).join('')).toLowerCase().includes(q));
   logCache=logs;
   $('logList').innerHTML=logs.length?logs.map((l,i)=>{
     const areas=[...new Set((l.detail||[]).map(x=>x.area))].join(', ');
+    const tc=l.type==='ลบรายการเดี่ยว'?'t1':l.type==='ลบตามตัวกรอง'?'t2':'t3';
     return `<div class="logcard">${l.thumb?`<img src="${l.thumb}" onclick="showLogImg(${i})">`:''}
-      <div class="li"><b>ลบ ${l.count} รายการ</b><br>👤 ผู้ลบ: <b>${l.admin}</b><br>🕐 ${l.delAt}<br>💬 ${l.reason}</div></div>`;
-  }).join(''):'<div class="empty">ยังไม่มีประวัติการลบข้อมูล</div>';}
+      <div class="li"><b>ลบ ${l.count} รายการ</b><span class="tag ${tc}">${l.type}</span><br>
+      👤 ผู้ลบ: <b style="color:#0d1b3e">${l.admin}</b><br>🕐 ${l.delAt}<br>📍 ${areas||'-'}<br>💬 ${l.reason}<br>
+      <span style="color:#8a93a3">ผู้ตรวจในรายการ: ${[...new Set((l.detail||[]).map(x=>x.inspector))].join(', ')||'-'}</span>
+      </div></div>`;}).join(''):'<div class="empty">ยังไม่มีประวัติการลบข้อมูล</div>';}
 
 function exportLogExcel(){
   if(!guard())return;
   if(!logCache.length)return showStatus('lgStatus','⚠️ ไม่มี Log ให้ Export','err');
   const rows=[];
   logCache.forEach((l,i)=>(l.detail||[]).forEach(dt=>rows.push({'ครั้งที่':i+1,'วันเวลาที่ลบ':l.delAt,'ผู้ลบ':l.admin,
-    'ประเภทการลบ':l.type,'เหตุผล':l.reason,'เลขที่เอกสาร':dt.docNo||'-','พื้นที่':dt.area,'รอบ':dt.shift,'ผู้ตรวจเช็คเดิม':dt.inspector})));
+    'ประเภทการลบ':l.type,'เหตุผล':l.reason,'จำนวนในครั้งนี้':l.count,'เลขที่ใบเบิก':dt.docNo||'-','พื้นที่':dt.area,'รอบ':dt.shift,
+    'ผู้ตรวจเช็คเดิม':dt.inspector,'เวลารายงานเดิม':dt.timestamp,'หมายเหตุเดิม':dt.note||'-'})));
   const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:8},{wch:20},{wch:18},{wch:18},{wch:24},{wch:13},{wch:15},{wch:13},{wch:9},{wch:18},{wch:18},{wch:34}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'ประวัติการลบ');
   XLSX.writeFile(wb,'Log_การลบข้อมูล_Team3_'+stamp()+'.xlsx');
   showStatus('lgStatus','✅ ดาวน์โหลด Log แล้ว','ok');}
 
 async function clearLog(){
   if(!guard())return;
-  if(!confirm('🧹 ล้างประวัติการลบทั้งหมด?'))return;
-  if(prompt('พิมพ์คำว่า  ล้างlog  เพื่อยืนยัน:')!=='ล้างlog')return;
-  try{ if(LOGCOL) await cloudClearLogs(); if(db) await clearLogs(); }catch(e){}
-  showStatus('lgStatus','✅ ล้าง Log เรียบร้อย','ok');loadLog();}
+  let localCnt=0;
+  try{ if(db) localCnt=(await getLogs()).length; }catch(e){}
+  const cloudCnt=cloudLogs.length;
+  if(!cloudCnt&&!localCnt)return showStatus('lgStatus','⚠️ ไม่มี Log ในระบบ','err');
+  if(!confirm(`🧹 ล้างประวัติการลบทั้งหมด?\n\n• บนฐานข้อมูลกลาง ${cloudCnt} รายการ\n• ในเครื่องนี้ ${localCnt} รายการ`))return;
+  const t=prompt('พิมพ์คำว่า  ล้างlog  เพื่อยืนยัน:');
+  if(t!=='ล้างlog')return showStatus('lgStatus','❌ ยกเลิก','err');
+  showStatus('lgStatus','⏳ กำลังล้าง Log...','info');
+  let res={ok:0,fail:0};
+  try{ if(LOGCOL) res=await cloudClearLogs(); }
+  catch(e){ return showStatus('lgStatus','❌ ล้างไม่สำเร็จ: '+e.message,'err'); }
+  try{ if(db) await clearLogs(); }catch(e){}
+  if(res.fail) showStatus('lgStatus',`⚠️ ล้างสำเร็จ ${res.ok} / ไม่สำเร็จ ${res.fail}`,'err');
+  else showStatus('lgStatus',`✅ ล้าง Log เรียบร้อย (ฐานข้อมูลกลาง ${res.ok} / ในเครื่อง ${localCnt})`,'ok');
+  loadLog();}
 
+/* ================== Export ================== */
 function exportExcel(){
   if(!guard())return;
   if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลให้ Export','err');
-  const rows=cache.map((r,i)=>({'ลำดับ':i+1,'เลขที่เอกสาร':docNo(r),'วันเวลา':r.timestamp,'พื้นที่':r.area,'รอบตรวจ':r.shift,
+  const rows=cache.map((r,i)=>({'ลำดับ':i+1,'เลขที่ใบเบิก':docNo(r),'วันเวลา':r.timestamp,'พื้นที่':r.area,'รอบตรวจ':r.shift,
     'ผู้ตรวจเช็ค':r.inspector,'หมายเหตุ':(r.note||'-').replace(/\n/g,' / '),'ภาพซ้ำ':r.isDup?'ใช่ ⚠️':'ปกติ'}));
   const ws=XLSX.utils.json_to_sheet(rows);
+  ws['!cols']=[{wch:6},{wch:16},{wch:18},{wch:13},{wch:9},{wch:20},{wch:42},{wch:10}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'รายงานตรวจเช็ค');
   XLSX.writeFile(wb,'รายงานตรวจเช็คเครื่องมือ_Team3_'+stamp()+'.xlsx');
   showStatus('expStatus','✅ ดาวน์โหลดไฟล์ Excel แล้ว','ok');}
-
 async function exportZip(){
   if(!guard())return;
   if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีรูปภาพให้ Export','err');
@@ -1204,15 +1266,13 @@ async function exportZip(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='รูปภาพตรวจเช็ค_Team3_'+stamp()+'.zip';a.click();
   showStatus('expStatus','✅ ดาวน์โหลด ZIP สำเร็จ','ok');}
-
 async function backupData(){
   if(!guard())return;
   const data={reports:cloudRecs.slice(),dellog:cloudLogs.slice(),doc:docCfg(),docseq:_seq()};
   const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='MT3_Backup_'+stamp()+'.json';a.click();
-  showStatus('expStatus','✅ สำรองข้อมูลแล้ว','ok');}
-
+  showStatus('expStatus',`✅ สำรองข้อมูลแล้ว (รายงาน ${data.reports.length} / Log ${data.dellog.length})`,'ok');}
 $('restoreInput').onchange=e=>{
   if(!guard())return;
   const f=e.target.files[0];if(!f)return;
@@ -1223,17 +1283,20 @@ $('restoreInput').onchange=e=>{
     if(j.doc){const dd=Object.assign({},j.doc);delete dd.logo;localStorage.setItem('mt3_doc',JSON.stringify(dd));}
     if(j.docseq)_saveSeq(j.docseq);
     showStatus('expStatus','⏳ กำลังกู้คืนขึ้นฐานข้อมูลกลาง...','info');
-    for(const o of reps){const c=Object.assign({},o);const oid=c.id;delete c.id;if(oid)await cloudSet(String(oid),c);else await cloudAdd(c);}
+    for(const o of reps){
+      const c=Object.assign({},o);const oid=c.id;delete c.id;
+      if(oid) await cloudSet(String(oid),c); else await cloudAdd(c);
+    }
     for(const o of lgs){const c=Object.assign({},o);delete c.id;await cloudAddLog(c);}
-    showStatus('expStatus','✅ กู้คืนสำเร็จ','ok');
+    showStatus('expStatus',`✅ กู้คืนแล้ว (รายงาน ${reps.length} / Log ${lgs.length})`,'ok');
   }catch(err){showStatus('expStatus','❌ ไฟล์สำรองไม่ถูกต้อง','err');}};
   r.readAsText(f);e.target.value='';};
-
 function stamp(){const d=new Date();
   return `${d.getDate()}-${d.getMonth()+1}-${d.getFullYear()}_${d.getHours()}${('0'+d.getMinutes()).slice(-2)}`;}
 
+/* ================== เริ่มระบบ ================== */
 if(initCloud()){ startCloudSync(); }
-else { setSync('🔴 ตั้งค่า Firebase ไม่ถูกต้อง','off'); }
+else { setSync('🔴 ตั้งค่า Firebase ไม่ถูกต้อง — ข้อมูลจะเก็บเฉพาะในเครื่อง','off'); }
 updateCycleHint();
 
 openDB().then(()=>{if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true);else loadHistory();})
