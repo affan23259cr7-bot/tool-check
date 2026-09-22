@@ -136,7 +136,7 @@ body.isAdmin .lockmsg{display:none}
   <label>⏰ รอบตรวจเช็ค</label>
   <select id="shift" onchange="updateCycleHint()"><option>รับกะ</option><option>ส่งคืน</option></select>
 
-  <div class="cyclebox" id="cycleHint">⏳ กำลังตรวจสอบเลขที่ใบเบิก...</div>
+  <div class="cyclebox" id="cycleHint">⏳ กำลังตรวจสอบเลขที่เอกสาร...</div>
 
   <label>👤 ชื่อผู้ตรวจเช็ค</label>
   <input type="text" id="inspector" placeholder="กรอกชื่อ-นามสกุล">
@@ -186,7 +186,7 @@ body.isAdmin .lockmsg{display:none}
   <label>กรองตามรอบ</label>
   <select id="fShift" onchange="loadHistory()"><option>ทั้งหมด</option><option>รับกะ</option><option>ส่งคืน</option></select>
   <label>กรองตามวันที่</label><input type="date" id="fDate" onchange="loadHistory()">
-  <label>ค้นหาชื่อผู้ตรวจ / เลขที่ใบเบิก</label>
+  <label>ค้นหาชื่อผู้ตรวจ / เลขที่เอกสาร</label>
   <input type="text" id="fName" placeholder="พิมพ์ชื่อ หรือ MT69/0001 ..." onkeyup="loadHistory()">
 
   <div class="adminOnly">
@@ -569,7 +569,7 @@ function showImg(i){$('modalImg').src=photos[i].b64;$('modal').classList.add('sh
 function showHistImg(i){$('modalImg').src=cache[i].img;$('modal').classList.add('show');}
 function showLogImg(i){const t=logCache[i].thumb;if(t){$('modalImg').src=t;$('modal').classList.add('show');}}
 
-/* ================== เลขที่ใบเบิกแบบผูกรอบ รับกะ ↔ ส่งคืน ================== */
+/* ================== เลขที่เอกสารแบบผูกรอบ รับกะ ↔ ส่งคืน ================== */
 const DOC_PREFIX='MT';
 const pad=(n,l)=>String(n).padStart(l,'0');
 function beYY(d){return pad((d.getFullYear()+543)%100,2);}
@@ -613,11 +613,13 @@ function resolveDocNo(area,shift){
   return nextDocNo();
 }
 
-function summaryDocNo(){
-  const d=new Date();
-  return DOC_PREFIX+beYY(d)+'/SUM-'+pad(d.getDate(),2)+pad(d.getMonth()+1,2);
-}
 function docNo(rec){ return (rec&&rec.docNo)?rec.docNo:'-'; }
+
+function docRangeLabel(list){
+  const dnos=[...new Set(list.map(r=>r.docNo).filter(Boolean))].sort();
+  if(!dnos.length)return '-';
+  return dnos.length===1?dnos[0]:dnos[0]+' – '+dnos[dnos.length-1];
+}
 
 function updateCycleHint(){
   const el=$('cycleHint'); if(!el)return;
@@ -627,14 +629,14 @@ function updateCycleHint(){
     const open=findOpenCycle(a);
     if(open){
       el.className='cyclebox';
-      el.innerHTML='🔗 รอบนี้จะผูกกับใบเบิกเลขที่ <b>'+open+'</b><br><span style="opacity:.8">(ปิดรอบของ “รับกะ” ที่ยังค้างอยู่ในพื้นที่ '+a+')</span>';
+      el.innerHTML='🔗 รอบนี้จะผูกกับเอกสารเลขที่ <b>'+open+'</b><br><span style="opacity:.8">(ปิดรอบของ “รับกะ” ที่ยังค้างอยู่ในพื้นที่ '+a+')</span>';
     }else{
       el.className='cyclebox newc';
-      el.innerHTML='⚠️ ไม่พบรอบ “รับกะ” ที่ค้างอยู่ในพื้นที่ '+a+'<br><span style="opacity:.8">ระบบจะออกเลขที่ใบเบิกใหม่ให้อัตโนมัติ</span>';
+      el.innerHTML='⚠️ ไม่พบรอบ “รับกะ” ที่ค้างอยู่ในพื้นที่ '+a+'<br><span style="opacity:.8">ระบบจะออกเลขที่เอกสารใหม่ให้อัตโนมัติ</span>';
     }
   }else{
     el.className='cyclebox newc';
-    el.innerHTML='🆕 รอบนี้จะ <b>เปิดใบเบิกใหม่</b><br><span style="opacity:.8">เมื่อส่งคืนพื้นที่เดียวกัน ระบบจะใช้เลขเดียวกันนี้โดยอัตโนมัติ</span>';
+    el.innerHTML='🆕 รอบนี้จะ <b>เปิดเอกสารใหม่</b><br><span style="opacity:.8">เมื่อส่งคืนพื้นที่เดียวกัน ระบบจะใช้เลขเดียวกันนี้โดยอัตโนมัติ</span>';
   }
 }
 
@@ -644,7 +646,7 @@ function thTime(d){return pad(d.getHours(),2)+':'+pad(d.getMinutes(),2);}
 function showSaveCard(o){
   saveClipText=
 `🧰 รายงานตรวจเช็คเครื่องมือ
-เลขที่ใบเบิก: ${o.docNo}
+เลขที่เอกสาร: ${o.docNo}
 พื้นที่: ${o.area}
 รอบ: ${o.shift}
 ผู้ตรวจเช็ค: ${o.inspector}
@@ -703,7 +705,7 @@ async function submitReport(){
     const lineOK=await notifyLine({ts,dateKey,area,shift,inspector,note,docNo:dno,count:cnt,dup:hasDup,batch});
 
     if(upFail) showStatus('status',`⚠️ บันทึกในเครื่องแล้ว ${cnt} รูป\nแต่ส่งขึ้นฐานข้อมูลกลางไม่สำเร็จ ${upFail} รูป\nตรวจสอบอินเทอร์เน็ต / ค่า Firebase`,'err');
-    else showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป\n📄 เลขที่ใบเบิก ${dno}${shift==='ส่งคืน'?' (ปิดรอบแล้ว)':' (เปิดรอบใหม่)'}\n${lineOK?'📨 แจ้งเตือนเข้าไลน์กลุ่มแล้ว':'⚠️ ยังไม่ได้ตั้งค่าแจ้งเตือนไลน์'}\n${area} • ${shift} • ${inspector}`,'ok');
+    else showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป\n📄 เลขที่เอกสาร ${dno}${shift==='ส่งคืน'?' (ปิดรอบแล้ว)':' (เปิดรอบใหม่)'}\n${lineOK?'📨 แจ้งเตือนเข้าไลน์กลุ่มแล้ว':'⚠️ ยังไม่ได้ตั้งค่าแจ้งเตือนไลน์'}\n${area} • ${shift} • ${inspector}`,'ok');
 
     showSaveCard({area,shift,inspector,docNo:dno,ts:thDate(now)+' '+thTime(now),count:cnt,note,dup:hasDup});
     photos=[];renderThumbs();$('note').value='';
@@ -833,7 +835,7 @@ async function printSingle(id){
   const page1=`<div class="sheet">
     ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P01/02')}
     <div class="meta"><span>วันที่ออกเอกสาร&nbsp;&nbsp;<b>${thDate(new Date())}</b></span>
-      <span>เลขที่ใบเบิก&nbsp;&nbsp;<b>${dno}</b></span></div>
+      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
     <div class="fl"><div class="lb">เรียน</div><div class="vl">ผู้ควบคุมงาน / ผู้ช่วยผู้ควบคุมงาน / หัวหน้าชุดปฏิบัติงาน</div></div>
     <div class="fl"><div class="lb">พื้นที่รับผิดชอบ</div><div class="vl"><b>${esc(rec.area)}</b></div>
       <div class="lb" style="width:26mm;text-align:right;padding-right:5px">รอบตรวจเช็ค</div>
@@ -841,7 +843,7 @@ async function printSingle(id){
     <div class="fl"><div class="lb">ผู้ตรวจเช็ค</div><div class="vl">${esc(rec.inspector)}</div>
       <div class="lb" style="width:26mm;text-align:right;padding-right:5px">วันเวลาที่ตรวจ</div>
       <div class="vl" style="max-width:40mm">${esc(rec.timestamp)}</div></div>
-    <div class="fl"><div class="lb">สถานะรอบใบเบิก</div><div class="vl">
+    <div class="fl"><div class="lb">สถานะรอบเอกสาร</div><div class="vl">
       ${hasRecv?'✓ รับกะแล้ว':'— ยังไม่มีรับกะ'} &nbsp;|&nbsp; ${hasRet?'✓ ส่งคืนแล้ว (ปิดรอบ)':'— ยังไม่ส่งคืน (รอปิดรอบ)'}</div></div>
     <div style="margin-top:12px;font-weight:700">รายการเครื่องมือที่ตรวจพบความผิดปกติ</div>
     <table><tr><th>ลำดับ</th><th>รายการ / อาการที่พบ</th><th>สถานะ</th><th>หมายเหตุ</th></tr>${rows}</table>
@@ -862,7 +864,7 @@ async function printSingle(id){
   const page2=`<div class="sheet p2">
     ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P02/02')}
     <div class="meta"><span>ภาพถ่ายประกอบการตรวจเช็ค&nbsp;&nbsp;<b>(${grp.length} ภาพ)</b></span>
-      <span>เลขที่ใบเบิก&nbsp;&nbsp;<b>${dno}</b></span></div>
+      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
     <div class="fl"><div class="lb">พื้นที่ / รอบตรวจ</div><div class="vl"><b>${esc(rec.area)}</b> / <b>${esc(rec.shift)}</b></div>
       <div class="lb" style="width:26mm;text-align:right;padding-right:5px">ผู้ตรวจเช็ค</div>
       <div class="vl" style="max-width:40mm">${esc(rec.inspector)}</div></div>
@@ -881,7 +883,7 @@ function groupByBatch(){
     const items = cache.filter(r => r.batch === b);
     if (!items.length) return;
     
-    const timeStr = items[0].timestamp; // เช่น "21/09/2569 21:50"
+    const timeStr = items[0].timestamp;
     
     rawGrouped.push({
       batch: b,
@@ -898,10 +900,8 @@ function groupByBatch(){
     });
   });
 
-  // เรียงลำดับตามเวลาใหม่ -> เก่า
   rawGrouped.sort((a, b) => b.sortTime - a.sortTime);
 
-  // ยุบรวม (Merge) ถ้ารูป/พื้นที่เดียวกัน และรอบเดียวกัน ห่างกันไม่เกิน 10 นาที (600,000 ms)
   const merged = [];
   rawGrouped.forEach(curr => {
     const found = merged.find(m => 
@@ -916,7 +916,6 @@ function groupByBatch(){
       }
       if (curr.isDup) found.isDup = true;
       found.count += curr.count;
-      // คงเวลาของ "ครั้งแรก" เอาไว้
       if (curr.sortTime < found.sortTime) {
         found.sortTime = curr.sortTime;
         found.timestamp = curr.timestamp;
@@ -950,7 +949,7 @@ function printSummary(){
 
   const per=18,tablePages=Math.ceil(grouped.length/per);
   const fA=$('fArea').value,fS=$('fShift').value,fD=$('fDate').value;
-  const sumDoc=summaryDocNo();
+  const dnoLabel=docRangeLabel(grouped);
 
   const PH_PER=6;
   const areaList=[...new Set(cache.map(r=>r.area))];
@@ -987,16 +986,16 @@ function printSummary(){
     html+=`<div class="sheet">
       ${docHead(c,logo,tag(pg))}
       <div class="meta"><span>วันที่ออกเอกสาร&nbsp;&nbsp;<b>${thDate(new Date())}</b></span>
-        <span>เลขที่เอกสารสรุป&nbsp;&nbsp;<b>${sumDoc}</b></span></div>
+        <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dnoLabel}</b></span></div>
       <div class="fl"><div class="lb">ขอบเขตรายงาน</div><div class="vl">
         พื้นที่: <b>${esc(fA)}</b> | รอบตรวจ: <b>${esc(fS)}</b> | วันที่: <b>${fD?esc(fD):'ทั้งหมด'}</b>
         | จำนวนรายการ: <b>${grouped.length}</b> รายการ</div></div>
       <div class="fl"><div class="lb">ผู้จัดทำรายงาน</div><div class="vl">${esc(adminUser)}</div></div>
-      <table><tr><th>ลำดับ</th><th>เลขที่ใบเบิก</th><th>วันเวลา</th><th>พื้นที่</th><th>รอบ</th><th>ผู้ตรวจเช็ค</th>
+      <table><tr><th>ลำดับ</th><th>เลขที่เอกสาร</th><th>วันเวลา</th><th>พื้นที่</th><th>รอบ</th><th>ผู้ตรวจเช็ค</th>
         <th>รายการที่ตรวจพบ / หมายเหตุ</th><th>สถานะ</th></tr>${rows}</table>
       ${p===tablePages-1?`<div style="margin-top:10px;font-weight:700">สรุปภาพรวม</div>
         <div class="rm">• จำนวนรายการทั้งหมด ${grouped.length} รายการ
-• จำนวนใบเบิกที่เกี่ยวข้อง ${[...new Set(grouped.map(r=>r.docNo))].length} ใบ
+• จำนวนเอกสารที่เกี่ยวข้อง ${[...new Set(grouped.map(r=>r.docNo))].length} ฉบับ
 • พบรายการแจ้งเตือนภาพซ้ำ ${grouped.filter(r=>r.isDup).length} รายการ
 • ภาพถ่ายประกอบทั้งหมด ${cache.length} ภาพ แสดงในหน้าที่ ${tablePages+1}${phChunks.length>1?' ถึง '+totalPages:''} ของเอกสารฉบับนี้</div>
         ${sigBlock}`:'<div style="margin-top:auto"></div>'}
@@ -1011,7 +1010,7 @@ function printSummary(){
     html+=`<div class="sheet p2s">
       ${docHead(c,logo,tag(pg))}
       <div class="meta"><span>สรุปภาพถ่ายประกอบการตรวจเช็ค (แยกตามพื้นที่)</span>
-        <span>เลขที่เอกสารสรุป&nbsp;&nbsp;<b>${sumDoc}</b></span></div>
+        <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dnoLabel}</b></span></div>
       <div class="ahd">📍 พื้นที่: ${esc(ck.area)}
         <span>— รวม ${ck.all} ภาพ (แผ่นที่ ${ck.part}/${ck.tot})</span></div>
       <div class="ph">${figs}</div>
@@ -1030,7 +1029,7 @@ function exportSummaryExcel(){
   const c=docCfg();
   const grouped=groupByBatch();
   const fA=$('fArea').value,fS=$('fShift').value,fD=$('fDate').value;
-  const sumDoc=summaryDocNo();
+  const dnoLabel=docRangeLabel(grouped);
   const wb=XLSX.utils.book_new();
 
   const aoa=[];
@@ -1041,18 +1040,18 @@ function exportSummaryExcel(){
   aoa.push([]);
   aoa.push([c.title,'','','','','','','']);
   aoa.push([]);
-  aoa.push(['วันที่ออกเอกสาร',thDate(new Date()),'','','เลขที่เอกสารสรุป',sumDoc,'','']);
+  aoa.push(['วันที่ออกเอกสาร',thDate(new Date()),'','','เลขที่เอกสาร',dnoLabel,'','']);
   aoa.push(['ขอบเขตรายงาน','พื้นที่: '+fA,'รอบตรวจ: '+fS,'วันที่: '+(fD||'ทั้งหมด'),'จำนวนรายการ: '+grouped.length,'','','']);
   aoa.push(['ผู้จัดทำรายงาน',adminUser,'','','','','','']);
   aoa.push([]);
-  aoa.push(['ลำดับ','เลขที่ใบเบิก','วันเวลา','พื้นที่','รอบ','ผู้ตรวจเช็ค','รายการที่ตรวจพบ / หมายเหตุ','สถานะ']);
+  aoa.push(['ลำดับ','เลขที่เอกสาร','วันเวลา','พื้นที่','รอบ','ผู้ตรวจเช็ค','รายการที่ตรวจพบ / หมายเหตุ','สถานะ']);
   grouped.forEach((r,i)=>{
     aoa.push([i+1,r.docNo||'-',r.timestamp,r.area,r.shift,r.inspector,(r.note||'-').replace(/\n/g,' / '),r.isDup?'ซ้ำ ⚠':'ปกติ']);
   });
   aoa.push([]);
   aoa.push(['สรุปภาพรวม','','','','','','','']);
   aoa.push(['• จำนวนรายการทั้งหมด',grouped.length,'รายการ','','','','','']);
-  aoa.push(['• จำนวนใบเบิกที่เกี่ยวข้อง',[...new Set(grouped.map(r=>r.docNo))].length,'ใบ','','','','','']);
+  aoa.push(['• จำนวนเอกสารที่เกี่ยวข้อง',[...new Set(grouped.map(r=>r.docNo))].length,'ฉบับ','','','','','']);
   aoa.push(['• พบรายการแจ้งเตือนภาพซ้ำ',grouped.filter(r=>r.isDup).length,'รายการ','','','','','']);
   aoa.push(['• ภาพถ่ายประกอบทั้งหมด',cache.length,'ภาพ','','','','','']);
   aoa.push([]);
@@ -1072,7 +1071,7 @@ function exportSummaryExcel(){
   XLSX.utils.book_append_sheet(wb,ws1,'ใบรายงานสรุป');
 
   const rows2=cache.map((r,i)=>({
-    'ลำดับ':i+1,'เลขที่ใบเบิก':r.docNo||'-','วันเวลา':r.timestamp,'พื้นที่':r.area,'รอบตรวจ':r.shift,
+    'ลำดับ':i+1,'เลขที่เอกสาร':r.docNo||'-','วันเวลา':r.timestamp,'พื้นที่':r.area,'รอบตรวจ':r.shift,
     'ผู้ตรวจเช็ค':r.inspector,'หมายเหตุ':(r.note||'-').replace(/\n/g,' / '),
     'ภาพซ้ำ':r.isDup?'ใช่ ⚠️':'ปกติ','รหัสชุด(Batch)':r.batch||'-'
   }));
@@ -1085,7 +1084,7 @@ function exportSummaryExcel(){
     const g=grouped.filter(r=>r.docNo===dn);
     const recv=g.find(r=>r.shift==='รับกะ'),ret=g.find(r=>r.shift==='ส่งคืน');
     return {
-      'เลขที่ใบเบิก':dn,
+      'เลขที่เอกสาร':dn,
       'พื้นที่':g[0]?g[0].area:'-',
       'รับกะ - เวลา':recv?recv.timestamp:'-',
       'รับกะ - ผู้ตรวจ':recv?recv.inspector:'-',
@@ -1097,13 +1096,13 @@ function exportSummaryExcel(){
   });
   const ws3=XLSX.utils.json_to_sheet(rows3);
   ws3['!cols']=[{wch:16},{wch:14},{wch:19},{wch:20},{wch:19},{wch:20},{wch:14},{wch:50}];
-  XLSX.utils.book_append_sheet(wb,ws3,'สรุปตามใบเบิก');
+  XLSX.utils.book_append_sheet(wb,ws3,'สรุปตามเลขที่เอกสาร');
 
   const areaList=[...new Set(cache.map(r=>r.area))];
   const rows4=areaList.map(a=>{
     const g=grouped.filter(r=>r.area===a);
     return {'พื้นที่':a,'จำนวนรายงาน(ชุด)':g.length,'จำนวนภาพ':cache.filter(r=>r.area===a).length,
-      'จำนวนใบเบิก':[...new Set(g.map(r=>r.docNo))].length,
+      'จำนวนเอกสาร':[...new Set(g.map(r=>r.docNo))].length,
       'พบภาพซ้ำ(ชุด)':g.filter(r=>r.isDup).length,
       'รายการที่พบ':g.map(r=>(r.note||'').replace(/\n/g,' / ')).filter(Boolean).join(' | ')||'-'};
   });
@@ -1218,7 +1217,7 @@ function exportLogExcel(){
   if(!logCache.length)return showStatus('lgStatus','⚠️ ไม่มี Log ให้ Export','err');
   const rows=[];
   logCache.forEach((l,i)=>(l.detail||[]).forEach(dt=>rows.push({'ครั้งที่':i+1,'วันเวลาที่ลบ':l.delAt,'ผู้ลบ':l.admin,
-    'ประเภทการลบ':l.type,'เหตุผล':l.reason,'จำนวนในครั้งนี้':l.count,'เลขที่ใบเบิก':dt.docNo||'-','พื้นที่':dt.area,'รอบ':dt.shift,
+    'ประเภทการลบ':l.type,'เหตุผล':l.reason,'จำนวนในครั้งนี้':l.count,'เลขที่เอกสาร':dt.docNo||'-','พื้นที่':dt.area,'รอบ':dt.shift,
     'ผู้ตรวจเช็คเดิม':dt.inspector,'เวลารายงานเดิม':dt.timestamp,'หมายเหตุเดิม':dt.note||'-'})));
   const ws=XLSX.utils.json_to_sheet(rows);
   ws['!cols']=[{wch:8},{wch:20},{wch:18},{wch:18},{wch:24},{wch:13},{wch:15},{wch:13},{wch:9},{wch:18},{wch:18},{wch:34}];
@@ -1248,7 +1247,7 @@ async function clearLog(){
 function exportExcel(){
   if(!guard())return;
   if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลให้ Export','err');
-  const rows=cache.map((r,i)=>({'ลำดับ':i+1,'เลขที่ใบเบิก':docNo(r),'วันเวลา':r.timestamp,'พื้นที่':r.area,'รอบตรวจ':r.shift,
+  const rows=cache.map((r,i)=>({'ลำดับ':i+1,'เลขที่เอกสาร':docNo(r),'วันเวลา':r.timestamp,'พื้นที่':r.area,'รอบตรวจ':r.shift,
     'ผู้ตรวจเช็ค':r.inspector,'หมายเหตุ':(r.note||'-').replace(/\n/g,' / '),'ภาพซ้ำ':r.isDup?'ใช่ ⚠️':'ปกติ'}));
   const ws=XLSX.utils.json_to_sheet(rows);
   ws['!cols']=[{wch:6},{wch:16},{wch:18},{wch:13},{wch:9},{wch:20},{wch:42},{wch:10}];
