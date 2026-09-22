@@ -885,6 +885,9 @@ function groupByBatch(){
     
     const timeStr = items[0].timestamp;
     
+    // ดึงเฉพาะหมายเหตุที่ไม่ซ้ำกันในกลุ่ม เพื่อไม่ให้ข้อความพิมพ์ซ้ำยาวเป็นพรืด
+    const uniqueNotes = [...new Set(items.map(x => x.note).filter(Boolean))];
+
     rawGrouped.push({
       batch: b,
       timestamp: timeStr,
@@ -894,7 +897,7 @@ function groupByBatch(){
       area: items[0].area,
       shift: items[0].shift,
       inspector: items[0].inspector,
-      note: items.map(x => x.note).filter(Boolean).join(' / '),
+      note: uniqueNotes.join(' / '),
       isDup: items.some(r => r.isDup),
       count: items.length
     });
@@ -927,19 +930,6 @@ function groupByBatch(){
 
   return merged;
 }
-
-function parseThTimestamp(str) {
-  try {
-    const parts = str.split(' ');
-    const dmy = parts[0].split('/');
-    const hm = parts[1].split(':');
-    const year = parseInt(dmy[2], 10) - 543;
-    return new Date(year, parseInt(dmy[1], 10) - 1, parseInt(dmy[0], 10), parseInt(hm[0], 10), parseInt(hm[1], 10)).getTime();
-  } catch (e) {
-    return Date.now();
-  }
-}
-
 /* ================== รายงานสรุป A4 (พิมพ์/PDF) ================== */
 function printSummary(){
   if(!guard())return;
