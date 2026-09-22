@@ -300,7 +300,7 @@ const getPin=()=>localStorage.getItem('mt3_pin')||DEFAULT_PIN;
 
 /* ================== [LOCKED] โลโก้กลาง ================== */
 const LOGO_URL='https://affan23259cr7-bot.github.io/tool-check/logo.png';
-const LOGO_FALLBACK='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTIwIj48cGF0aCBkPSJNNTAgNUw5NSAyMHY1MGMwIDI1LTIwIDQwLTQ1IDQ1QzI1IDExMCA1IDk1IDUgNzBWMjB6IiBmaWxsPSIjMTQzNTZkIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNSIvPjx0ZXh0IHg9IjUwIiB5PSI1MiIgZm9udC1zaXplPSIzMiIgZm9udC13ZWlnaHQ9ImJvbGQiIGJpbGw9IiNkNGFmMzciIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCI+TVQzPC90ZXh0PjxjaXJjbGUgY3g9IjM4IiBjeT0iNzUiIHI9IjkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Q0YWYzNyIgc3Ryb2tlLXdpZHRoPSI0Ii8+PHBhdGggZD0iTTU1IDgzbDE1LTE1TTYyIDY2aDEwdjEwIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+';
+const LOGO_FALLBACK='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTIwIj48cGF0aCBkPSJNNTAgNUw5NSAyMHY1MGMwIDI1LTIwIDQwLTQ1IDQ1QzI1IDExMCA1IDk1IDUgNzBWMjB6IiBmaWxsPSIjMTQzNTZkIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNSIvPjx0ZXh0IHg9IjUwIiB5PSI1MiIgZm9udC1zaXplPSIzMiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiNkNGFmMzciIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCI+TVQzPC90ZXh0PjxjaXJjbGUgY3g9IjM4IiBjeT0iNzUiIHI9IjkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Q0YWYzNyIgc3Ryb2tlLXdpZHRoPSI0Ii8+PHBhdGggZD0iTTU1IDgzbDE1LTE1TTYyIDY2aDEwdjEwIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+';
 let LOGO_SRC=LOGO_URL;
 (function(){
   const el=$('logo');
@@ -569,7 +569,7 @@ function showImg(i){$('modalImg').src=photos[i].b64;$('modal').classList.add('sh
 function showHistImg(i){$('modalImg').src=cache[i].img;$('modal').classList.add('show');}
 function showLogImg(i){const t=logCache[i].thumb;if(t){$('modalImg').src=t;$('modal').classList.add('show');}}
 
-/* ================== เลขที่เอกสารแบบผูกรอบ รับกะ ↔ ส่งคืน ================== */
+/* ================== เลขที่เอกสารแบบผูกรอบ รับกะ ↔ ส่งคืน (อัปเดตระบบเช็คเลขจากฐานข้อมูลจริง) ================== */
 const DOC_PREFIX='MT';
 const pad=(n,l)=>String(n).padStart(l,'0');
 function beYY(d){return pad((d.getFullYear()+543)%100,2);}
@@ -579,17 +579,26 @@ function _saveSeq(o){localStorage.setItem('mt3_docseq',JSON.stringify(o));}
 
 function nextDocNo(){
   const yy=beYY(new Date());
-  let n=0;
-  cloudRecs.forEach(r=>{
-    if(r.docNo&&r.docNo.indexOf(DOC_PREFIX+yy+'/')===0){
-      const v=parseInt(r.docNo.split('/')[1],10);
-      if(!isNaN(v)&&v>n)n=v;
+  let maxN=0;
+  
+  // เช็คเลขที่เอกสารทั้งหมดจาก cloudRecs เพื่อหาเลขที่มากที่สุดจริง ๆ
+  const allRecords = [...cloudRecs];
+  allRecords.forEach(r=>{
+    if(r.docNo && typeof r.docNo === 'string' && r.docNo.startsWith(DOC_PREFIX + yy + '/')){
+      const parts = r.docNo.split('/');
+      const v = parseInt(parts[1], 10);
+      if(!isNaN(v) && v > maxN) maxN = v;
     }
   });
+
   const s=_seq(); s.last=s.last||{};
-  if((s.last[yy]||0)>n)n=s.last[yy];
-  n=n+1; s.last[yy]=n; _saveSeq(s);
-  return DOC_PREFIX+yy+'/'+pad(n,4);
+  if((s.last[yy]||0) > maxN) maxN = s.last[yy];
+
+  const nextN = maxN + 1;
+  s.last[yy] = nextN; 
+  _saveSeq(s);
+  
+  return DOC_PREFIX + yy + '/' + pad(nextN, 4);
 }
 
 function findOpenCycle(area){
@@ -874,7 +883,7 @@ async function printSingle(id){
 
   openPrint(page1+page2);showStatus('expStatus','🖨️ เปิดหน้าใบรายงานแล้ว (2 หน้า)','ok');}
 
-/* ================== [FIX] รวมกลุ่มและแสดงข้อความตามที่ช่างพิมพ์ส่งตรงๆ ================== */
+/* ================== รวมกลุ่มและแสดงข้อความตามที่ช่างพิมพ์ส่งตรงๆ ================== */
 function groupByBatch(){
   const rawGrouped = [];
   const batches = [...new Set(cache.map(r => r.batch))];
@@ -884,8 +893,6 @@ function groupByBatch(){
     if (!items.length) return;
     
     const timeStr = items[0].timestamp;
-    
-    // ดึงเฉพาะหมายเหตุที่ไม่ซ้ำกันในกลุ่ม เพื่อไม่ให้ข้อความพิมพ์ซ้ำยาวเป็นพรืด
     const uniqueNotes = [...new Set(items.map(x => x.note).filter(Boolean))];
 
     rawGrouped.push({
