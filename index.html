@@ -611,15 +611,16 @@ function newDocNo(){
   return DOC_PREFIX+yy+'/'+pad(n,4);
 }
 
-/* [FIX] ค้นหาใบเบิกที่ยังไม่ครบ 12 รายการมาใช้ต่อทันที */
+/* [FIX] บังคับดึงเลขล่าสุดที่ยังไม่ครบ 12 มาใช้ต่อทันทีโดยไม่สนว่าพื้นที่จะซ้ำ */
 function openCycleDocNo(area,shift){
   const yy=beYY(new Date());
   const m=cycleMap();
   const keys=Object.keys(m).sort((a,b)=>
     parseInt(b.split('/')[1],10)-parseInt(a.split('/')[1],10));
+  
   for(const dno of keys){
     const set=m[dno];
-    if(set.size < CYCLE_SIZE && !set.has(area+'|'+shift)){
+    if(set.size < CYCLE_SIZE){
       return dno;
     }
   }
@@ -1154,7 +1155,7 @@ async function setDocNoFiltered(){
   const areas=[...new Set(cache.map(r=>r.area))];
   const shifts=[...new Set(cache.map(r=>r.shift))];
   const olds=[...new Set(cache.map(r=>r.docNo||'-'))];
-  const suggest=DOC_PREFIX+beYY(new Date())+'/0004';
+  const suggest=DOC_PREFIX+beYY(new Date())+'/0003';
 
   const target=(prompt(
     'กำหนดเลขที่เอกสารใหม่ให้ '+cache.length+' รายการที่กรองอยู่\n'+
@@ -1164,7 +1165,7 @@ async function setDocNoFiltered(){
     suggest)||'').trim();
   if(!target)return;
   if(!/^[A-Za-z]+\d{2}\/\d{3,5}$/.test(target))
-    return showStatus('expStatus','❌ รูปแบบเลขที่เอกสารไม่ถูกต้อง (ตัวอย่าง MT69/0004)','err');
+    return showStatus('expStatus','❌ รูปแบบเลขที่เอกสารไม่ถูกต้อง (ตัวอย่าง MT69/0003)','err');
 
   if(!confirm('⚠️ ยืนยันเปลี่ยนเลขที่เอกสารเป็น '+target+'\n'+
     'จำนวน '+cache.length+' รายการ ('+areas.length+' พื้นที่)\n'+
@@ -1269,7 +1270,7 @@ function exportLogExcel(){
 async function clearLog(){
   if(!guard())return;
   if(!confirm('🧹 ล้างประวัติการลบทั้งหมด?'))return;
-  if(prompt('พิมพ์คำว่า  ล้างlog  เพื่อยืนยัน:')!=='ล้างlog')return;
+  if(prompt('พิมพ์คำว่า  ล้างlog  เพื่อยืนยัน:')!=='l้างlog')return;
   try{ if(LOGCOL) await cloudClearLogs(); if(db) await clearLogs(); }catch(e){}
   showStatus('lgStatus','✅ ล้าง Log เรียบร้อย','ok');loadLog();}
 
