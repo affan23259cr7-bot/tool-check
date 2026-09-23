@@ -300,7 +300,7 @@ const getPin=()=>localStorage.getItem('mt3_pin')||DEFAULT_PIN;
 
 /* ================== [LOCKED] โลโก้กลาง ================== */
 const LOGO_URL='https://affan23259cr7-bot.github.io/tool-check/logo.png';
-const LOGO_FALLBACK='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTIwIj48cGF0aCBkPSJNNTAgNUw5NSAyMHY1MGMwIDI1LTIwIDQwLTQ1IDQ1QzI1IDExMCA1IDk1IDUgNzBWMjB6IiBmaWxsPSIjMTQzNTZkIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNSIvPjx0ZXh0IHg9IjUwIiB5PSI1MiIgZm9udC1zaXplPSIzMiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiNkNGFmMzciIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCI+TVQzPC90ZXh0PjxjaXJjbGUgY3g9IjM4IiBjeT0iNzUiIHI9IjkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Q0YWYzNyIgc3Ryb2tlLXdpZHRoPSI0Ii8+PHBhdGggZD0iTTU1IDgzbDE1LTE1TTYyIDY2aDEwdjEwIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNCIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+';
+const LOGO_FALLBACK='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTIwIj48cGF0aCBkPSJNNTAgNUw5NSAyMHY1MGMwIDI1LTIwIDQwLTQ1IDQ1QzI1IDExMCA1IDk1IDUgNzBWMjB6IiBmaWxsPSIjMTQzNTZkIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNSIv><dGV4dCB4PSI1MCIgeT0iNTIiIGZvbnQtc2l6ZT0iMzIiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSIjZDRhZjM3IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiPk1UMzwvdGV4dD48Y2lyY2xlIGN4PSIzOCIgY3k9Ijc1IiByPSI5IiBmaWxsPSJub25lIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNCIvPjxwYXRoIGQ9Ik01NSA4M2wxNS0xNU02MiA2NmgxMHYxMCIgc3Ryb2tlPSIjZDRhZjM3IiBzdHJva2Utd2lkdGg9IjQiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==';
 let LOGO_SRC=LOGO_URL;
 (function(){
   const el=$('logo');
@@ -569,14 +569,13 @@ function showImg(i){$('modalImg').src=photos[i].b64;$('modal').classList.add('sh
 function showHistImg(i){$('modalImg').src=cache[i].img;$('modal').classList.add('show');}
 function showLogImg(i){const t=logCache[i].thumb;if(t){$('modalImg').src=t;$('modal').classList.add('show');}}
 
-/* ================== เลขที่เอกสารแบบ 1 รอบ = 6 พื้นที่ × (รับกะ+ส่งคืน) = 12 รายการ ================== */
+/* ================== เลขที่เอกสาร (เดินหน้าอย่างเดียว - Forward Only) ================== */
 const DOC_PREFIX='MT';
 const AREAS=['MTB-West','MTB-East','SAT-East','SAT-West','Tunnel-West','Tunnel-East'];
 const SHIFTS=['รับกะ','ส่งคืน'];
 const CYCLE_SIZE=AREAS.length*SHIFTS.length; // 12
 const pad=(n,l)=>String(n).padStart(l,'0');
-function beYY(d){return pad((d.getFullYear()+543)%100,2);}
-function todayKey(){return new Date().toISOString().slice(0,10);}
+const beYY=d=>pad((d.getFullYear()+543)%100,2);
 function _seq(){try{return JSON.parse(localStorage.getItem('mt3_docseq')||'{}');}catch(e){return{};}}
 function _saveSeq(o){localStorage.setItem('mt3_docseq',JSON.stringify(o));}
 
@@ -611,25 +610,9 @@ function newDocNo(){
   return DOC_PREFIX+yy+'/'+pad(n,4);
 }
 
-/* [FIX] บังคับดึงเลขล่าสุดที่ยังไม่ครบ 12 มาใช้ต่อทันทีโดยไม่สนว่าพื้นที่จะซ้ำ */
-function openCycleDocNo(area,shift){
-  const yy=beYY(new Date());
-  const m=cycleMap();
-  const keys=Object.keys(m).sort((a,b)=>
-    parseInt(b.split('/')[1],10)-parseInt(a.split('/')[1],10));
-  
-  for(const dno of keys){
-    const set=m[dno];
-    if(set.size < CYCLE_SIZE){
-      return dno;
-    }
-  }
-  return null;
-}
-
+/* [FIX - เดินหน้าอย่างเดียว] เลิกหาเลขเก่าที่ยังไม่ครบ 12 มาเติม ให้รันเลขใหม่ถัดไปทันที */
 function resolveDocNo(area,shift){
-  const open=openCycleDocNo(area,shift);
-  return open?open:newDocNo();
+  return newDocNo();
 }
 
 function docNo(rec){ return (rec&&rec.docNo)?rec.docNo:'-'; }
@@ -643,19 +626,11 @@ function docRangeLabel(list){
 function updateCycleHint(){
   const el=$('cycleHint'); if(!el)return;
   if(!cloudReady){ el.className='cyclebox'; el.innerHTML='⏳ กำลังเชื่อมต่อฐานข้อมูล...'; return; }
-  const a=$('area').value,s=$('shift').value;
-  const open=openCycleDocNo(a,s);
-  if(open){
-    const done=cycleMap()[open].size;
-    el.className='cyclebox';
-    el.innerHTML='📄 รอบนี้จะใช้เลขที่เอกสาร <b>'+open+'</b><br>'+
-      '<span style="opacity:.85">ส่งแล้ว '+done+'/'+CYCLE_SIZE+' รายการ (6 พื้นที่ × รับกะ+ส่งคืน) — ครบเมื่อไหร่ระบบจะขึ้นเลขใหม่อัตโนมัติ</span>';
-  }else{
-    const yy=beYY(new Date());
-    el.className='cyclebox newc';
-    el.innerHTML='🆕 รายการนี้จะ <b>เปิดเลขที่เอกสารใหม่</b> '+
-      '<b>'+DOC_PREFIX+yy+'/'+pad(maxDocNum()+1,4)+'</b>';
-  }
+  const yy=beYY(new Date());
+  const nextNo=DOC_PREFIX+yy+'/'+pad(maxDocNum()+1,4);
+  el.className='cyclebox newc';
+  el.innerHTML='🆕 รายการนี้จะใช้เลขที่เอกสาร <b>'+nextNo+'</b><br>'+
+    '<span style="opacity:.85">ระบบรันเลขใหม่อัตโนมัติ (เดินหน้าอย่างเดียว)</span>';
 }
 
 /* ================== บันทึกรายงาน ================== */
@@ -862,7 +837,7 @@ async function printSingle(id){
       <div class="lb" style="width:26mm;text-align:right;padding-right:5px">วันเวลาที่ตรวจ</div>
       <div class="vl" style="max-width:40mm">${esc(rec.timestamp)}</div></div>
     <div class="fl"><div class="lb">สถานะรอบเอกสาร</div><div class="vl">
-      ส่งครบแล้ว ${doneKeys.size}/${CYCLE_SIZE} รายการ ${doneKeys.size>=CYCLE_SIZE?'(ปิดรอบแล้ว ✓)':'(อยู่ระหว่างรอบ)'}</div></div>
+      บันทึกแล้ว ${doneKeys.size} รายการ</div></div>
     <div style="margin-top:12px;font-weight:700">รายการเครื่องมือที่ตรวจพบความผิดปกติ</div>
     <table><tr><th>ลำดับ</th><th>รายการ / อาการที่พบ</th><th>สถานะ</th><th>หมายเหตุ</th></tr>${rows}</table>
     <div class="chk">
@@ -1101,17 +1076,14 @@ function exportSummaryExcel(){
   const docs=[...new Set(cache.map(r=>r.docNo).filter(Boolean))];
   const rows3=docs.map(dn=>{
     const g=grouped.filter(r=>r.docNo===dn);
-    const keys=new Set(g.map(r=>r.area+'|'+r.shift));
     return {
       'เลขที่เอกสาร':dn,
       'พื้นที่ในรอบนี้':[...new Set(g.map(r=>r.area))].join(', '),
-      'ความคืบหน้า':keys.size+'/'+CYCLE_SIZE,
-      'สถานะรอบ':keys.size>=CYCLE_SIZE?'ปิดรอบแล้ว':'อยู่ระหว่างรอบ ⚠',
       'รายการที่พบ':g.map(r=>(r.note||'').replace(/\n/g,' / ')).filter(Boolean).join(' | ')||'-'
     };
   });
   const ws3=XLSX.utils.json_to_sheet(rows3);
-  ws3['!cols']=[{wch:16},{wch:30},{wch:13},{wch:16},{wch:50}];
+  ws3['!cols']=[{wch:16},{wch:30},{wch:50}];
   XLSX.utils.book_append_sheet(wb,ws3,'สรุปตามเลขที่เอกสาร');
 
   const areaList=[...new Set(cache.map(r=>r.area))];
