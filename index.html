@@ -144,11 +144,12 @@ body.isAdmin .lockmsg{display:none}
   <label>📝 คำอธิบาย / หมายเหตุ (ขึ้นบรรทัดใหม่ = 1 รายการในใบรายงาน)</label>
   <textarea id="note" rows="4" placeholder="ประแจ 16 ไม่มี&#10;ค้อนยูริเทน ไม่มี&#10;ด้ามฟรีหัวไข่ ชำรุด"></textarea>
 
-  <label>📷 ภาพรายงาน (ถ่ายภาพเท่านั้น)</label>
-  <label class="btn btn-camera btn-sm mb">📷 เปิดกล้องถ่ายรูป
-    <input type="file" id="camInput" class="fileinput" accept="image/*" capture="environment">
-  </label>
-  <div class="hint">🔒 ระบบอนุญาตเฉพาะการถ่ายภาพสดจากกล้องเท่านั้น ไม่สามารถเลือกจากคลังภาพหรือไฟล์ในเครื่องได้<br>
+  <label>📷 ภาพรายงาน (ถ่ายภาพสดจากกล้องเท่านั้น)</label>
+  <label class="btn btn-camera btn-sm mb" for="camInput">📷 เปิดกล้องถ่ายรูป</label>
+  <!-- [FIX - บังคับเปิดกล้องสดและบล็อกคลังภาพบน Android] เพิ่ม capture="environment" และ accept="image/*" ชัดเจน -->
+  <input type="file" id="camInput" class="fileinput" accept="image/*" capture="environment">
+
+  <div class="hint">🔒 ระบบล็อกให้ใช้การถ่ายภาพสดจากกล้องเท่านั้น ไม่สามารถเลือกจากคลังภาพหรือไฟล์ในเครื่องได้<br>
   กดถ่ายซ้ำได้เรื่อยๆ ระบบจะสะสมรูปและตรวจสอบภาพซ้ำอัตโนมัติ<br>
   ⚠️ หากกดแล้วไม่มีอะไรเกิดขึ้น ให้เปิดไฟล์นี้ด้วย Safari หรือ Chrome โดยตรง (ไม่ใช่หน้าพรีวิวในแอป)</div>
   <div class="thumbs" id="thumbs"></div>
@@ -610,7 +611,6 @@ function newDocNo(){
   return DOC_PREFIX+yy+'/'+pad(n,4);
 }
 
-/* [FIX - เดินหน้าอย่างเดียว] เลิกหาเลขเก่าที่ยังไม่ครบ 12 มาเติม ให้รันเลขใหม่ถัดไปทันที */
 function resolveDocNo(area,shift){
   return newDocNo();
 }
