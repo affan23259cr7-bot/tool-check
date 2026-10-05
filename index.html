@@ -1302,11 +1302,15 @@ function stamp(){const d=new Date();
  */
 const MT3Access=(()=>{
   let user=null,profile=null,auth=null,unwatch=null,generation=0,checking=false;
+  let guestId;
+  try{guestId=localStorage.getItem('mt3_public_device');if(!guestId){guestId='guest_'+crypto.randomUUID();localStorage.setItem('mt3_public_device',guestId);}}
+  catch(e){guestId='guest_'+Date.now()+'_'+Math.random().toString(36).slice(2);}
+  // Device identifier is only for outbox isolation; it is not authentication.
   const gate=document.createElement('div');gate.id='mt3AccountGate';
-  gate.style.cssText='position:fixed;inset:0;z-index:99999;background:#eef1f6;overflow:auto;padding:32px 16px;display:grid;place-items:center';
+  gate.style.cssText='position:fixed;inset:0;z-index:99999;background:#eef1f6;overflow:auto;padding:32px 16px;display:grid;place-items:center;display:none';
   gate.innerHTML=`<form id="mt3LoginForm" style="background:white;border-radius:16px;padding:24px;width:100%;max-width:440px;box-shadow:0 8px 30px #16335b22">
-  <h2 style="margin-top:0;color:#16335b">เข้าสู่ระบบ Team 3</h2>
-  <p>ใช้บัญชีที่ผู้ดูแลอนุญาต เพื่อเข้าถึงฐานข้อมูลกลาง</p>
+  <h2 style="margin-top:0;color:#16335b">เข้าสู่ระบบผู้ดูแล Team 3</h2>
+  <p>โหมดทั่วไปส่งรายงานและดูประวัติได้ทันที บัญชีนี้ใช้สำหรับสิทธิ์ผู้ดูแล</p><button id="mt3CloseLogin" type="button" class="btn btn-gallery btn-sm">กลับโหมดทั่วไป</button>
   <label for="mt3Email">อีเมล</label><input id="mt3Email" type="email" autocomplete="username" required style="width:100%;padding:11px;border:1px solid #ccd3de;border-radius:9px">
   <label for="mt3Password">รหัสผ่าน</label><input id="mt3Password" type="password" autocomplete="current-password" required>
   <button id="mt3LoginButton" class="btn btn-camera" type="submit" style="margin-top:18px">เข้าสู่ระบบ</button>
@@ -1318,22 +1322,23 @@ const MT3Access=(()=>{
   bar.innerHTML='<span id="mt3AccountLabel"></span> <button id="mt3Logout" type="button">ออกจากระบบ</button> <button id="mt3RetryQueue" type="button">ส่งคิวซ้ำ</button> <button id="mt3AdoptQueue" type="button" hidden>รับคิวเดิมก่อนเพิ่มบัญชี</button>';
   document.querySelector('.header').after(bar);
   const message=text=>{$('mt3AccountStatus').textContent=text;};
-  const ready=()=>!!(user&&auth&&auth.currentUser&&auth.currentUser.uid===user.uid&&profile&&profile.active===true&&['admin','operator'].includes(profile.role));
-  const admin=()=>ready()&&profile.role==='admin';
+  const ready=()=>true;
+  const admin=()=>!!(user&&auth&&auth.currentUser&&auth.currentUser.uid===user.uid&&profile&&profile.active===true&&profile.role==='admin');
   const originalSetAdmin=setAdmin;
   setAdmin=(v,name)=>originalSetAdmin(!!v&&admin(),name||(profile&&profile.name)||(user&&user.email));
   const originalGuard=guard;
   guard=()=>{if(!admin()){showStatus('expStatus','🔒 บัญชีนี้ไม่มีสิทธิ์ผู้ดูแล','err');return false;}return originalGuard();};
   function lock(){
-    profile=null;gate.style.display='grid';bar.style.display='none';
+    profile=null;bar.style.display='none';
     if(typeof MT3Reliability!=='undefined')MT3Reliability.stop();
-    cloudReady=false;logReady=false;cloudRecs=[];cloudLogs=[];cache=[];logCache=[];
-    originalSetAdmin(false);$('list').textContent='กรุณาเข้าสู่ระบบ';
+    logReady=false;cloudLogs=[];logCache=[];
+    if(isAdmin)originalSetAdmin(false);else sessionStorage.setItem('mt3_admin','0');
+    if(COL)startCloudSync();
   }
   async function accept(p,u,token){
     if(token!==generation||!auth.currentUser||auth.currentUser.uid!==u.uid)return;
-    if(!p||p.active!==true||!['admin','operator'].includes(p.role)){
-      lock();message('บัญชีเข้าสู่ระบบแล้ว แต่ยังไม่มีสิทธิ์ใช้งาน\nให้ผู้ดูแลสร้าง mt3_users/'+u.uid+' และกำหนด active=true พร้อม role');return;
+    if(!p||p.active!==true||p.role!=='admin'){
+      lock();gate.style.display='grid';message('บัญชีเข้าสู่ระบบแล้ว แต่ยังไม่มีสิทธิ์ผู้ดูแล\nให้ผู้ดูแลสร้าง mt3_users/'+u.uid+' และกำหนด active=true พร้อม role');return;
     }
     profile=p;user=u;gate.style.display='none';bar.style.display='block';
     $('mt3AccountLabel').textContent=(p.name||u.email)+' • '+(p.role==='admin'?'ผู้ดูแล':'ผู้ส่งรายงาน');
@@ -1363,7 +1368,7 @@ const MT3Access=(()=>{
       auth=firebase.auth();auth.onAuthStateChanged(async u=>{
         generation++;if(unwatch){unwatch();unwatch=null;}lock();user=u;
         $('mt3UIDBox').hidden=!u;
-        if(u){$('mt3UID').value=u.uid;check();}else{message('กรุณาเข้าสู่ระบบด้วยบัญชีที่ผู้ดูแลสร้าง');}
+        if(u){$('mt3UID').value=u.uid;check();}else{gate.style.display='none';message('กรุณาเข้าสู่ระบบด้วยบัญชีผู้ดูแล');}
       });
     }catch(e){lock();message('โหลดระบบบัญชีไม่ได้: '+e.message);}
   }
@@ -1374,6 +1379,8 @@ const MT3Access=(()=>{
     catch(err){message('เข้าสู่ระบบไม่สำเร็จ: '+err.code+'\nตรวจอีเมล รหัสผ่าน และการเปิด Email/Password');}
     finally{button.disabled=false;$('mt3Password').value='';}
   });
+  toggleAdmin=()=>{if(admin()&&isAdmin){if(confirm('ออกจากโหมดผู้ดูแลและกลับโหมดทั่วไป?'))logout();}else{gate.style.display='grid';message('เข้าสู่บัญชีผู้ดูแลเพื่อแก้ไขและลบข้อมูล');}};
+  $('mt3CloseLogin').onclick=()=>{gate.style.display='none';$('mt3Password').value='';};
   $('mt3Logout').onclick=$('mt3GateLogout').onclick=logout;
   $('mt3RefreshRole').onclick=check;
   $('mt3RetryQueue').onclick=()=>MT3Reliability.retry().catch(e=>alert(e.message));
@@ -1384,7 +1391,7 @@ const MT3Access=(()=>{
     }
   };
   const oldInit=initCloud;initCloud=()=>{const ok=oldInit();if(ok)boot();return ok;};
-  return Object.freeze({ready,admin,uid:()=>ready()?user.uid:null});
+  return Object.freeze({ready,admin,guestUid:()=>guestId,uid:()=>admin()?user.uid:guestId});
 })();
 /* END MT3 account access */
 
@@ -1436,7 +1443,7 @@ const MT3Reliability = (() => {
   async function send(item){
     if(inflight.has(item.key))return inflight.get(item.key);
     const p=(async()=>{
-      if(!MT3Access.ready()||item.ownerUid!==MT3Access.uid())throw new Error('คิวนี้ต้องส่งโดยบัญชีเจ้าของเดิม');
+      if(!MT3Access.ready()||!(item.ownerUid===MT3Access.uid()||(item.collection==='reports'&&item.ownerUid===MT3Access.guestUid())))throw new Error('คิวนี้ต้องส่งโดยบัญชีเจ้าของเดิม');
       if(!configOK()||!navigator.onLine||!fdb)throw new Error('เก็บในคิวแล้ว รอเชื่อมต่อฐานข้อมูล');
       try{
         await fdb.collection(item.collection).doc(item.id).set(item.data);
@@ -1452,7 +1459,7 @@ const MT3Reliability = (() => {
   async function flush(){
     if(running)return;running=true;
     try{if(MT3Access.ready()&&configOK()&&navigator.onLine&&fdb){
-      for(const item of await list())if(item.ownerUid===MT3Access.uid()&&!item.blocked&&(!item.nextAt||item.nextAt<=Date.now())){
+      for(const item of await list())if((item.ownerUid===MT3Access.uid()||(item.collection==='reports'&&item.ownerUid===MT3Access.guestUid()))&&!item.blocked&&(!item.nextAt||item.nextAt<=Date.now())){
         try{await Promise.race([send(item),new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),12000))]);}catch(e){}
       }
     }}catch(e){console.warn('MT3 outbox unavailable',e.message);}
@@ -1542,11 +1549,11 @@ const MT3Reliability = (() => {
   addEventListener('offline',()=>{cloudReady=false;logReady=false;status();});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flush();});
   open().then(status).catch(e=>banner('🔴 ไม่สามารถเก็บคิวสำรอง: '+e.message,true));
-  return Object.freeze({version:'1.1.0',busy:()=>inflight.size>0,
+  return Object.freeze({version:'1.2.0',busy:()=>inflight.size>0,
     stop:()=>{subscriptions.forEach(fn=>fn());subscriptions=[];clearTimeout(renderTimer);clearTimeout(retryTimer);},
     adoptLegacy:async()=>{if(!MT3Access.admin())throw new Error('เฉพาะผู้ดูแล');
       for(const item of await list())if(!item.ownerUid){item.ownerUid=MT3Access.uid();if(item.collection==='reports'&&!item.data.createdByUid)item.data.createdByUid=MT3Access.uid();item.blocked=false;item.nextAt=0;await put(item);}return flush();},
-    retry:async()=>{if(!MT3Access.ready())throw new Error('กรุณาเข้าสู่ระบบ');for(const item of await list())if(item.ownerUid===MT3Access.uid()){item.blocked=false;item.nextAt=0;await put(item);}return flush();},pending:list});
+    retry:async()=>{if(!MT3Access.ready())throw new Error('กรุณาเข้าสู่ระบบ');for(const item of await list())if(item.ownerUid===MT3Access.uid()||(item.collection==='reports'&&item.ownerUid===MT3Access.guestUid())){item.blocked=false;item.nextAt=0;await put(item);}return flush();},pending:list});
 })();
 /* END MT3 reliability upgrade */
 
