@@ -8,7 +8,6 @@
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{font-family:-apple-system,'Segoe UI',Roboto,'Noto Sans Thai',sans-serif;background:#eef1f6;margin:0;color:#1a1a1a}
@@ -1296,212 +1295,93 @@ $('restoreInput').onchange=e=>{
 function stamp(){const d=new Date();
   return `${d.getDate()}-${d.getMonth()+1}-${d.getFullYear()}_${d.getHours()}${('0'+d.getMinutes()).slice(-2)}`;}
 
-/* MT3 account access 1.1: server-managed membership in mt3_users/<Auth UID>.
- * Install the supplied firestore.rules before using this release.
- * One organization per Firebase project; not a multi-tenant SaaS release.
+/* MT3 embedded administrator mode 2.0.
+ * These public client-side passwords are a UI lock, NOT server authorization.
+ * This edition's matching Rules allow public database mutation.
+ * Credential changes are local to this browser. Do not sell as secure RBAC.
  */
+const MT3_EMBEDDED_ADMINS=Object.freeze([
+  {id:'admin1',username:'Affan.m',password:'1234'},
+  {id:'admin2',username:'Chanunchida.b',password:'1234'},
+  {id:'admin3',username:'Yuttichai.m',password:'1234'},
+  {id:'admin4',username:'Navathat.p',password:'1234'},
+  {id:'admin5',username:'Chakaval.j',password:'1234'},
+  {id:'admin6',username:'Suthithat.a',password:'1234'}
+]);
 const MT3Access=(()=>{
-  let user=null,profile=null,auth=null,unwatch=null,generation=0,checking=false;
-  let guestId;
+  const overrideKey='mt3_embedded_credentials_v1';let current=null,guestId;
+  function accounts(){
+    let overrides={};try{overrides=JSON.parse(localStorage.getItem(overrideKey)||'{}');}catch(e){}
+    return MT3_EMBEDDED_ADMINS.map(a=>{
+      const o=overrides[a.id];return o&&typeof o.username==='string'&&typeof o.password==='string'?{id:a.id,username:o.username,password:o.password}:Object.assign({},a);
+    });
+  }
   try{guestId=localStorage.getItem('mt3_public_device');if(!guestId){guestId='guest_'+crypto.randomUUID();localStorage.setItem('mt3_public_device',guestId);}}
   catch(e){guestId='guest_'+Date.now()+'_'+Math.random().toString(36).slice(2);}
-  // Device identifier is only for outbox isolation; it is not authentication.
-  const gate=document.createElement('div');gate.id='mt3AccountGate';
-  gate.style.cssText='position:fixed;inset:0;z-index:99999;background:#eef1f6;overflow:auto;padding:32px 16px;display:grid;place-items:center;display:none';
-  gate.innerHTML=`<form id="mt3LoginForm" style="background:white;border-radius:16px;padding:24px;width:100%;max-width:440px;box-shadow:0 8px 30px #16335b22">
-  <h2 style="margin-top:0;color:#16335b">เข้าสู่ระบบผู้ดูแล Team 3</h2>
-  <p>โหมดทั่วไปส่งรายงานและดูประวัติได้ทันที บัญชีนี้ใช้สำหรับสิทธิ์ผู้ดูแล</p><button id="mt3CloseLogin" type="button" class="btn btn-gallery btn-sm">กลับโหมดทั่วไป</button>
-  <label for="mt3Email">User</label><input id="mt3Email" type="text" autocomplete="username" placeholder="เช่น Affan.m" required style="width:100%;padding:11px;border:1px solid #ccd3de;border-radius:9px">
-  <label for="mt3Password">รหัสผ่าน</label><input id="mt3Password" type="password" autocomplete="current-password" required>
-  <button id="mt3LoginButton" class="btn btn-camera" type="submit" style="margin-top:18px">เข้าสู่ระบบ</button>
-  <p id="mt3AccountStatus" role="status" style="white-space:pre-wrap;overflow-wrap:anywhere"></p>
-  <div id="mt3UIDBox" hidden><label>UID สำหรับให้ผู้ดูแลกำหนดสิทธิ์</label><input id="mt3UID" type="text" readonly><button id="mt3RefreshRole" type="button" class="btn btn-gallery btn-sm">ตรวจสิทธิ์อีกครั้ง</button><button id="mt3GateLogout" type="button" class="btn btn-gallery btn-sm">ออกจากบัญชีนี้</button></div>
-  </form>`;
+  const gate=document.createElement('div');gate.id='mt3EmbeddedGate';
+  gate.style.cssText='position:fixed;inset:0;z-index:99999;background:#eef1f6;overflow:auto;padding:24px 16px;display:none';
+  gate.innerHTML=`<div style="max-width:440px;margin:36px auto;background:#fff;padding:24px;border-radius:16px;box-shadow:0 8px 30px #16335b22">
+  <h2 id="mt3EmbeddedTitle" style="color:#16335b">เข้าสู่ระบบแอดมิน</h2>
+  <form id="mt3EmbeddedForm">
+  <label for="mt3EmbeddedUser">User</label><input id="mt3EmbeddedUser" type="text" autocomplete="username" placeholder="Affan.m" required maxlength="40">
+  <label for="mt3EmbeddedPassword" id="mt3EmbeddedPasswordLabel">Password</label><input id="mt3EmbeddedPassword" type="password" autocomplete="current-password" required>
+  <div id="mt3EmbeddedEdit" hidden><label>Password ใหม่ (เว้นว่างหากไม่เปลี่ยน)</label><input id="mt3EmbeddedNewPassword" type="password" autocomplete="new-password"><label>ยืนยัน Password ใหม่</label><input id="mt3EmbeddedConfirm" type="password" autocomplete="new-password"><p style="font-size:12px">การเปลี่ยน User / Password มีผลเฉพาะเบราว์เซอร์นี้ เครื่องอื่นยังใช้ค่าที่ฝังใน HTML</p></div>
+  <button id="mt3EmbeddedSubmit" type="submit" class="btn btn-camera" style="margin-top:16px">เข้าสู่ระบบแอดมิน</button>
+  <p id="mt3EmbeddedStatus" role="status" style="white-space:pre-wrap"></p>
+  </form><button id="mt3EmbeddedClose" type="button" class="btn btn-gallery">กลับโหมดทั่วไป</button></div>`;
   document.body.appendChild(gate);
-  const bar=document.createElement('div');bar.style.cssText='max-width:520px;margin:10px auto;padding:8px 14px;font-size:12px;display:none;background:#fff;border-radius:8px';
-  bar.innerHTML='<span id="mt3AccountLabel"></span> <button id="mt3Logout" type="button">ออกจากระบบ</button> <button id="mt3RetryQueue" type="button">ส่งคิวซ้ำ</button> <button id="mt3AdoptQueue" type="button" hidden>รับคิวเดิมก่อนเพิ่มบัญชี</button>';
+  const bar=document.createElement('div');bar.style.cssText='max-width:520px;margin:10px auto;padding:10px;background:#fff;border-radius:9px;display:none;font-size:12px';
+  bar.innerHTML='<span id="mt3EmbeddedLabel"></span> <button id="mt3EmbeddedChange" type="button">เปลี่ยน User / Password</button> <button id="mt3EmbeddedLogout" type="button">ออกจากระบบ</button> <button id="mt3EmbeddedRetry" type="button">ส่งคิวซ้ำ</button> <button id="mt3EmbeddedAdopt" type="button">รับคิวรุ่นเดิม</button>';
   document.querySelector('.header').after(bar);
-  const message=text=>{$('mt3AccountStatus').textContent=text;};
-  const ready=()=>true;
-  const admin=()=>!!(user&&auth&&auth.currentUser&&auth.currentUser.uid===user.uid&&profile&&profile.active===true&&profile.role==='admin');
-  const originalSetAdmin=setAdmin;
-  setAdmin=(v,name)=>originalSetAdmin(!!v&&admin(),name||(profile&&profile.name)||(user&&user.email));
-  const originalGuard=guard;
-  guard=()=>{if(!admin()){showStatus('expStatus','🔒 บัญชีนี้ไม่มีสิทธิ์ผู้ดูแล','err');return false;}return originalGuard();};
-  function lock(){
-    profile=null;bar.style.display='none';if(typeof tools!=='undefined')tools.style.display='none';
-    if(typeof MT3Reliability!=='undefined')MT3Reliability.stop();
-    logReady=false;cloudLogs=[];logCache=[];
-    if(isAdmin)originalSetAdmin(false);else sessionStorage.setItem('mt3_admin','0');
-    if(COL)startCloudSync();
+  let editing=false;
+  const admin=()=>!!current;
+  const oldSetAdmin=setAdmin;
+  setAdmin=(v,name)=>{const enabled=!!v&&admin();oldSetAdmin(enabled,enabled?current.username:name);bar.style.display=enabled?'block':'none';if(enabled)$('mt3EmbeddedLabel').textContent=current.username+' • แอดมิน';};
+  const oldGuard=guard;
+  guard=()=>{if(!admin())return false;return oldGuard();};
+  function show(edit){
+    editing=!!edit;gate.style.display='block';$('mt3EmbeddedTitle').textContent=editing?'เปลี่ยน User / Password':'เข้าสู่ระบบแอดมิน';
+    $('mt3EmbeddedUser').value=editing&&current?current.username:'';
+    $('mt3EmbeddedPassword').value='';$('mt3EmbeddedNewPassword').value='';$('mt3EmbeddedConfirm').value='';
+    $('mt3EmbeddedEdit').hidden=!editing;
+    $('mt3EmbeddedPasswordLabel').textContent=editing?'Password ปัจจุบัน':'Password';
+    $('mt3EmbeddedSubmit').textContent=editing?'บันทึกการเปลี่ยนแปลง':'เข้าสู่ระบบแอดมิน';
+    $('mt3EmbeddedStatus').textContent='';
   }
-  async function accept(p,u,token){
-    if(token!==generation||!auth.currentUser||auth.currentUser.uid!==u.uid)return;
-    if(!p||p.active!==true||p.role!=='admin'){
-      lock();gate.style.display='grid';message('บัญชีเข้าสู่ระบบแล้ว แต่ยังไม่มีสิทธิ์ผู้ดูแล\nให้ผู้ดูแลสร้าง mt3_users/'+u.uid+' และกำหนด active=true พร้อม role');return;
+  function close(){gate.style.display='none';for(const id of ['mt3EmbeddedPassword','mt3EmbeddedNewPassword','mt3EmbeddedConfirm'])$(id).value='';}
+  function logout(){
+    if(submitting||MT3Reliability.busy()){alert('กำลังส่งข้อมูล กรุณารอให้เสร็จก่อนออกจากระบบ');return;}
+    current=null;try{sessionStorage.removeItem('mt3_embedded_admin');}catch(e){}
+    setAdmin(false);cloudLogs=[];logCache=[];logReady=false;startCloudSync();close();
+  }
+  $('mt3EmbeddedForm').addEventListener('submit',e=>{
+    e.preventDefault();const name=$('mt3EmbeddedUser').value.trim(),password=$('mt3EmbeddedPassword').value,status=$('mt3EmbeddedStatus');
+    if(!/^[a-z0-9][a-z0-9._-]{2,39}$/i.test(name)){status.textContent='User ต้องมี 3–40 ตัว ใช้ภาษาอังกฤษ ตัวเลข . _ -';return;}
+    if(editing){
+      if(!current||password!==current.password){status.textContent='Password ปัจจุบันไม่ถูกต้อง';return;}
+      if(accounts().some(a=>a.id!==current.id&&a.username.toLowerCase()===name.toLowerCase())){status.textContent='User นี้มีคนใช้แล้ว';return;}
+      const next=$('mt3EmbeddedNewPassword').value,confirmation=$('mt3EmbeddedConfirm').value;
+      if(next&&(next.length<4||next!==confirmation)){status.textContent='Password ใหม่อย่างน้อย 4 ตัวและต้องยืนยันตรงกัน';return;}
+      try{const overrides=JSON.parse(localStorage.getItem(overrideKey)||'{}');const changed={id:current.id,username:name,password:next||current.password};overrides[current.id]={username:changed.username,password:changed.password};localStorage.setItem(overrideKey,JSON.stringify(overrides));current=changed;setAdmin(true);close();showStatus('expStatus','✅ เปลี่ยน User / Password สำหรับเบราว์เซอร์นี้แล้ว','ok');}
+      catch(err){status.textContent='บันทึกไม่ได้: '+err.message;}
+      return;
     }
-    profile=p;user=u;gate.style.display='none';bar.style.display='block';
-    $('mt3AccountLabel').textContent=(p.username||p.name||u.email)+' • '+(p.role==='admin'?'ผู้ดูแล':'ผู้ส่งรายงาน');
-    $('mt3AdoptQueue').hidden=p.role!=='admin';$('mt3Password').value='';
-    setAdmin(p.role==='admin',p.username||p.name||u.email);startCloudSync();
-  }
-  async function check(){
-    if(!user||checking)return;checking=true;const token=generation,u=user;
-    message('กำลังตรวจสิทธิ์บัญชี...');
-    try{
-      const ref=fdb.collection('mt3_users').doc(u.uid);
-      let timer;
-      const s=await Promise.race([ref.get({source:'server'}),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('ตรวจสิทธิ์เกิน 15 วินาที กรุณาตรวจเครือข่ายและ Firestore Rules')),15000);})]).finally(()=>clearTimeout(timer));
-      await accept(s.exists?s.data():null,u,token);
-      if(token===generation){if(unwatch)unwatch();unwatch=ref.onSnapshot(snap=>{
-        if(!snap.metadata.fromCache)accept(snap.exists?snap.data():null,u,token).catch(e=>message(e.message));
-      },e=>{if(token===generation){lock();message('ตรวจสิทธิ์ไม่ได้: '+e.code+' • '+e.message);}});}
-    }catch(e){if(token===generation){lock();message('เข้าสู่ระบบแล้ว แต่ตรวจสิทธิ์ไม่ได้: '+(e.code||'')+' '+e.message+'\nตรวจว่าเผยแพร่ Rules ฉบับใหม่แล้ว');}}
-    finally{checking=false;}
-  }
-  async function logout(){
-    if(submitting||(typeof MT3Reliability!=='undefined'&&MT3Reliability.busy())){alert('กำลังส่งข้อมูล กรุณารอให้เสร็จก่อนออกจากระบบ');return;}
-    if(!auth)return;try{await auth.signOut();}catch(e){alert('ออกจากระบบไม่ได้: '+e.message);}
-  }
-  function boot(){
-    try{
-      auth=firebase.auth();auth.onAuthStateChanged(async u=>{
-        generation++;if(unwatch){unwatch();unwatch=null;}lock();user=u;
-        $('mt3UIDBox').hidden=!u;
-        if(u){$('mt3UID').value=u.uid;check();}else{gate.style.display='none';message('กรุณาเข้าสู่ระบบด้วยบัญชีผู้ดูแล');}
-      });
-    }catch(e){lock();message('โหลดระบบบัญชีไม่ได้: '+e.message);}
-  }
-  $('mt3LoginForm').addEventListener('submit',async e=>{
-    e.preventDefault();if(!auth){message('ระบบ Firebase ยังไม่พร้อม กรุณาโหลดหน้าใหม่');return;}
-    const button=$('mt3LoginButton');button.disabled=true;message('กำลังเข้าสู่ระบบ...');
-    try{await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);await login($('mt3Email').value.trim(),$('mt3Password').value);}
-    catch(err){message('เข้าสู่ระบบไม่สำเร็จ: '+(err.code||err.message)+'\nตรวจ User / Password หรือการตั้งค่าบัญชีชุดแรก');}
-    finally{button.disabled=false;$('mt3Password').value='';}
+    const found=accounts().find(a=>a.username.toLowerCase()===name.toLowerCase()&&a.password===password);
+    if(!found){status.textContent='User หรือ Password ไม่ถูกต้อง';return;}
+    current=found;try{sessionStorage.setItem('mt3_embedded_admin',found.id);}catch(e){}
+    setAdmin(true);close();startCloudSync();
   });
-  toggleAdmin=()=>{if(admin()&&isAdmin){if(confirm('ออกจากโหมดผู้ดูแลและกลับโหมดทั่วไป?'))logout();}else{gate.style.display='grid';message('เข้าสู่บัญชีผู้ดูแลเพื่อแก้ไขและลบข้อมูล');}};
-  $('mt3CloseLogin').onclick=()=>{gate.style.display='none';$('mt3Password').value='';};
-  $('mt3Logout').onclick=$('mt3GateLogout').onclick=logout;
-  $('mt3RefreshRole').onclick=check;
-  $('mt3RetryQueue').onclick=()=>MT3Reliability.retry().catch(e=>alert(e.message));
-  $('mt3AdoptQueue').onclick=async()=>{
-    if(!admin())return;
-    if(confirm('รับเฉพาะคิวเก่าที่ยังไม่มีเจ้าของบัญชีในเครื่องนี้ แล้วส่งในนามบัญชีผู้ดูแลปัจจุบัน?')){
-      try{await MT3Reliability.adoptLegacy();alert('รับคิวเก่าแล้ว ระบบจะส่งซ้ำ');}catch(e){alert(e.message);}
-    }
-  };
-  // Username accounts use Firebase Auth; never compare passwords in the page.
-  const starterNames=['Affan.m','Chanunchida.b','Yuttichai.m','Navathat.p','Chakaval.j','Suthithat.a'];
-  const normalize=value=>String(value).trim().toLowerCase();
-  const validName=value=>/^[a-z0-9][a-z0-9._-]{2,39}$/i.test(value);
-  async function credential(email,password){
-    // Public, deterministic prehash bridges the requested 4-character initial
-    // password to Firebase's minimum length. It does NOT add password entropy.
-    const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('mt3-username-v1\n'+normalize(email)+'\n'+password));
-    return Array.from(new Uint8Array(bytes),x=>x.toString(16).padStart(2,'0')).join('');
-  }
-  async function bounded(promise){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('ฐานข้อมูลตอบช้า กรุณาตรวจเครือข่าย/Rules แล้วลองใหม่')),15000);})]);}finally{clearTimeout(timer);}}
-  async function login(identifier,password){
-    let email,encoded;
-    if(identifier.includes('@')){
-      email=identifier;encoded=password;
-      try{return await auth.signInWithEmailAndPassword(email,encoded);}catch(e){
-        if(!['auth/invalid-credential','auth/wrong-password','auth/user-not-found'].includes(e.code))throw e;
-        return auth.signInWithEmailAndPassword(email,await credential(email,password));
-      }
-    }
-    if(!validName(identifier))throw new Error('User ต้องมี 3–40 ตัว ใช้ภาษาอังกฤษ ตัวเลข . _ -');
-    const mapping=await bounded(fdb.collection('mt3_login').doc(normalize(identifier)).get({source:'server'}));
-    if(!mapping.exists)throw new Error('ไม่พบ User นี้ กรุณาตรวจชื่อหรือให้ผู้ดูแลสร้างบัญชีชุดแรก');
-    email=mapping.data().email;
-    return auth.signInWithEmailAndPassword(email,await credential(email,password));
-  }
-  const tools=document.createElement('div');tools.style.cssText='position:fixed;inset:0;z-index:100000;display:none;background:#eef1f6;overflow:auto;padding:24px 16px';
-  tools.innerHTML=`<div style="max-width:460px;margin:24px auto;background:#fff;border-radius:16px;padding:24px">
-  <h2>บัญชีของฉัน</h2><p id="mt3MyUsername"></p>
-  <form id="mt3ChangeForm"><label>User ใหม่ (เว้นว่างหากคงเดิม)</label><input id="mt3NewUsername" type="text" autocomplete="off" maxlength="40">
-  <label>Password ปัจจุบัน</label><input id="mt3CurrentPassword" type="password" autocomplete="current-password" required>
-  <label>Password ใหม่ (อย่างน้อย 8 ตัว หรือเว้นว่าง)</label><input id="mt3NewPassword" type="password" autocomplete="new-password">
-  <label>ยืนยัน Password ใหม่</label><input id="mt3ConfirmPassword" type="password" autocomplete="new-password">
-  <button class="btn btn-camera" id="mt3ChangeButton" type="submit" style="margin-top:16px">บันทึกการเปลี่ยนแปลง</button></form>
-  <p id="mt3ChangeStatus" role="status" style="white-space:pre-wrap"></p>
-  <details><summary>ตั้งค่าบัญชี Admin 6 คนครั้งแรก</summary><p>ใช้ครั้งเดียวหลังเข้าสู่บัญชีผู้ดูแลเดิม บัญชีที่มีอยู่แล้วจะไม่ถูกเปลี่ยนรหัสผ่าน</p>
-  <label>Password เริ่มต้นสำหรับบัญชีใหม่</label><input id="mt3SeedPassword" type="password" autocomplete="new-password" placeholder="กรอก 1234 ตามที่กำหนด">
-  <button id="mt3SeedButton" type="button" class="btn btn-gallery" style="margin-top:12px">สร้างบัญชี Admin 6 คน</button><p id="mt3SeedStatus" role="status" style="white-space:pre-wrap"></p></details>
-  <button id="mt3CloseTools" type="button" class="btn btn-gallery" style="margin-top:12px">ปิด</button></div>`;
-  document.body.appendChild(tools);
-  const accountButton=document.createElement('button');accountButton.type='button';accountButton.textContent='เปลี่ยน User / Password';bar.appendChild(accountButton);
-  accountButton.onclick=()=>{if(!admin())return;tools.style.display='block';$('mt3MyUsername').textContent='User ปัจจุบัน: '+(profile.username||user.email);$('mt3ChangeStatus').textContent='';};
-  $('mt3CloseTools').onclick=()=>{tools.style.display='none';for(const id of ['mt3CurrentPassword','mt3NewPassword','mt3ConfirmPassword','mt3SeedPassword'])$(id).value='';};
-  async function reauthenticate(password){
-    const email=user.email;const factory=firebase.auth.EmailAuthProvider;
-    if(profile.username)return user.reauthenticateWithCredential(factory.credential(email,await credential(email,password)));
-    try{await user.reauthenticateWithCredential(factory.credential(email,password));}
-    catch(e){if(!['auth/invalid-credential','auth/wrong-password'].includes(e.code))throw e;await user.reauthenticateWithCredential(factory.credential(email,await credential(email,password)));}
-  }
-  $('mt3ChangeForm').addEventListener('submit',async e=>{
-    e.preventDefault();if(!admin())return;
-    const name=$('mt3NewUsername').value.trim(),pw=$('mt3NewPassword').value,confirmPw=$('mt3ConfirmPassword').value;
-    const status=$('mt3ChangeStatus'),button=$('mt3ChangeButton');status.textContent='';
-    if(name&&!validName(name)){status.textContent='User ใช้ภาษาอังกฤษ ตัวเลข . _ - จำนวน 3–40 ตัว';return;}
-    if(pw&&(pw.length<8||pw!==confirmPw)){status.textContent='Password ใหม่ต้องมีอย่างน้อย 8 ตัวและช่องยืนยันตรงกัน';return;}
-    if(!name&&!pw){status.textContent='ระบุ User หรือ Password ที่ต้องการเปลี่ยน';return;}
-    if(!profile.username&&name&&!pw){status.textContent='บัญชีอีเมลเดิมต้องตั้ง Password ใหม่พร้อม User ในครั้งแรก';return;}
-    button.disabled=true;let passwordChanged=false;
-    try{
-      await reauthenticate($('mt3CurrentPassword').value);
-      // Preflight name availability before changing the password.
-      if(name){const existing=await bounded(fdb.collection('mt3_login').doc(normalize(name)).get({source:'server'}));if(existing.exists&&existing.data().uid!==user.uid)throw new Error('User นี้มีคนใช้แล้ว');}
-      if(pw){await user.updatePassword(await credential(user.email,pw));passwordChanged=true;}
-      if(name){
-        const uid=user.uid,old=profile.username,profileRef=fdb.collection('mt3_users').doc(uid),newRef=fdb.collection('mt3_login').doc(normalize(name));
-        await fdb.runTransaction(async tx=>{
-          const [mine,directory]=await Promise.all([tx.get(profileRef),tx.get(newRef)]);
-          if(!mine.exists||mine.data().role!=='admin'||mine.data().active!==true)throw new Error('สิทธิ์ผู้ดูแลถูกเปลี่ยน');
-          if(directory.exists&&directory.data().uid!==uid)throw new Error('User นี้มีคนใช้แล้ว');
-          tx.update(profileRef,{username:name,usernameKey:normalize(name),authEmail:user.email});tx.set(newRef,{uid,email:user.email});
-          if(old&&normalize(old)!==normalize(name))tx.delete(fdb.collection('mt3_login').doc(normalize(old)));
-        });
-        profile=Object.assign({},profile,{username:name});$('mt3MyUsername').textContent='User ปัจจุบัน: '+name;
-        $('mt3AccountLabel').textContent=name+' • ผู้ดูแล';
-      }
-      status.textContent='✅ เปลี่ยนข้อมูลสำเร็จ ใช้ข้อมูลใหม่ในการเข้าสู่ระบบครั้งถัดไป';
-    }catch(err){status.textContent=(passwordChanged?'Password ใหม่บันทึกแล้ว แต่การเปลี่ยน User ไม่สำเร็จ ใช้ User เดิมหรืออีเมลกับ Password ใหม่ แล้วลองเปลี่ยน User อีกครั้ง\n':'เปลี่ยนไม่สำเร็จ: ')+(err.code||err.message);}
-    finally{button.disabled=false;for(const id of ['mt3CurrentPassword','mt3NewPassword','mt3ConfirmPassword'])$(id).value='';}
-  });
-  $('mt3SeedButton').onclick=async()=>{
-    if(!admin())return;const seedPassword=$('mt3SeedPassword').value;
-    if(seedPassword.length<4){$('mt3SeedStatus').textContent='กรอก Password เริ่มต้นอย่างน้อย 4 ตัว';return;}
-    if(!confirm('สร้างบัญชีผู้ดูแล 6 คนตามรายชื่อ โดยไม่รีเซ็ตรหัสผ่านบัญชีที่ตั้งค่าแล้ว?'))return;
-    const button=$('mt3SeedButton'),result=$('mt3SeedStatus');button.disabled=true;result.textContent='';
-    let secondary;
-    try{
-      secondary=firebase.initializeApp(firebaseConfig,'mt3-account-provision-'+Date.now());const secondaryAuth=secondary.auth();await secondaryAuth.setPersistence(firebase.auth.Auth.Persistence.NONE);
-      for(const name of starterNames){
-        try{
-          const ref=fdb.collection('mt3_login').doc(normalize(name));const existing=await bounded(ref.get({source:'server'}));
-          if(existing.exists){result.textContent+=name+': มีแล้ว ข้าม\n';continue;}
-          const email=normalize(name)+'@mt3-tool-team3.invalid',encoded=await credential(email,seedPassword);let account;
-          try{account=(await secondaryAuth.createUserWithEmailAndPassword(email,encoded)).user;}
-          catch(err){if(err.code!=='auth/email-already-in-use')throw err;account=(await secondaryAuth.signInWithEmailAndPassword(email,encoded)).user;}
-          const uid=account.uid,profileRef=fdb.collection('mt3_users').doc(uid);
-          await fdb.runTransaction(async tx=>{
-            const [directory,membership]=await Promise.all([tx.get(ref),tx.get(profileRef)]);
-            if(directory.exists)throw new Error('User ถูกสร้างแล้ว กรุณาตรวจอีกครั้ง');
-            if(membership.exists&&membership.data().username)throw new Error('บัญชีนี้เคยเปลี่ยน User แล้ว ไม่สร้างชื่อเก่าซ้ำ');
-            tx.set(profileRef,{role:'admin',active:true,name,username:name,usernameKey:normalize(name),authEmail:email});tx.set(ref,{uid,email});
-          });
-          result.textContent+=name+': สร้างสำเร็จ\n';await secondaryAuth.signOut();
-        }catch(err){result.textContent+=name+': ไม่สำเร็จ '+(err.code||err.message)+'\n';}
-      }
-    }catch(err){result.textContent+='ตั้งค่าไม่สำเร็จ: '+(err.code||err.message);}
-    finally{if(secondary){try{await secondary.auth().signOut();await secondary.delete();}catch(e){}}button.disabled=false;$('mt3SeedPassword').value='';}
-  };
-
-  const oldInit=initCloud;initCloud=()=>{const ok=oldInit();if(ok)boot();return ok;};
-  return Object.freeze({ready,admin,guestUid:()=>guestId,uid:()=>admin()?user.uid:guestId});
+  toggleAdmin=()=>{if(admin()&&isAdmin){if(confirm('ออกจากโหมดแอดมิน?'))logout();}else show(false);};
+  openPinChange=()=>{if(admin())show(true);};
+  $('mt3EmbeddedChange').onclick=()=>{if(admin())show(true);};
+  $('mt3EmbeddedClose').onclick=close;
+  $('mt3EmbeddedLogout').onclick=logout;
+  $('mt3EmbeddedRetry').onclick=()=>MT3Reliability.retry().catch(e=>alert(e.message));
+  $('mt3EmbeddedAdopt').onclick=()=>{if(admin()&&confirm('รับและส่งคิวเดิมในเครื่องนี้ด้วยบัญชีแอดมินปัจจุบัน?'))MT3Reliability.adoptLegacy().catch(e=>alert(e.message));};
+  try{const id=sessionStorage.getItem('mt3_embedded_admin');current=accounts().find(a=>a.id===id)||null;}catch(e){}
+  return Object.freeze({ready:()=>true,admin,guestUid:()=>guestId,uid:()=>current?'embedded_'+current.id:guestId});
 })();
-/* END MT3 account access */
+/* END MT3 embedded administrator mode */
 
 /* MT3 reliability upgrade 1.0.0 — additive; original source retained.
  * Deployment: replace the placeholder Firebase apiKey in the original config.
@@ -1657,10 +1537,10 @@ const MT3Reliability = (() => {
   addEventListener('offline',()=>{cloudReady=false;logReady=false;status();});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flush();});
   open().then(status).catch(e=>banner('🔴 ไม่สามารถเก็บคิวสำรอง: '+e.message,true));
-  return Object.freeze({version:'1.3.0',busy:()=>inflight.size>0,
+  return Object.freeze({version:'2.0.0-embedded',busy:()=>inflight.size>0,
     stop:()=>{subscriptions.forEach(fn=>fn());subscriptions=[];clearTimeout(renderTimer);clearTimeout(retryTimer);},
     adoptLegacy:async()=>{if(!MT3Access.admin())throw new Error('เฉพาะผู้ดูแล');
-      for(const item of await list())if(!item.ownerUid){item.ownerUid=MT3Access.uid();if(item.collection==='reports'&&!item.data.createdByUid)item.data.createdByUid=MT3Access.uid();item.blocked=false;item.nextAt=0;await put(item);}return flush();},
+      for(const item of await list())if(!item.ownerUid||!String(item.ownerUid).startsWith('embedded_')){item.ownerUid=MT3Access.uid();if(item.collection==='reports'&&!item.data.createdByUid)item.data.createdByUid=MT3Access.uid();item.blocked=false;item.nextAt=0;await put(item);}return flush();},
     retry:async()=>{if(!MT3Access.ready())throw new Error('กรุณาเข้าสู่ระบบ');for(const item of await list())if(item.ownerUid===MT3Access.uid()||(item.collection==='reports'&&item.ownerUid===MT3Access.guestUid())){item.blocked=false;item.nextAt=0;await put(item);}return flush();},pending:list});
 })();
 /* END MT3 reliability upgrade */
