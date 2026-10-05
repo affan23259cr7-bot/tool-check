@@ -7,53 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script><!-- ===== [MT3-ERL/A] Firestore Boost Loader — ADDITIVE, ไม่แก้โค้ดเดิม ===== -->
-<script>
-(function(){'use strict';
-  try{
-    var H=document.head||document.documentElement;
-    ['https://firestore.googleapis.com','https://www.gstatic.com',
-     'https://cdn.jsdelivr.net','https://script.google.com'].forEach(function(u){
-      var l=document.createElement('link');l.rel='preconnect';l.href=u;l.crossOrigin='';H.appendChild(l);
-      var d=document.createElement('link');d.rel='dns-prefetch';d.href=u;H.appendChild(d);
-    });
-  }catch(e){}
-  if(!window.firebase||typeof firebase.firestore!=='function')return;
-  var _orig=firebase.firestore,_inst=null;
-  function boosted(){
-    if(_inst)return _inst;
-    _inst=_orig.apply(firebase,arguments);
-    try{
-      _inst.settings({
-        ignoreUndefinedProperties:true,
-        experimentalAutoDetectLongPolling:true,
-        cacheSizeBytes:(_orig.CACHE_SIZE_UNLIMITED||104857600),
-        merge:true
-      });
-    }catch(e){console.warn('[MT3-ERL] settings skipped:',e.message);}
-    try{
-      _inst.enablePersistence({synchronizeTabs:true})
-        .then(function(){window.__MT3_PERSIST__='multi-tab';})
-        .catch(function(err){
-          window.__MT3_PERSIST__='off:'+err.code;
-          if(err.code==='failed-precondition'){
-            _inst.enablePersistence()
-              .then(function(){window.__MT3_PERSIST__='single-tab';})
-              .catch(function(){});
-          }
-        });
-    }catch(e){}
-    return _inst;
-  }
-  Object.getOwnPropertyNames(_orig).forEach(function(k){
-    if(['length','name','prototype','caller','arguments'].indexOf(k)>-1)return;
-    try{boosted[k]=_orig[k];}catch(e){}
-  });
-  boosted.prototype=_orig.prototype;
-  firebase.firestore=boosted;
-  window.__MT3_BOOST_A__=true;
-})();
-</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{font-family:-apple-system,'Segoe UI',Roboto,'Noto Sans Thai',sans-serif;background:#eef1f6;margin:0;color:#1a1a1a}
@@ -373,7 +327,7 @@ async function notifyLine(payload){
 
 /* ================== Firebase Firestore ================== */
 const firebaseConfig = {
-  apiKey: "AIzaSyD_EXAMPLE_API_KEY_REPLACE_ME",
+  apiKey: "AIzaSyC6sZiPgKhUYEPJnIsAZ32FbvGHOsQGR0U",
   authDomain: "mt3-tool-team3.firebaseapp.com",
   projectId: "mt3-tool-team3",
   storageBucket: "mt3-tool-team3.firebasestorage.app",
@@ -1245,297 +1199,6 @@ async function deleteFiltered(){
     const res=await cloudDelMany(items.map(r=>r.id));
     await purgeLocalByBatches([...new Set(items.map(r=>r.batch))]);
     showStatus('expStatus',`✅ ลบเรียบร้อย ${res.ok} รายการ`,'ok');
-    <!-- ===== [MT3-ERL/B] Enterprise Reliability Layer v2.0.0 — ADDITIVE ===== -->
-<script>
-/*!
- * MT3 ToolCheck Suite — Enterprise Reliability Layer (ERL) v2.0.0
- * Additive runtime hardening module. No original source line is modified.
- * (c) Management Maintenance Team 3 — All rights reserved.
- */
-(function(){'use strict';
-if(window.MT3_PRO)return;
-
-var PRO=window.MT3_PRO={
-  product:'MT3 ToolCheck Suite',
-  module :'Enterprise Reliability Layer (ERL)',
-  version:'2.0.0',
-  build  :'ERL-'+new Date().toISOString().slice(0,10),
-  licensee:'Management Maintenance Team 3',
-  config :{fastAck:true,ackTimeout:1500,retryMax:4,probeMs:180000,
-           idleDisconnect:true,idleMinutes:15,debounceMs:120},
-  health :{online:null,latency:null,lastSync:0,retries:0,errors:0,queued:0,persist:null},
-  events :[]
-};
-function sleep(ms){return new Promise(function(r){setTimeout(r,ms);});}
-function ev(lv,m){PRO.events.push({t:Date.now(),lv:lv,m:m});if(PRO.events.length>300)PRO.events.shift();}
-function getCOL(){try{return COL;}catch(e){return null;}}
-function getLOG(){try{return LOGCOL;}catch(e){return null;}}
-function getDB(){try{return fdb;}catch(e){return null;}}
-
-/* ---------- 1) UI เสริม: badge + toast (ฉีดเข้ามาใหม่ ไม่ทับ CSS เดิม) ---------- */
-var st=document.createElement('style');
-st.textContent=
-"#list .card,#logList .card{content-visibility:auto;contain-intrinsic-size:auto 240px}"+
-".erl-badge{position:fixed;right:8px;bottom:8px;z-index:9999;background:#0d1b3e;color:#d4af37;"+
-"font:600 10px/1 -apple-system,'Noto Sans Thai',sans-serif;padding:5px 8px;border-radius:7px;"+
-"opacity:.55;cursor:pointer;user-select:none}"+
-".erl-badge:active{opacity:1}"+
-".erl-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:52px;z-index:10000;"+
-"background:rgba(13,27,62,.95);color:#fff;font:600 12.5px/1.5 -apple-system,'Noto Sans Thai',sans-serif;"+
-"padding:9px 14px;border-radius:10px;max-width:86vw;text-align:center;box-shadow:0 4px 14px rgba(0,0,0,.3);"+
-"opacity:0;transition:.25s;pointer-events:none}"+
-".erl-toast.on{opacity:1}";
-document.head.appendChild(st);
-
-var toastEl=document.createElement('div');toastEl.className='erl-toast';
-document.body.appendChild(toastEl);var toastT=null;
-function toast(msg,ms){toastEl.textContent=msg;toastEl.classList.add('on');
-  clearTimeout(toastT);toastT=setTimeout(function(){toastEl.classList.remove('on');},ms||2600);}
-
-var badge=document.createElement('div');badge.className='erl-badge';
-badge.textContent='ERL v'+PRO.version;
-badge.onclick=function(){PRO.diagnostics(true);};
-document.body.appendChild(badge);
-
-/* ---------- 2) แถบสถานะอัจฉริยะ (ห่อ setSync เดิม ไม่ลบของเดิม) ---------- */
-var baseText='',baseCls='';
-var _setSync=window.setSync;
-window.setSync=function(txt,cls){baseText=txt;baseCls=cls||'';renderSync();};
-function renderSync(){
-  var b=document.getElementById('syncBar');if(!b)return;
-  var s='',h=PRO.health;
-  if(h.online===false)s+='  ·  📴 ออฟไลน์ (บันทึกต่อได้ ระบบซิงค์ให้อัตโนมัติ)';
-  if(h.latency!=null&&h.online!==false)s+='  ·  ⚡ '+h.latency+' ms';
-  if(h.queued>0)s+='  ·  ⏫ รอซิงค์ '+h.queued;
-  b.className='syncbar '+(h.online===false?'wait':baseCls);
-  b.textContent=baseText+s;
-}
-
-/* ---------- 3) Retry + Soft-Ack (หัวใจของความเสถียร) ---------- */
-function retryable(e){
-  var c=(e&&e.code)||'';
-  return /unavailable|deadline-exceeded|internal|aborted|resource-exhausted|cancelled|unknown/i.test(c)
-      || !navigator.onLine;
-}
-async function withRetry(fn,label){
-  var max=PRO.config.retryMax,delay=400,last;
-  for(var i=0;i<max;i++){
-    try{return await fn();}
-    catch(e){
-      last=e;PRO.health.retries++;ev('warn',label+' retry#'+(i+1)+' '+(e.code||e.message));
-      if(!retryable(e)||i===max-1)break;
-      await sleep(delay+Math.random()*250);delay*=2;
-    }
-  }
-  PRO.health.errors++;throw last;
-}
-function softAck(p,label){
-  if(!PRO.config.fastAck)return p;
-  return new Promise(function(res,rej){
-    var done=false;
-    var t=setTimeout(function(){
-      if(done)return;done=true;PRO.health.queued++;renderSync();
-      res({__erlQueued:true});
-    },PRO.config.ackTimeout);
-    p.then(function(v){
-      if(!done){done=true;clearTimeout(t);res(v);}
-      else{PRO.health.queued=Math.max(0,PRO.health.queued-1);renderSync();}
-    },function(e){
-      if(!done){done=true;clearTimeout(t);rej(e);}
-      else{PRO.health.queued=Math.max(0,PRO.health.queued-1);PRO.health.errors++;
-           renderSync();toast('⚠️ ซิงค์เบื้องหลังไม่สำเร็จ 1 รายการ ('+label+')',4000);}
-    });
-  });
-}
-['cloudSet','cloudAdd','cloudDel','cloudAddLog'].forEach(function(n){
-  var o=window[n];if(typeof o!=='function')return;
-  window[n]=function(){
-    var a=arguments;
-    return softAck(withRetry(function(){return o.apply(null,a);},n),n);
-  };
-  window[n].__erlOriginal=o;
-});
-
-/* ---------- 4) ลบแบบ Batch (เร็วขึ้นหลายสิบเท่า) ---------- */
-async function batchDelete(ids,col){
-  var d=getDB();var ok=0,fail=0,CH=400;
-  if(!d||!col)return{ok:0,fail:ids.length};
-  for(var i=0;i<ids.length;i+=CH){
-    var part=ids.slice(i,i+CH);
-    try{
-      await withRetry(function(){
-        var b=d.batch();
-        part.forEach(function(id){b.delete(col.doc(String(id)));});
-        return b.commit();
-      },'batchDelete');
-      ok+=part.length;
-    }catch(e){
-      for(var j=0;j<part.length;j++){
-        try{await col.doc(String(part[j])).delete();ok++;}catch(e2){fail++;}
-      }
-    }
-  }
-  return{ok:ok,fail:fail};
-}
-if(typeof window.cloudDelMany==='function'){
-  window.cloudDelMany.__erlOriginal=window.cloudDelMany;
-  window.cloudDelMany=function(ids){return batchDelete(Array.prototype.slice.call(ids),getCOL());};
-}
-if(typeof window.cloudClearLogs==='function'){
-  window.cloudClearLogs.__erlOriginal=window.cloudClearLogs;
-  window.cloudClearLogs=async function(){
-    var L=getLOG(),d=getDB();if(!L||!d)return{ok:0,fail:0};
-    var snap;try{snap=await withRetry(function(){return L.get();},'logGet');}catch(e){return{ok:0,fail:1};}
-    var refs=snap.docs.map(function(x){return x.ref;}),ok=0,fail=0;
-    for(var i=0;i<refs.length;i+=400){
-      var part=refs.slice(i,i+400);
-      try{
-        await withRetry(function(){var b=d.batch();part.forEach(function(r){b.delete(r);});return b.commit();},'logBatch');
-        ok+=part.length;
-      }catch(e){for(var j=0;j<part.length;j++){try{await part[j].delete();ok++;}catch(e2){fail++;}}}
-    }
-    return{ok:ok,fail:fail};
-  };
-}
-
-/* ---------- 5) รวบการ render (แก้อาการหน่วงตอนพิมพ์ค้นหา) ---------- */
-function coalesce(name,wait){
-  var o=window[name];if(typeof o!=='function')return;
-  var t=null,last=0,pending=false;
-  window[name]=function(){
-    var a=arguments,now=Date.now();
-    if(!pending&&now-last>wait*3){last=now;return o.apply(null,a);}
-    pending=true;clearTimeout(t);
-    t=setTimeout(function(){pending=false;last=Date.now();
-      try{o.apply(null,a);}catch(e){console.error(e);}},wait);
-  };
-  window[name].__erlOriginal=o;
-}
-coalesce('loadHistory',PRO.config.debounceMs);
-coalesce('loadLog',PRO.config.debounceMs);
-PRO.flushUI=function(){
-  try{(window.loadHistory.__erlOriginal||window.loadHistory)();}catch(e){}
-  try{(window.loadLog.__erlOriginal||window.loadLog)();}catch(e){}
-};
-
-/* ---------- 6) เร่งการแสดงรูปในลิสต์ ---------- */
-function tune(root){
-  var imgs=(root||document).querySelectorAll('img.ph:not([data-erl])');
-  for(var i=0;i<imgs.length;i++){
-    imgs[i].setAttribute('data-erl','1');
-    imgs[i].loading='lazy';imgs[i].decoding='async';
-  }
-}
-try{
-  var mo=new MutationObserver(function(){tune(document.getElementById('list'));});
-  var lst=document.getElementById('list');
-  if(lst)mo.observe(lst,{childList:true,subtree:true});
-}catch(e){}
-
-/* ---------- 7) เฝ้าระวัง + กู้คืนการเชื่อมต่ออัตโนมัติ ---------- */
-var failCount=0,recovering=false,useNav=false;
-async function recover(){
-  var d=getDB();if(!d||recovering)return;
-  recovering=true;toast('🔄 กำลังเชื่อมต่อฐานข้อมูลกลางใหม่...');
-  try{await d.disableNetwork();await sleep(700);await d.enableNetwork();
-      ev('info','network recycled');toast('🟢 เชื่อมต่อใหม่สำเร็จ');}
-  catch(e){ev('err','recover fail '+e.message);}
-  recovering=false;failCount=0;
-}
-try{
-  getDB().collection('_health').doc('_ping').onSnapshot({includeMetadataChanges:true},
-    function(s){
-      var on=!s.metadata.fromCache;
-      if(PRO.health.online!==on){
-        PRO.health.online=on;renderSync();
-        toast(on?'🟢 ออนไลน์ — ซิงค์ข้อมูลแล้ว':'📴 ออฟไลน์ — บันทึกต่อได้ ระบบจะซิงค์ให้อัตโนมัติ');
-      }
-      if(on)PRO.health.lastSync=Date.now();
-    },
-    function(){useNav=true;PRO.health.online=navigator.onLine;renderSync();});
-}catch(e){useNav=true;}
-
-async function probe(){
-  if(document.visibilityState!=='visible')return;
-  var c=getCOL();if(!c)return;
-  var t0=(performance&&performance.now)?performance.now():Date.now();
-  try{
-    await c.limit(1).get({source:'server'});
-    PRO.health.latency=Math.round(((performance&&performance.now)?performance.now():Date.now())-t0);
-    PRO.health.lastSync=Date.now();failCount=0;
-    if(useNav)PRO.health.online=true;
-  }catch(e){
-    PRO.health.latency=null;failCount++;
-    if(useNav)PRO.health.online=false;
-    if(failCount>=2)recover();
-  }
-  renderSync();
-}
-setTimeout(probe,4000);
-setInterval(probe,PRO.config.probeMs);
-
-window.addEventListener('online',function(){var d=getDB();if(d)d.enableNetwork().catch(function(){});probe();});
-window.addEventListener('offline',function(){PRO.health.online=false;renderSync();});
-
-var hiddenAt=0;
-document.addEventListener('visibilitychange',function(){
-  var d=getDB();if(!d)return;
-  if(document.visibilityState==='hidden'){hiddenAt=Date.now();}
-  else{
-    if(PRO.config.idleDisconnect&&hiddenAt&&Date.now()-hiddenAt>PRO.config.idleMinutes*60000){
-      d.enableNetwork().catch(function(){});
-    }
-    hiddenAt=0;probe();
-  }
-});
-if(PRO.config.idleDisconnect){
-  setInterval(function(){
-    var d=getDB();if(!d)return;
-    if(hiddenAt&&Date.now()-hiddenAt>PRO.config.idleMinutes*60000&&!recovering){
-      d.disableNetwork().catch(function(){});
-    }
-  },60000);
-}
-
-/* ---------- 8) กันหน้าเว็บตายจาก error หลุด ---------- */
-window.addEventListener('error',function(e){
-  PRO.health.errors++;ev('err',(e.message||'')+' @'+(e.lineno||0));
-});
-window.addEventListener('unhandledrejection',function(e){
-  PRO.health.errors++;
-  var r=e.reason||{};ev('err','promise: '+(r.code||r.message||r));
-  if(retryable(r)){e.preventDefault();toast('⚠️ สัญญาณไม่เสถียร ระบบกำลังลองใหม่ให้อัตโนมัติ',3200);}
-});
-
-/* ---------- 9) Diagnostics สำหรับส่งมอบ/ซัพพอร์ตองค์กร ---------- */
-PRO.diagnostics=function(show){
-  PRO.health.persist=window.__MT3_PERSIST__||'unknown';
-  var r={
-    product:PRO.product,module:PRO.module,version:PRO.version,build:PRO.build,
-    licensee:PRO.licensee,boostLoader:!!window.__MT3_BOOST_A__,
-    persistence:PRO.health.persist,
-    online:PRO.health.online,latencyMs:PRO.health.latency,
-    lastSync:PRO.health.lastSync?new Date(PRO.health.lastSync).toLocaleString('th-TH'):'-',
-    retries:PRO.health.retries,errors:PRO.health.errors,queuedWrites:PRO.health.queued,
-    records:(function(){try{return cloudRecs.length;}catch(e){return -1;}})(),
-    ua:navigator.userAgent
-  };
-  if(show){
-    toast('ERL v'+PRO.version+'  ·  '+(r.online?'ออนไลน์':'ออฟไลน์')+
-          '  ·  '+(r.latencyMs!=null?r.latencyMs+' ms':'-')+
-          '  ·  แคช: '+r.persistence+'  ·  retry '+r.retries+' / error '+r.errors,5200);
-  }
-  console.table(r);return r;
-};
-
-console.log('%c '+PRO.product+' %c '+PRO.module+' v'+PRO.version+' ('+PRO.build+') ',
-  'background:#0d1b3e;color:#d4af37;font-weight:700;padding:3px 6px;border-radius:4px 0 0 4px',
-  'background:#1565c0;color:#fff;padding:3px 6px;border-radius:0 4px 4px 0');
-console.log('%cLicensed to: '+PRO.licensee+' — พิมพ์ MT3_PRO.diagnostics() เพื่อดูสถานะระบบ','color:#555');
-ev('info','ERL ready');
-renderSync();
-})();
-</script>
     loadHistory();});}
 
 async function deleteAll(){
@@ -1631,6 +1294,158 @@ $('restoreInput').onchange=e=>{
 
 function stamp(){const d=new Date();
   return `${d.getDate()}-${d.getMonth()+1}-${d.getFullYear()}_${d.getHours()}${('0'+d.getMinutes()).slice(-2)}`;}
+
+/* MT3 reliability upgrade 1.0.0 — additive; original source retained.
+ * Deployment: replace the placeholder Firebase apiKey in the original config.
+ * Commercial readiness requires Firebase Auth, server-enforced tenant/RBAC rules,
+ * trusted audit logs, retention/backups, storage for images and load/security tests.
+ * Client PIN is a UI lock, never a database security boundary.
+ * Current queries retain original 1200/600 limits; this is not full-history backup.
+ */
+const MT3Reliability = (() => {
+  let queueDB, opening, running=false, renderTimer, retryTimer, subscriptions=[], durableFailure=false;
+  const inflight=new Map();
+  const permanent=new Set(['permission-denied','unauthenticated','invalid-argument','resource-exhausted']);
+  const configOK=()=>!String(firebaseConfig.apiKey||'').includes('EXAMPLE')&&!!firebaseConfig.apiKey;
+  function open(){
+    if(opening)return opening;
+    opening=new Promise((resolve,reject)=>{
+      const r=indexedDB.open('mt3_reliable_outbox',1);
+      r.onupgradeneeded=()=>r.result.createObjectStore('pending',{keyPath:'key'});
+      r.onerror=()=>reject(r.error);
+      r.onblocked=()=>reject(new Error('กรุณาปิดแท็บเก่าแล้วลองใหม่'));
+      r.onsuccess=()=>{queueDB=r.result;queueDB.onversionchange=()=>queueDB.close();resolve(queueDB);};
+    }).catch(e=>{opening=null;throw e;});return opening;
+  }
+  async function tx(mode,work){
+    const d=await open();return new Promise((resolve,reject)=>{
+      const t=d.transaction('pending',mode);let result;
+      try{const r=work(t.objectStore('pending'));if(r)r.onsuccess=()=>{result=r.result;};}catch(e){reject(e);return;}
+      t.oncomplete=()=>resolve(result);t.onerror=t.onabort=()=>reject(t.error||new Error('บันทึกคิวไม่สำเร็จ'));
+    });
+  }
+  const list=()=>tx('readonly',s=>s.getAll());
+  const put=o=>tx('readwrite',s=>s.put(o));
+  const remove=key=>tx('readwrite',s=>s.delete(key));
+  function banner(message,off){setSync(message,off?'off':'');}
+  async function status(){
+    try{const q=await list();const blocked=q.filter(x=>x.blocked).length;
+      if(!configOK())banner('⚠️ Firebase API key ยังเป็นค่าตัวอย่าง • รอส่ง '+q.length+' รายการ',true);
+      else if(q.length)banner('🟠 รอฐานข้อมูลยืนยัน '+q.length+' รายการ'+(blocked?' • ต้องแก้สิทธิ์/การตั้งค่า '+blocked+' รายการ':''),true);
+      else if(!navigator.onLine)banner('🟠 ออฟไลน์ • แสดงข้อมูลในเครื่อง',true);
+      else if(cloudReady)banner('🟢 ฐานข้อมูลกลางยืนยันแล้ว • ประวัติล่าสุด '+cloudRecs.length+' รายการ',false);
+      else banner('🟠 กำลังเชื่อมต่อ • ข้อมูลอาจเป็นแคชในเครื่อง',true);
+    }catch(e){banner('🔴 เปิดคิวสำรองไม่ได้ • '+e.message,true);}
+  }
+  function schedule(){clearTimeout(retryTimer);retryTimer=setTimeout(()=>flush(),30000);}
+  async function send(item){
+    if(inflight.has(item.key))return inflight.get(item.key);
+    const p=(async()=>{
+      if(!configOK()||!navigator.onLine||!fdb)throw new Error('เก็บในคิวแล้ว รอเชื่อมต่อฐานข้อมูล');
+      try{
+        await fdb.collection(item.collection).doc(item.id).set(item.data);
+        await remove(item.key);
+      }catch(e){
+        item.attempts=(item.attempts||0)+1;item.blocked=permanent.has(String(e.code||'').replace('firestore/',''));
+        item.nextAt=Date.now()+Math.min(300000,2000*2**Math.min(item.attempts,7))+Math.random()*1000;
+        await put(item);throw e;
+      }
+    })().finally(()=>{inflight.delete(item.key);status();});
+    inflight.set(item.key,p);return p;
+  }
+  async function flush(){
+    if(running)return;running=true;
+    try{if(configOK()&&navigator.onLine&&fdb){
+      for(const item of await list())if(!item.blocked&&(!item.nextAt||item.nextAt<=Date.now())){
+        try{await Promise.race([send(item),new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),12000))]);}catch(e){}
+      }
+    }}catch(e){console.warn('MT3 outbox unavailable',e.message);}
+    finally{running=false;status();schedule();}
+  }
+  async function write(collection,id,data){
+    if(typeof id!=='string'||!id||id.includes('/'))throw new Error('รหัสรายการไม่ถูกต้อง');
+    const value=Object.assign({createdAt:Date.now()},data);
+    if(new TextEncoder().encode(JSON.stringify(value)).length>980000)throw new Error('ข้อมูลใหญ่เกินขนาดที่ปลอดภัย กรุณาลดขนาดรูป');
+    const item={key:collection+'/'+id,collection,id,data:value,attempts:0,nextAt:0};
+    try{await put(item);}catch(e){durableFailure=true;throw e;} // Durable commit before issuing a network request.
+    status();schedule();
+    let timer;try{
+      await Promise.race([send(item),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('เก็บในคิวแล้ว รอฐานข้อมูลยืนยัน')),12000);})]);
+    }finally{clearTimeout(timer);}
+  }
+  function render(){clearTimeout(renderTimer);renderTimer=setTimeout(()=>{loadHistory();loadLog();updateCycleHint();},180);}
+  function sync(){
+    subscriptions.forEach(fn=>fn());subscriptions=[];
+    if(!COL)return;
+    for(const [collection,limit,isLog] of [[COL,1200,false],[LOGCOL,600,true]]){
+      subscriptions.push(collection.orderBy('createdAt','desc').limit(limit).onSnapshot({includeMetadataChanges:true},snap=>{
+        const values=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
+        if(isLog){cloudLogs=values;logReady=!snap.metadata.fromCache;}else{
+          cloudRecs=values;cloudReady=!snap.metadata.fromCache;
+        }
+        render();status();
+      },e=>{if(isLog)logReady=false;else cloudReady=false;banner('🔴 ฐานข้อมูล: '+e.message,true);}));
+    }
+    flush();
+  }
+  const oldInit=initCloud;
+  initCloud=function(){if(!configOK()){status();return false;}return oldInit();};
+  startCloudSync=sync;
+  cloudSet=(id,o)=>write('reports',String(id),o);
+  cloudAdd=async o=>{if(!COL)throw new Error('ยังไม่ได้ตั้งค่า Firebase');const ref=COL.doc();await write('reports',ref.id,o);return ref;};
+  cloudAddLog=async o=>{if(!LOGCOL)throw new Error('ยังไม่ได้ตั้งค่า Firebase');const ref=LOGCOL.doc();await write('dellog',ref.id,o);return ref;};
+  const oldDelete=cloudDel;
+  cloudDel=async id=>{
+    if(inflight.has('reports/'+id))throw new Error('รายการกำลังส่ง กรุณารอฐานข้อมูลยืนยันก่อนลบ');
+    await oldDelete(id);await remove('reports/'+id);
+  };
+  // Fail IndexedDB operations explicitly, rather than leaving unresolved promises.
+  function local(store,mode,action){return new Promise((resolve,reject)=>{
+    if(!db)return reject(new Error('ฐานข้อมูลในเครื่องยังไม่พร้อม'));
+    let t,result;try{t=db.transaction(store,mode);const r=action(t.objectStore(store));r.onsuccess=()=>{result=r.result;};}
+    catch(e){reject(e);return;}
+    t.oncomplete=()=>resolve(result);t.onerror=t.onabort=()=>reject(t.error||new Error('ฐานข้อมูลในเครื่องผิดพลาด'));
+  });}
+  addRec=o=>local('reports','readwrite',s=>s.add(o));
+  getAll=()=>local('reports','readonly',s=>s.getAll());
+  delRec=id=>local('reports','readwrite',s=>s.delete(id));
+  clearAllRec=()=>local('reports','readwrite',s=>s.clear());
+  addLog=o=>local('dellog','readwrite',s=>s.add(o));
+  getLogs=()=>local('dellog','readonly',s=>s.getAll());
+  clearLogs=()=>local('dellog','readwrite',s=>s.clear());
+  const originalSubmit=submitReport;
+  submitReport=async function(){
+    if(submitting)return originalSubmit();
+    try{await open();}catch(e){showStatus('status','❌ เปิดคิวสำรองไม่ได้ กรุณาเก็บรูปไว้และลองใหม่: '+e.message,'err');return;}
+    durableFailure=false;const retained=photos.slice();const retainedNote=$('note').value;
+    await originalSubmit();
+    if(durableFailure){photos=retained;renderThumbs();$('note').value=retainedNote;
+      $('saveCard').classList.remove('show');
+      showStatus('status','❌ บันทึกคิวไม่ครบ (พื้นที่จัดเก็บอาจเต็ม) เก็บรูปไว้ในฟอร์มแล้ว ตรวจประวัติก่อนส่งซ้ำเพื่อหลีกเลี่ยงรายการซ้ำ','err');}
+  };
+  const originalStatus=showStatus;
+  showStatus=function(id,msg,type){
+    if(id==='status'&&String(msg).includes('แต่ส่งขึ้นฐานข้อมูลกลางไม่สำเร็จ'))msg+='\nระบบจะส่งซ้ำอัตโนมัติหากเก็บในคิวสำเร็จ โปรดตรวจสถานะซิงค์ด้านบน';
+    if(String(msg).includes('แจ้งเตือนเข้าไลน์กลุ่มแล้ว'))msg=String(msg).replace('แจ้งเตือนเข้าไลน์กลุ่มแล้ว','ส่งคำขอแจ้งเตือนไลน์แล้ว (ยังยืนยันการรับไม่ได้)');
+    return originalStatus(id,msg,type);
+  };
+  notifyLine=async payload=>{
+    if(!LINE_HOOK_URL||!navigator.onLine)return false;
+    const c=new AbortController(),t=setTimeout(()=>c.abort(),8000);
+    try{await fetch(LINE_HOOK_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),signal:c.signal});return true;}
+    catch(e){return false;}finally{clearTimeout(t);}
+  };
+  // Images retain original data and export behavior; decode lazily to reduce memory.
+  const observer=new MutationObserver(()=>{
+    document.querySelectorAll('#list img.ph').forEach(img=>{img.loading='lazy';img.decoding='async';});
+  });observer.observe($('list'),{childList:true});
+  addEventListener('online',()=>{status();flush();});
+  addEventListener('offline',()=>{cloudReady=false;logReady=false;status();});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flush();});
+  open().then(status).catch(e=>banner('🔴 ไม่สามารถเก็บคิวสำรอง: '+e.message,true));
+  return Object.freeze({version:'1.0.0',retry:async()=>{for(const item of await list()){item.blocked=false;item.nextAt=0;await put(item);}return flush();},pending:list});
+})();
+/* END MT3 reliability upgrade */
 
 if(initCloud()){ startCloudSync(); }
 else { setSync('🔴 ตั้งค่า Firebase ไม่ถูกต้อง','off'); }
