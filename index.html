@@ -1301,19 +1301,19 @@ function stamp(){const d=new Date();
  * Credential changes are local to this browser. Do not sell as secure RBAC.
  */
 const MT3_EMBEDDED_ADMINS=Object.freeze([
-  {id:'admin1',username:'Affan.m',password:'1234'},
-  {id:'admin2',username:'Chanunchida.b',password:'1234'},
-  {id:'admin3',username:'Yuttichai.m',password:'1234'},
-  {id:'admin4',username:'Navathat.p',password:'1234'},
-  {id:'admin5',username:'Chakaval.j',password:'1234'},
-  {id:'admin6',username:'Suthithat.a',password:'1234'}
+  {id:'admin1',fullName:'อัฟฟาน มามะ',username:'Affan.m',password:'1234'},
+  {id:'admin2',fullName:'ชนัญชิดา บุญมี',username:'Chanunchida.b',password:'1234'},
+  {id:'admin3',fullName:'ยุทธิชัย โม้แก่น',username:'Yuttichai.m',password:'1234'},
+  {id:'admin4',fullName:'นวทัศน์ พุ่มพุทรา',username:'Navathat.p',password:'1234'},
+  {id:'admin5',fullName:'จักรวาล ใจสุดา',username:'Chakaval.j',password:'1234'},
+  {id:'admin6',fullName:'สุธีทัต อริยธรรมสกุล',username:'Suthithat.a',password:'1234'}
 ]);
 const MT3Access=(()=>{
   const overrideKey='mt3_embedded_credentials_v1';let current=null,guestId;
   function accounts(){
     let overrides={};try{overrides=JSON.parse(localStorage.getItem(overrideKey)||'{}');}catch(e){}
     return MT3_EMBEDDED_ADMINS.map(a=>{
-      const o=overrides[a.id];return o&&typeof o.username==='string'&&typeof o.password==='string'?{id:a.id,username:o.username,password:o.password}:Object.assign({},a);
+      const o=overrides[a.id];return o&&typeof o.username==='string'&&typeof o.password==='string'?{id:a.id,fullName:a.fullName,username:o.username,password:o.password}:Object.assign({},a);
     });
   }
   try{guestId=localStorage.getItem('mt3_public_device');if(!guestId){guestId='guest_'+crypto.randomUUID();localStorage.setItem('mt3_public_device',guestId);}}
@@ -1336,7 +1336,7 @@ const MT3Access=(()=>{
   let editing=false;
   const admin=()=>!!current;
   const oldSetAdmin=setAdmin;
-  setAdmin=(v,name)=>{const enabled=!!v&&admin();oldSetAdmin(enabled,enabled?current.username:name);bar.style.display=enabled?'block':'none';if(enabled)$('mt3EmbeddedLabel').textContent=current.username+' • แอดมิน';};
+  setAdmin=(v,name)=>{const enabled=!!v&&admin();oldSetAdmin(enabled,enabled?current.fullName:name);bar.style.display=enabled?'block':'none';if(enabled)$('mt3EmbeddedLabel').textContent=current.username+' • แอดมิน';};
   const oldGuard=guard;
   guard=()=>{if(!admin())return false;return oldGuard();};
   function show(edit){
@@ -1362,7 +1362,7 @@ const MT3Access=(()=>{
       if(accounts().some(a=>a.id!==current.id&&a.username.toLowerCase()===name.toLowerCase())){status.textContent='User นี้มีคนใช้แล้ว';return;}
       const next=$('mt3EmbeddedNewPassword').value,confirmation=$('mt3EmbeddedConfirm').value;
       if(next&&(next.length<4||next!==confirmation)){status.textContent='Password ใหม่อย่างน้อย 4 ตัวและต้องยืนยันตรงกัน';return;}
-      try{const overrides=JSON.parse(localStorage.getItem(overrideKey)||'{}');const changed={id:current.id,username:name,password:next||current.password};overrides[current.id]={username:changed.username,password:changed.password};localStorage.setItem(overrideKey,JSON.stringify(overrides));current=changed;setAdmin(true);close();showStatus('expStatus','✅ เปลี่ยน User / Password สำหรับเบราว์เซอร์นี้แล้ว','ok');}
+      try{const overrides=JSON.parse(localStorage.getItem(overrideKey)||'{}');const changed={id:current.id,fullName:current.fullName,username:name,password:next||current.password};overrides[current.id]={username:changed.username,password:changed.password};localStorage.setItem(overrideKey,JSON.stringify(overrides));current=changed;setAdmin(true);close();showStatus('expStatus','✅ เปลี่ยน User / Password สำหรับเบราว์เซอร์นี้แล้ว','ok');}
       catch(err){status.textContent='บันทึกไม่ได้: '+err.message;}
       return;
     }
@@ -1379,7 +1379,7 @@ const MT3Access=(()=>{
   $('mt3EmbeddedRetry').onclick=()=>MT3Reliability.retry().catch(e=>alert(e.message));
   $('mt3EmbeddedAdopt').onclick=()=>{if(admin()&&confirm('รับและส่งคิวเดิมในเครื่องนี้ด้วยบัญชีแอดมินปัจจุบัน?'))MT3Reliability.adoptLegacy().catch(e=>alert(e.message));};
   try{const id=sessionStorage.getItem('mt3_embedded_admin');current=accounts().find(a=>a.id===id)||null;}catch(e){}
-  return Object.freeze({ready:()=>true,admin,guestUid:()=>guestId,uid:()=>current?'embedded_'+current.id:guestId});
+  return Object.freeze({ready:()=>true,admin,fullName:()=>current?current.fullName:null,normalizeName:value=>{const key=String(value||'').trim().toLowerCase();const a=accounts().find(x=>x.username.toLowerCase()===key)||MT3_EMBEDDED_ADMINS.find(x=>x.username.toLowerCase()===key);return a?a.fullName:value;},guestUid:()=>guestId,uid:()=>current?'embedded_'+current.id:guestId});
 })();
 /* END MT3 embedded administrator mode */
 
@@ -1506,7 +1506,7 @@ const MT3Reliability = (() => {
   addLog=o=>local('dellog','readwrite',s=>s.add(o));
   getLogs=()=>local('dellog','readonly',s=>s.getAll());
   clearLogs=()=>local('dellog','readwrite',s=>s.clear());
-  const originalSubmit=submitReport;
+  let originalSubmit=submitReport;
   submitReport=async function(){
     if(!MT3Access.ready()){showStatus('status','🔒 กรุณาเข้าสู่ระบบก่อนบันทึกรายงาน','err');return;}
     if(submitting)return originalSubmit();
@@ -1537,13 +1537,381 @@ const MT3Reliability = (() => {
   addEventListener('offline',()=>{cloudReady=false;logReady=false;status();});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flush();});
   open().then(status).catch(e=>banner('🔴 ไม่สามารถเก็บคิวสำรอง: '+e.message,true));
-  return Object.freeze({version:'2.0.0-embedded',busy:()=>inflight.size>0,
+  return Object.freeze({version:'2.1.0-cycles',setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
     stop:()=>{subscriptions.forEach(fn=>fn());subscriptions=[];clearTimeout(renderTimer);clearTimeout(retryTimer);},
     adoptLegacy:async()=>{if(!MT3Access.admin())throw new Error('เฉพาะผู้ดูแล');
       for(const item of await list())if(!item.ownerUid||!String(item.ownerUid).startsWith('embedded_')){item.ownerUid=MT3Access.uid();if(item.collection==='reports'&&!item.data.createdByUid)item.data.createdByUid=MT3Access.uid();item.blocked=false;item.nextAt=0;await put(item);}return flush();},
     retry:async()=>{if(!MT3Access.ready())throw new Error('กรุณาเข้าสู่ระบบ');for(const item of await list())if(item.ownerUid===MT3Access.uid()||(item.collection==='reports'&&item.ownerUid===MT3Access.guestUid())){item.blocked=false;item.nextAt=0;await put(item);}return flush();},pending:list});
 })();
 /* END MT3 reliability upgrade */
+
+/* MT3 cycle numbers: per-area opening ordinal shared across six areas. */
+const MT3Cycles=(()=>{
+  const cutoff=Date.parse('2026-09-20T00:00:00+07:00'),version=1;
+  let states={},meta=null,migrating=false;
+  const areaKey=area=>{
+    const normalized=String(area||'').replace(/\bWes\b/gi,'West').replace(/\s/g,'');
+    return AREAS.find(a=>a.toLowerCase()===normalized.toLowerCase())||null;
+  };
+  function time(r){
+    const match=String(r.timestamp||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(\d{1,2}):(\d{2})/);
+    if(match){let y=Number(match[3]);if(y<100)y+=2500;if(y>2400)y-=543;return Date.parse(`${y}-${pad(match[2],2)}-${pad(match[1],2)}T${pad(match[4],2)}:${match[5]}:00+07:00`);}
+    if(typeof r.createdAt==='number')return r.createdAt;
+    if(/^\d{4}-\d{2}-\d{2}$/.test(r.dateKey||''))return Date.parse(r.dateKey+'T12:00:00+07:00');
+    return NaN;
+  }
+  const yyAt=t=>pad((Number(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Bangkok',year:'numeric'}).format(new Date(t)))+543)%100,2);
+  const number=(yy,n)=>'MT'+yy+'/'+pad(n,4);
+  function groups(records){
+    const m=new Map();for(const r of records){const key=r.batch||[r.area,r.shift,r.timestamp,r.inspector].join('|');if(!m.has(key))m.set(key,[]);m.get(key).push(r);}
+    return [...m].map(([key,items])=>({key,items,first:items[0],time:time(items[0])})).sort((a,b)=>a.time-b.time||a.key.localeCompare(b.key));
+  }
+  function plan(records){
+    const state={},updates=[],issues=[];
+    for(const area of AREAS)state[area]={area,counts:{},open:null,lastClosed:null};
+    const selected=records.filter(r=>Number.isFinite(time(r))&&time(r)>=cutoff);
+    for(const g of groups(selected)){
+      const r=g.first,area=areaKey(r.area),yy=yyAt(g.time);
+      if(!area||!SHIFTS.includes(r.shift)){issues.push({batch:g.key,reason:'พื้นที่/รอบไม่ถูกต้อง'});continue;}
+      const st=state[area];let doc;
+      if(r.shift==='รับกะ'){
+        if(st.open)issues.push({batch:g.key,reason:area+' รับกะใหม่ก่อนปิดรอบเก่า '+st.open.docNo});
+        st.counts[yy]=(st.counts[yy]||0)+1;doc=number(yy,st.counts[yy]);st.open={docNo:doc,batch:g.key};
+      }else if(st.open){doc=st.open.docNo;st.lastClosed=doc;st.open=null;}
+      else{issues.push({batch:g.key,reason:area+' ส่งคืนโดยไม่มีรับกะก่อนหน้าในช่วงข้อมูล'});continue;}
+      for(const item of g.items)updates.push({id:String(item.id),oldDocNo:item.docNo||'',docNo:doc,batch:g.key});
+    }
+    const invalid=records.filter(r=>!Number.isFinite(time(r))).length;
+    if(invalid)issues.push({batch:'-',reason:'มี '+invalid+' รายการที่อ่านวันเวลาไม่ได้ ไม่จัดเลขอัตโนมัติ'});
+    return {state,updates,issues,selected:selected.length};
+  }
+  async function deadline(promise,ms=45000){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('ฐานข้อมูลตอบช้า กรุณาลองใหม่')),ms);})]);}finally{clearTimeout(timer);}}
+  async function allocate(area,shift,batch){
+    area=areaKey(area);if(!area||!SHIFTS.includes(shift))throw new Error('พื้นที่หรือรอบตรวจไม่ถูกต้อง');
+    if(!navigator.onLine)throw new Error('ต้องออนไลน์เพื่อจองเลขที่เอกสารกลาง รูปยังอยู่ในฟอร์ม');
+    const config=fdb.collection('mt3_cycle_meta').doc('main'),ref=fdb.collection('mt3_cycle_state').doc(area),request=fdb.collection('mt3_cycle_requests').doc(batch);
+    const yy=yyAt(Date.now());
+    return deadline(fdb.runTransaction(async tx=>{
+      const [cfg,saved,previous]=await Promise.all([tx.get(config),tx.get(ref),tx.get(request)]);
+      if(previous.exists)return previous.data().docNo;
+      if(!cfg.exists||cfg.data().version!==version||cfg.data().status!=='ready')throw new Error('ผู้ดูแลต้องกดจัดเลขย้อนหลัง 20/09/69 ครั้งแรกก่อนส่งรายงาน');
+      const st=saved.exists?saved.data():{area,counts:{},open:null,lastClosed:null};let doc;
+      if(shift==='รับกะ'){st.counts[yy]=(st.counts[yy]||0)+1;doc=number(yy,st.counts[yy]);st.open={docNo:doc,batch};}
+      else{if(!st.open)throw new Error('พื้นที่นี้ยังไม่มีรับกะที่เปิดอยู่ กรุณาตรวจรอบก่อนส่งคืน');doc=st.open.docNo;st.lastClosed=doc;st.open=null;}
+      tx.set(ref,st);tx.set(request,{docNo:doc,area,shift,createdAt:Date.now()});return doc;
+    }));
+  }
+  async function allMetadata(){
+    const items=[];let cursor=null,total=0;
+    while(true){let q=COL.orderBy(firebase.firestore.FieldPath.documentId()).limit(100);if(cursor)q=q.startAfter(cursor);
+      const snap=await deadline(q.get({source:'server'}));
+      for(const d of snap.docs){const r=d.data();items.push({id:d.id,createdAt:r.createdAt,timestamp:r.timestamp,dateKey:r.dateKey,area:r.area,shift:r.shift,inspector:r.inspector,batch:r.batch,docNo:r.docNo});}
+      total+=snap.size;showStatus('expStatus','กำลังอ่านข้อมูลย้อนหลังครบฐานข้อมูล: '+total+' ภาพ','info');
+      if(snap.size<100)break;cursor=snap.docs[snap.docs.length-1];
+    }return items;
+  }
+  async function migrate(){
+    if(!guard()||migrating)return;
+    if(MT3Reliability.busy()||(await MT3Reliability.pending()).length){showStatus('expStatus','กรุณาส่งคิวรอทั้งหมดให้เสร็จก่อนจัดเลขย้อนหลัง','err');return;}
+    migrating=true;let locked=false,previousMeta=null;const owner='migration_'+Date.now(),ref=fdb.collection('mt3_cycle_meta').doc('main');
+    try{
+      await fdb.runTransaction(async tx=>{const s=await tx.get(ref);previousMeta=s.exists?s.data():null;if(s.exists&&s.data().status==='migrating'&&s.data().leaseUntil>Date.now())throw new Error('มีเครื่องอื่นกำลังจัดเลขย้อนหลัง');tx.set(ref,{version,status:'migrating',owner,leaseUntil:Date.now()+3600000});});locked=true;
+      const records=await allMetadata(),result=plan(records),changed=result.updates.filter(x=>x.oldDocNo!==x.docNo);
+      const backup={type:'MT3_DOCNO_BACKUP',cutoff:'2026-09-20',createdAt:new Date().toISOString(),records:result.updates.map(x=>({id:x.id,docNo:x.oldDocNo})),issues:result.issues};
+      const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(backup,null,2)],{type:'application/json'}));a.download='MT3_เลขเอกสารเดิม_'+stamp()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+      if(!confirm('จัดเลขตั้งแต่ 20/09/2569 ถึงข้อมูลล่าสุด\n'+result.selected+' ภาพ / เปลี่ยนเลข '+changed.length+' ภาพ\nข้อควรตรวจ '+result.issues.length+' รายการ\n'+result.issues.slice(0,8).map(x=>x.reason).join('\n')+'\nรายการส่งคืนที่ไม่มีรับกะจะคงเลขเดิม\nดาวน์โหลดสำรองเลขเดิมแล้ว ยืนยันดำเนินการ?')){
+        if(previousMeta)await ref.set(previousMeta);else await ref.delete();return;
+      }
+      for(let i=0;i<changed.length;i+=300){const wb=fdb.batch();for(const item of changed.slice(i,i+300))wb.update(COL.doc(item.id),{docNo:item.docNo,docCycleVersion:version});await deadline(wb.commit());showStatus('expStatus','จัดเลขย้อนหลัง '+Math.min(i+300,changed.length)+' / '+changed.length+' ภาพ','info');}
+      const wb=fdb.batch();for(const area of AREAS)wb.set(fdb.collection('mt3_cycle_state').doc(area),result.state[area]);
+      wb.set(ref,{version,status:'ready',cutoff:'2026-09-20',updatedAt:Date.now(),issues:result.issues.length,leaseUntil:0});await deadline(wb.commit());
+      const seq={last:{}};for(const st of Object.values(result.state))for(const [yy,n] of Object.entries(st.counts))seq.last[yy]=Math.max(seq.last[yy]||0,n);_saveSeq(seq);
+      showStatus('expStatus','✅ จัดเลขย้อนหลังสำเร็จ '+changed.length+' ภาพ • ควรตรวจ '+result.issues.length+' รายการ (ดูไฟล์สำรอง)','ok');
+    }catch(e){if(locked)try{await ref.set({version,status:'needs-migration',error:e.message,leaseUntil:0});}catch(_){}showStatus('expStatus','จัดเลขไม่ครบ: '+e.message+' • กดทำซ้ำได้ ระบบจะคำนวณจากเวลาเดิม','err');}
+    finally{migrating=false;loadHistory();updateCycleHint();}
+  }
+  const button=document.createElement('button');button.className='btn btn-fix btn-sm';button.textContent='จัดเลขย้อนหลังตั้งแต่ 20/09/69';button.style.marginTop='10px';button.onclick=migrate;
+  const oldButton=document.querySelector('[onclick="setDocNoFiltered()"]');if(oldButton)oldButton.after(button);
+  const oldInit=initCloud;initCloud=()=>{const ok=oldInit();if(ok){
+    fdb.collection('mt3_cycle_state').onSnapshot(snap=>{states={};snap.docs.forEach(d=>{states[d.id]=d.data();});updateCycleHint();},e=>console.warn('Cycle state',e.code));
+    fdb.collection('mt3_cycle_meta').doc('main').onSnapshot(snap=>{meta=snap.exists?snap.data():null;updateCycleHint();},e=>console.warn('Cycle config',e.code));
+  }return ok;};
+  updateCycleHint=()=>{const el=$('cycleHint');if(!el)return;
+    if(!meta||meta.status!=='ready'){el.className='cyclebox';el.textContent='ผู้ดูแล: กดจัดเลขย้อนหลังตั้งแต่ 20/09/69 ก่อนใช้งานเลขรอบใหม่';return;}
+    const area=areaKey($('area').value),shift=$('shift').value,st=states[area]||{counts:{},open:null},yy=yyAt(Date.now());
+    const doc=shift==='ส่งคืน'?(st.open&&st.open.docNo):number(yy,(st.counts[yy]||0)+1);
+    el.className='cyclebox newc';el.textContent=doc?`${area} • ${shift} ใช้ ${doc} — รอบเดียวกันทุกพื้นที่ใช้เลขเดียวกัน`:'พื้นที่นี้ยังไม่มีรับกะที่เปิดอยู่';
+  };
+  $('area').addEventListener('change',updateCycleHint);$('shift').addEventListener('change',updateCycleHint);
+  return Object.freeze({allocate,plan,groups,time,areaKey,migrate});
+})();
+
+async function mt3SubmitCycle(){
+  if(submitting){ showStatus('status','⏳ กำลังบันทึกอยู่ กรุณารอสักครู่ — ห้ามกดซ้ำ','info'); return; }
+  const btn=$('submitBtn');
+  submitting=true; btn.disabled=true; btn.textContent='⏳ กำลังบันทึก... ห้ามกดซ้ำ';
+  try{
+    const area=$('area').value,shift=$('shift').value;
+    const inspector=MT3Access.normalizeName($('inspector').value.trim()),note=$('note').value.trim();
+    if(!inspector)return showStatus('status','⚠️ กรุณากรอกชื่อผู้ตรวจเช็ค','err');
+    if(!photos.length)return showStatus('status','⚠️ กรุณาถ่ายภาพอย่างน้อย 1 รูป','err');
+    const dups=photos.filter(p=>p.isDup);
+    if(dups.length){const i=dups[0].dupInfo;
+      if(!confirm(`⚠️ พบภาพซ้ำ ${dups.length} รูป\nตรงกับรายงานเมื่อ: ${i?i.timestamp:'-'} (${i?i.area:'-'})\n\nยืนยันบันทึกต่อหรือไม่?`))return;}
+
+    const now=new Date();
+    const ts=now.toLocaleString('th-TH',{timeZone:'Asia/Bangkok',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','');
+    const dateKey=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
+    const batch='B'+now.getTime()+'_'+crypto.randomUUID().slice(0,8);
+    showStatus('status','⏳ กำลังบันทึกและส่งขึ้นฐานข้อมูลกลาง...','info');
+
+    const dno=await MT3Cycles.allocate(area,shift,batch);
+    const cnt=photos.length,hasDup=photos.some(p=>p.isDup);
+    let upFail=0;
+
+    for(let i=0;i<photos.length;i++){
+      const p=photos[i];
+      try{ if(db) await addRec({timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:p.b64,isDup:p.isDup,batch,docNo:dno}); }catch(e){}
+      try{
+        const cimg=await makeCloudImg(p.b64);
+        await cloudSet(batch+'_'+i,{timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:cimg,
+          isDup:p.isDup,batch,idx:i,docNo:dno,device:navigator.userAgent.slice(0,80)});
+      }catch(e){ upFail++; console.error('อัปโหลดคลาวด์ไม่สำเร็จ',e); }
+    }
+
+    const lineOK=await notifyLine({ts,dateKey,area,shift,inspector,note,docNo:dno,count:cnt,dup:hasDup,batch});
+
+    if(upFail) showStatus('status',`⚠️ บันทึกในเครื่องแล้ว ${cnt} รูป\nแต่ส่งขึ้นฐานข้อมูลกลางไม่สำเร็จ ${upFail} รูป\nตรวจสอบอินเทอร์เน็ต / ค่า Firebase`,'err');
+    else showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป\n📄 เลขที่เอกสาร ${dno}\n${lineOK?'📨 แจ้งเตือนเข้าไลน์กลุ่มแล้ว':'⚠️ ยังไม่ได้ตั้งค่าแจ้งเตือนไลน์'}\n${area} • ${shift} • ${inspector}`,'ok');
+
+    showSaveCard({area,shift,inspector,docNo:dno,ts:thDate(now)+' '+thTime(now),count:cnt,note,dup:hasDup});
+    photos=[];renderThumbs();$('note').value='';
+    loadHistory();
+  }catch(err){
+    console.error(err);
+    showStatus('status','❌ เกิดข้อผิดพลาด: '+err.message,'err');
+  }finally{
+    submitting=false; btn.disabled=false; btn.textContent='✅ บันทึกรายงาน';
+    setTimeout(updateCycleHint,900);
+  }
+}
+MT3Reliability.setSubmit(mt3SubmitCycle);
+
+/* One editable page model supplies both the PDF print view and native XLSX. */
+const MT3Report=(()=>{
+  const widths=[10,22,25,22,16,30,51,14],pageHeight=771,font='Tahoma';
+  const styles=[
+    {size:10.5,align:'left'}, {size:12,bold:true,align:'center'},
+    {size:9,bold:true,align:'left'}, {size:8,align:'left'},
+    {size:9,bold:true,align:'center',border:true,fill:'F0F0F0'},
+    {size:9,align:'center',border:true}, {size:9,align:'left',border:true},
+    {size:9,align:'left'}, {size:9,align:'center'}, {size:7.5,align:'left',bottom:true}
+  ];
+  const colLetter=i=>String.fromCharCode(65+i);
+  const safe=s=>String(s??'').replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g,'');
+  const xml=s=>safe(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+  const measure=document.createElement('canvas').getContext('2d');
+  function wrap(value,mm,size=9){
+    const text=safe(value);measure.font=`${size*4/3}px ${font}`;const max=(mm*96/25.4)-8,lines=[];
+    for(const part of text.split('\n')){let line='';for(const char of part){if(line&&measure.measureText(line+char).width>max){lines.push(line);line=char;}else line+=char;}lines.push(line);}
+    return lines.join('\n');
+  }
+  const cell=(c,span,v,style=7)=>({c,span,v,style});
+  function row(page,height,cells=[]){page.rows.push({height,cells});return page.rows.length-1;}
+  const used=p=>p.rows.reduce((n,r)=>n+r.height,0);
+  function header(page,c,title,metaLine,logo){
+    row(page,18,[cell(2,6,wrap(c.comTH,158,9),2)]);
+    row(page,18,[cell(2,6,wrap(c.comEN,158,8),3)]);
+    row(page,46,[cell(0,8,wrap('สัญญาเลขที่ '+c.contract+'\n'+c.project,190,9),7)]);
+    row(page,24,[cell(0,6,wrap(title,125,12),1),cell(6,2,'',3)]);
+    row(page,20,[cell(0,4,metaLine,7),cell(4,4,'เลขที่เอกสาร '+page.docRange,7)]);
+    if(logo)page.images.push({row:0,col:0,span:2,wPt:38,hPt:34,data:logo.data,w:logo.w,h:logo.h});
+  }
+  function finish(page,c){
+    const left=pageHeight-used(page)-16;if(left>0)row(page,left);
+    row(page,16,[cell(0,6,c.footer,9),cell(6,2,c.form,9)]);
+  }
+  function grouped(records){
+    return MT3Cycles.groups(records).map(g=>{const r=g.first;return {batch:g.key,sortTime:g.time,timestamp:r.timestamp,docNo:r.docNo,area:r.area,shift:r.shift,inspector:MT3Access.normalizeName(r.inspector),note:[...new Set(g.items.map(x=>x.note).filter(Boolean))].join(' / '),isDup:g.items.some(x=>x.isDup),count:g.items.length};}).reverse();
+  }
+  groupByBatch=()=>grouped(cache);
+  const previousExportExcel=exportExcel;exportExcel=()=>{const original=cache;try{cache=cache.map(r=>Object.assign({},r,{inspector:MT3Access.normalizeName(r.inspector)}));return previousExportExcel();}finally{cache=original;}};
+  function build(records,c,author,filters,logo){
+    const g=grouped(records),range=docRangeLabel(g),pages=[],physical=[];
+    for(let i=0;i<g.length;i++){
+      const r=g[i],notes=wrap((r.note||'-').replace(/\n/g,' / '),51,9).split('\n');
+      for(let j=0;j<notes.length;j+=8){const values=[j?String(i+1)+' (ต่อ)':i+1,r.docNo||'-',String(r.timestamp||'').replace(/\s+/, '\n'),r.area,r.shift,r.inspector,notes.slice(j,j+8).join('\n'),r.isDup?'ซ้ำ':'ปกติ'];
+        const cells=values.map((v,k)=>cell(k,1,k===6?v:wrap(v,widths[k],9),k===5||k===6?6:5));
+        const lines=Math.max(...cells.map(x=>String(x.v).split('\n').length));physical.push({height:Math.max(24,lines*11+6),cells});
+      }
+    }
+    const portions=[];let portion=[],height=0;
+    for(const r of physical){if(portion.length&&(portion.length>=18||height+r.height>390)){portions.push(portion);portion=[];height=0;}portion.push(r);height+=r.height;}
+    if(portion.length)portions.push(portion);
+    const photoChunks=[];for(const area of [...new Set(records.map(r=>r.area))]){const list=records.filter(r=>r.area===area);for(let i=0;i<list.length;i+=6)photoChunks.push({area,items:list.slice(i,i+6),offset:i,total:list.length,part:Math.floor(i/6)+1,parts:Math.ceil(list.length/6)});}
+    const total=portions.length+photoChunks.length;
+    portions.forEach((part,index)=>{
+      const p={rows:[],images:[],docRange:range};header(p,c,c.title,'วันที่ออกเอกสาร '+thDate(new Date()),logo);
+      row(p,30,[cell(0,8,wrap(`ขอบเขตรายงาน  พื้นที่: ${filters.area} | รอบตรวจ: ${filters.shift} | วันที่: ${filters.date||'ทั้งหมด'} | จำนวนรายการ: ${g.length}`,190,9),7)]);
+      row(p,18,[cell(0,8,'ผู้จัดทำรายงาน  '+author,7)]);row(p,6);
+      row(p,28,['ลำดับ','เลขที่เอกสาร','วันเวลา','พื้นที่','รอบ','ผู้ตรวจเช็ค','รายการที่ตรวจพบ / หมายเหตุ','สถานะ'].map((v,i)=>cell(i,1,wrap(v,widths[i],9),4)));
+      part.forEach(r=>row(p,r.height,r.cells));
+      if(index===portions.length-1){
+        row(p,18,[cell(0,8,'สรุปภาพรวม',2)]);
+        row(p,62,[cell(0,8,`จำนวนรายการทั้งหมด ${g.length} รายการ\nจำนวนเอกสารที่เกี่ยวข้อง ${new Set(g.map(x=>x.docNo)).size} ฉบับ\nพบรายการแจ้งเตือนภาพซ้ำ ${g.filter(x=>x.isDup).length} รายการ\nภาพถ่ายประกอบทั้งหมด ${records.length} ภาพ แสดงในหน้า ${portions.length+1} ถึง ${total}`,6)]);
+        const spacer=pageHeight-used(p)-16-72;if(spacer>0)row(p,spacer);
+        row(p,24,[cell(0,3,'................................',8),cell(3,3,'................................',8),cell(6,2,'........................',8)]);
+        row(p,16,[cell(0,3,'ผู้จัดทำรายงาน',8),cell(3,3,'ผู้ตรวจสอบ',8),cell(6,2,'ผู้อนุมัติ',8)]);
+        row(p,16,[cell(0,3,wrap('( '+author+' )',57,9),8),cell(3,3,'(............................)',8),cell(6,2,'(........................)',8)]);
+        row(p,16,[cell(0,3,'วันที่ ......../......../........',8),cell(3,3,'วันที่ ......../......../........',8),cell(6,2,'วันที่ ......../......../........',8)]);
+      }finish(p,c);pages.push(p);
+    });
+    for(const chunk of photoChunks){const p={rows:[],images:[],docRange:range,widths:Array(8).fill(23.75)};header(p,c,c.title,'ภาพถ่ายประกอบการตรวจเช็ค',logo);
+      row(p,24,[cell(0,8,`พื้นที่: ${chunk.area} — รวม ${chunk.total} ภาพ (แผ่นที่ ${chunk.part}/${chunk.parts})`,2)]);row(p,6);
+      for(let pair=0;pair<3;pair++){
+        const rIndex=row(p,160,[cell(0,4,'',6),cell(4,4,'',6)]),captions=[];
+        for(let col=0;col<2;col++){const rec=chunk.items[pair*2+col];if(!rec)continue;
+          p.images.push({row:rIndex,col:col*4,span:4,wPt:270,hPt:156,record:rec});
+          captions.push(cell(col*4,4,wrap(`ภาพที่ ${chunk.offset+pair*2+col+1} — ${rec.docNo||'-'} / ${rec.shift} / ${MT3Access.normalizeName(rec.inspector)}\n${rec.timestamp}${rec.isDup?' • ภาพซ้ำ':''}`,95,7.5),3));
+        }row(p,32,captions);
+      }finish(p,c);pages.push(p);
+    }
+    pages.forEach((p,i)=>{p.rows[3].cells[1].v='หน้า P'+pad(i+1,2)+'/'+pad(pages.length,2);});
+    return {pages,grouped:g};
+  }
+  async function imageAsset(src){
+    let data=src;
+    if(!String(src).startsWith('data:')){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),12000);try{const response=await fetch(src,{signal:controller.signal});if(!response.ok)throw new Error('HTTP '+response.status);data=await fileToDataURL(await response.blob());}finally{clearTimeout(timer);}}
+    const im=await loadImage(data),canvas=document.createElement('canvas');canvas.width=im.naturalWidth||im.width;canvas.height=im.naturalHeight||im.height;
+    if(!canvas.width||!canvas.height)throw new Error('รูปมีขนาดไม่ถูกต้อง');canvas.getContext('2d').drawImage(im,0,0);
+    return {data:canvas.toDataURL('image/png'),w:canvas.width,h:canvas.height};
+  }
+  function fit(image,columns=widths){
+    const mm=columns.slice(image.col,image.col+image.span).reduce((a,b)=>a+b,0),boxW=mm*72/25.4-6,boxH=image.hPt;
+    const scale=Math.min(boxW/image.w,boxH/image.h),w=image.w*scale,h=image.h*scale;
+    return {x:(columns.slice(0,image.col).reduce((a,b)=>a+b,0)*72/25.4)+(mm*72/25.4-w)/2,y:2+(boxH-h)/2,w,h};
+  }
+  async function prepare(){
+    const records=cache.map(r=>Object.assign({},r)),author=MT3Access.fullName()||MT3Access.normalizeName(adminUser);
+    const logo=await imageAsset(LOGO_SRC),model=build(records,docCfg(),author,{area:$('fArea').value,shift:$('fShift').value,date:$('fDate').value},logo);
+    const memo=new Map();for(const p of model.pages)for(const im of p.images){if(im.record){const src=im.record.img;if(!memo.has(src))memo.set(src,await imageAsset(src));Object.assign(im,memo.get(src));delete im.record;}Object.assign(im,fit(im,p.widths||widths));}
+    return model;
+  }
+  function html(model){
+    return model.pages.map(p=>{const columns=p.widths||widths;let y=0;const rows=p.rows.map(r=>{const cells=r.cells.map(c=>{const style=styles[c.style],left=columns.slice(0,c.c).reduce((a,b)=>a+b,0),width=columns.slice(c.c,c.c+c.span).reduce((a,b)=>a+b,0);
+      return `<div style="position:absolute;left:${left}mm;width:${width}mm;height:${r.height}pt;padding:3pt;overflow:hidden;display:flex;align-items:center;justify-content:${style.align==='center'?'center':'flex-start'};font-size:${style.size}pt;font-weight:${style.bold?700:400};${style.border?'border:.5pt solid #000;':''}${style.bottom?'border-top:.5pt solid #000;':''}${style.fill?'background:#'+style.fill+';':''}"><span style="white-space:pre-wrap;line-height:1.15;text-align:${style.align};width:100%">${xml(c.v)}</span></div>`;
+    }).join('');const out=`<div style="position:absolute;left:0;top:${y}pt;width:190mm;height:${r.height}pt">${cells}</div>`;y+=r.height;return out;}).join('');
+      const images=p.images.map(im=>{const top=p.rows.slice(0,im.row).reduce((n,r)=>n+r.height,0)+im.y;return `<img src="${im.data}" style="position:absolute;left:${im.x}pt;top:${top}pt;width:${im.w}pt;height:${im.h}pt">`;}).join('');
+      return `<section class="mt3-report-sheet" style="position:relative;width:190mm;height:${pageHeight}pt;font-family:${font};font-size:10.5pt;page-break-after:always">${rows}${images}</section>`;
+    }).join('');
+  }
+  function stylesXML(){
+    const fonts=styles.map(s=>`<font><sz val="${s.size}"/><name val="${font}"/>${s.bold?'<b/>':''}<color rgb="FF000000"/></font>`).join('');
+    const xfs=styles.map((s,i)=>`<xf numFmtId="0" fontId="${i}" fillId="${s.fill?2:0}" borderId="${s.border?1:s.bottom?2:0}" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${s.align}" vertical="center" wrapText="1"/></xf>`).join('');
+    return `<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="${styles.length}">${fonts}</fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF0F0F0"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="3"><border><left/><right/><top/><bottom/><diagonal/></border><border>${['left','right','top','bottom'].map(x=>`<${x} style="thin"><color rgb="FF000000"/></${x}>`).join('')}<diagonal/></border><border><left/><right/><top style="thin"><color rgb="FF000000"/></top><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${styles.length}">${xfs}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  }
+  async function xlsx(model,type='blob'){
+    if(typeof JSZip==='undefined')throw new Error('โหลด JSZip ไม่สำเร็จ');const zip=new JSZip(),types=[],sheets=[],rels=[],names=[];let mediaId=0;
+    zip.file('_rels/.rels','<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+    zip.file('xl/styles.xml',stylesXML());
+    for(let i=0;i<model.pages.length;i++){
+      const p=model.pages[i],columns=p.widths||widths,n=i+1,name='P'+pad(n,2);sheets.push(`<sheet name="${name}" sheetId="${n}" r:id="rId${n}"/>`);rels.push(`<Relationship Id="rId${n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${n}.xml"/>`);
+      names.push(`<definedName name="_xlnm.Print_Area" localSheetId="${i}">'${name}'!$A$1:$H$${p.rows.length}</definedName>`);
+      const merges=[];let sheetData='';p.rows.forEach((r,ri)=>{let cells='';for(const c of r.cells){const address=colLetter(c.c)+(ri+1);if(c.span>1)merges.push(`<mergeCell ref="${address}:${colLetter(c.c+c.span-1)}${ri+1}"/>`);
+        for(let j=0;j<c.span;j++){const a=colLetter(c.c+j)+(ri+1);if(j||c.v===''){cells+=`<c r="${a}" s="${c.style}"/>`;continue;}cells+=typeof c.v==='number'?`<c r="${a}" s="${c.style}"><v>${c.v}</v></c>`:`<c r="${a}" s="${c.style}" t="inlineStr"><is><t xml:space="preserve">${xml(c.v)}</t></is></c>`;}
+      }sheetData+=`<row r="${ri+1}" ht="${r.height}" customHeight="1">${cells}</row>`;});
+      const cols=columns.map((mm,j)=>`<col min="${j+1}" max="${j+1}" width="${((mm*96/25.4-5)/7).toFixed(5)}" customWidth="1"/>`).join('');
+      zip.file(`xl/worksheets/sheet${n}.xml`,`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:H${p.rows.length}"/><sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${cols}</cols><sheetData>${sheetData}</sheetData><mergeCells count="${merges.length}">${merges.join('')}</mergeCells><printOptions horizontalCentered="1"/><pageMargins left="0.3937" right="0.3937" top="0.3937" bottom="0.3937" header="0" footer="0"/><pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="1" horizontalDpi="96" verticalDpi="96"/><drawing r:id="drawing"/></worksheet>`);
+      zip.file(`xl/worksheets/_rels/sheet${n}.xml.rels`,`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="drawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing${n}.xml"/></Relationships>`);
+      const anchors=[],imageRels=[];for(let j=0;j<p.images.length;j++){
+        const im=p.images[j],id=++mediaId,file='image'+id+'.png';zip.file('xl/media/'+file,im.data.split(',')[1],{base64:true});
+        imageRels.push(`<Relationship Id="img${j}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${file}"/>`);
+        const colStart=columns.slice(0,im.col).reduce((a,b)=>a+b,0)*72/25.4;
+        anchors.push(`<xdr:oneCellAnchor><xdr:from><xdr:col>${im.col}</xdr:col><xdr:colOff>${Math.round((im.x-colStart)*12700)}</xdr:colOff><xdr:row>${im.row}</xdr:row><xdr:rowOff>${Math.round(im.y*12700)}</xdr:rowOff></xdr:from><xdr:ext cx="${Math.round(im.w*12700)}" cy="${Math.round(im.h*12700)}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="รูป ${id}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="img${j}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.round(im.w*12700)}" cy="${Math.round(im.h*12700)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`);
+      }
+      zip.file(`xl/drawings/drawing${n}.xml`,`<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${anchors.join('')}</xdr:wsDr>`);
+      zip.file(`xl/drawings/_rels/drawing${n}.xml.rels`,`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${imageRels.join('')}</Relationships>`);
+      types.push(`<Override PartName="/xl/worksheets/sheet${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/drawings/drawing${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`);
+    }
+    rels.push(`<Relationship Id="styles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`);
+    zip.file('xl/_rels/workbook.xml.rels',`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join('')}</Relationships>`);
+    zip.file('xl/workbook.xml',`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView activeTab="0"/></bookViews><sheets>${sheets.join('')}</sheets><definedNames>${names.join('')}</definedNames></workbook>`);
+    zip.file('[Content_Types].xml',`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${types.join('')}</Types>`);
+    return zip.generateAsync({type,compression:'DEFLATE',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  }
+  printSummary=async()=>{
+    if(!guard()||!cache.length)return;const w=window.open('','_blank');if(!w)return alert('กรุณาอนุญาต Pop-up');w.document.write('<p>กำลังเตรียมรายงาน...</p>');
+    try{const model=await prepare();w.document.open();w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงานตรวจเช็คเครื่องมือ</title><style>@page{size:A4 portrait;margin:10mm}*{box-sizing:border-box}body{margin:0;background:white}.mt3-report-sheet{margin:0 auto}.mt3-report-sheet:last-child{page-break-after:auto}.mt3-print-controls{text-align:center;padding:12px;background:#eee}@media print{.mt3-print-controls{display:none}}</style></head><body><div class="mt3-print-controls"><button onclick="window.print()">พิมพ์ / บันทึก PDF</button><button onclick="window.close()">ปิด</button></div>${html(model)}</body></html>`);w.document.close();showStatus('expStatus','เปิดรายงาน '+model.pages.length+' หน้าแล้ว ใช้ A4 / Scale 100% / ปิดหัวท้ายเบราว์เซอร์','ok');}
+    catch(e){w.document.body.textContent='สร้างรายงานไม่ได้: '+e.message;showStatus('expStatus',e.message,'err');}
+  };
+  exportSummaryExcel=async()=>{
+    if(!guard()||!cache.length)return;showStatus('expStatus','กำลังสร้าง Excel ตามหน้ารายงาน PDF พร้อมรูปภาพ...','info');
+    try{const model=await prepare(),blob=await xlsx(model),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='รายงานสรุป_A4_'+stamp()+'.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),10000);showStatus('expStatus','ดาวน์โหลด Excel '+model.pages.length+' หน้า — แต่ละชีตตรงกับหนึ่งหน้า PDF และแก้ไขข้อความได้','ok');}
+    catch(e){showStatus('expStatus','สร้าง Excel ไม่สำเร็จ: '+e.message,'err');}
+  };
+  return Object.freeze({build,html,xlsx,fit,grouped});
+})();
+
+printSingle=async function(id){
+  if(!guard())return;
+  const all=cloudReady?cloudRecs:(await getAll());
+  const rec=all.find(r=>String(r.id)===String(id));if(!rec)return;
+  const grp=rec.batch?all.filter(r=>r.batch===rec.batch):[rec];
+  const c=docCfg(),logo=LOGO_SRC;
+  const dno=docNo(rec);
+  const cyc=all.filter(r=>r.docNo===dno);
+  const doneKeys=new Set(cyc.map(r=>r.area+'|'+r.shift));
+  const items=(rec.note||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const normal=items.length===0;
+  let rows='';
+  for(let i=0;i<Math.max(items.length,5);i++){
+    const t=items[i]||'';
+    rows+=`<tr><td class="c" style="width:12mm">${t?i+1:''}</td><td>${esc(t)}</td>
+      <td class="c" style="width:30mm">${t?'ตรวจพบ':''}</td><td style="width:38mm"></td></tr>`;}
+  const phHtml=grp.map((r,i)=>`<figure><img src="${r.img}">
+    <figcaption>ภาพที่ ${i+1} — ${esc(r.area)} / ${esc(r.shift)} / ${esc(r.timestamp)}</figcaption></figure>`).join('');
+
+  const page1=`<div class="sheet">
+    ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P01/02')}
+    <div class="meta"><span>วันที่ออกเอกสาร&nbsp;&nbsp;<b>${thDate(new Date())}</b></span>
+      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
+    <div class="fl"><div class="lb">เรียน</div><div class="vl">ผู้ควบคุมงาน / ผู้ช่วยผู้ควบคุมงาน / หัวหน้าชุดปฏิบัติงาน</div></div>
+    <div class="fl"><div class="lb">พื้นที่รับผิดชอบ</div><div class="vl"><b>${esc(rec.area)}</b></div>
+      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">รอบตรวจเช็ค</div>
+      <div class="vl" style="max-width:40mm"><b>${esc(rec.shift)}</b></div></div>
+    <div class="fl"><div class="lb">ผู้ตรวจเช็ค</div><div class="vl">${esc(MT3Access.normalizeName(rec.inspector))}</div>
+      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">วันเวลาที่ตรวจ</div>
+      <div class="vl" style="max-width:40mm">${esc(rec.timestamp)}</div></div>
+    <div class="fl"><div class="lb">สถานะรอบเอกสาร</div><div class="vl">
+      บันทึกแล้ว ${doneKeys.size} รายการ</div></div>
+    <div style="margin-top:12px;font-weight:700">รายการเครื่องมือที่ตรวจพบความผิดปกติ</div>
+    <table><tr><th>ลำดับ</th><th>รายการ / อาการที่พบ</th><th>สถานะ</th><th>หมายเหตุ</th></tr>${rows}</table>
+    <div class="chk">
+      <div><span class="bx">${normal?'✓':''}</span> ครบถ้วนสมบูรณ์</div>
+      <div><span class="bx">${!normal?'✓':''}</span> พบชำรุด / สูญหาย</div>
+      <div><span class="bx"></span> ส่งซ่อม</div>
+      <div><span class="bx"></span> เบิกทดแทน</div>
+      <div><span class="bx">${grp.some(r=>r.isDup)?'✓':''}</span> ระบบแจ้งเตือนภาพซ้ำ</div>
+    </div>
+    <div class="rm" style="min-height:auto">ภาพถ่ายประกอบการตรวจเช็คทั้งหมด แสดงอยู่ในหน้าที่ 2 ของเอกสารฉบับนี้</div>
+    <div class="sig">
+      <div><div class="ln"></div>ผู้ตรวจเช็ค<br>( ${esc(MT3Access.normalizeName(rec.inspector))} )<br>วันที่ ......../......../........</div>
+      <div><div class="ln"></div>ผู้ตรวจสอบ / หัวหน้าชุด<br>(................................)<br>วันที่ ......../......../........</div>
+      <div><div class="ln"></div>Shift Maintenance Manager<br>(................................)<br>วันที่ ......../......../........</div>
+    </div>${docFoot(c)}</div>`;
+
+  const page2=`<div class="sheet p2">
+    ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P02/02')}
+    <div class="meta"><span>ภาพถ่ายประกอบการตรวจเช็ค&nbsp;&nbsp;<b>(${grp.length} ภาพ)</b></span>
+      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
+    <div class="fl"><div class="lb">พื้นที่ / รอบตรวจ</div><div class="vl"><b>${esc(rec.area)}</b> / <b>${esc(rec.shift)}</b></div>
+      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">ผู้ตรวจเช็ค</div>
+      <div class="vl" style="max-width:40mm">${esc(MT3Access.normalizeName(rec.inspector))}</div></div>
+    <div class="ph">${phHtml||'<div class="rm">ไม่มีภาพประกอบ</div>'}</div>
+    <div style="margin-top:auto"></div>
+    ${docFoot(c)}</div>`;
+
+  openPrint(page1+page2);showStatus('expStatus','🖨️ เปิดหน้าใบรายงานแล้ว (2 หน้า)','ok');};
 
 if(initCloud()){ startCloudSync(); }
 else { setSync('🔴 ตั้งค่า Firebase ไม่ถูกต้อง','off'); }
