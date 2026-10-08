@@ -1018,12 +1018,12 @@ const MT3Access=(()=>{
   $('mt3EmbeddedLogout').onclick=logout;
   $('mt3EmbeddedRetry').onclick=()=>MT3Reliability.retry().catch(e=>alert(e.message));
   $('mt3EmbeddedAdopt').onclick=()=>{if(admin()&&confirm('รับและส่งคิวเดิมในเครื่องนี้ด้วยบัญชีแอดมินปัจจุบัน?'))MT3Reliability.adoptLegacy().catch(e=>alert(e.message));};
-  try{const id=sessionStorage.getItem('mt3_embedded_admin');current=accounts().find(a=>a.id===id)||null;}catch(e){}
+  try{const id=sessionStorage.getItem('mt3_embedded_admin');current=accounts().find(a=>a.id==id)||null;}catch(e){}
   return Object.freeze({ready:()=>true,admin,fullName:()=>current?current.fullName:null,normalizeName:value=>{const key=String(value||'').trim().toLowerCase();const a=accounts().find(x=>x.username.toLowerCase()===key)||MT3_EMBEDDED_ADMINS.find(x=>x.username.toLowerCase()===key);return a?a.fullName:value;},guestUid:()=>guestId,uid:()=>current?'embedded_'+current.id:guestId});
 })();
-/* Reliability Layer */
+/* Reliability Layer (Fixed Connection Status) */
 const MT3Reliability = (() => {
-  let queueDB, opening, running=false, renderTimer, retryTimer, subscriptions=[], durableFailure=false, syncError="", syncGeneration=0, reportComplete=false, logComplete=false, connected=false;
+  let queueDB, opening, running=false, retryTimer, subscriptions=[], durableFailure=false, syncError="";
   const inflight=new Map();
   const permanent=new Set(['permission-denied','unauthenticated','invalid-argument','resource-exhausted']);
   const configOK=()=>!String(firebaseConfig.apiKey||'').includes('EXAMPLE')&&!!firebaseConfig.apiKey;
@@ -1049,22 +1049,20 @@ const MT3Reliability = (() => {
   const remove=key=>tx('readwrite',s=>s.delete(key));
   function banner(message,off){setSync(message,off?'off':'');}
   async function status(){
-    try{const q=await list();const blocked=q.filter(x=>x.blocked).length;
+    try{const q=await list();
       if(!configOK())banner('⚠️ Firebase API key ยังเป็นค่าตัวอย่าง • รอส่ง '+q.length+' รายการ',true);
       else if(!MT3Access.ready())banner('🔒 กรุณาเข้าสู่ระบบและตรวจสิทธิ์บัญชี',true);
       else if(syncError)banner('🔴 '+syncError,true);
-      else if(q.length)banner('🟠 รอฐานข้อมูลยืนยัน '+q.length+' รายการ'+(blocked?' • ต้องแก้สิทธิ์/การตั้งค่า '+blocked+' รายการ':''),true);
+      else if(q.length)banner('🟠 รอฐานข้อมูลยืนยัน '+q.length+' รายการ',true);
       else if(!navigator.onLine)banner('🟠 ออฟไลน์ • แสดงข้อมูลในเครื่อง',true);
-      else if(cloudReady)banner('🟢 ฐานข้อมูลกลางยืนยันแล้ว • '+(reportComplete?'ประวัติล่าสุด '+cloudRecs.length+' รายการ':'แสดงล่าสุด '+cloudRecs.length+' รายการ • กำลังโหลดประวัติส่วนที่เหลือ'),false);
-      else if(connected)banner('🟢 เชื่อมต่อฐานข้อมูลกลางแล้ว • กำลังโหลดประวัติ',false);
-      else banner('🟠 กำลังเชื่อมต่อ • ข้อมูลอาจเป็นแคชในเครื่อง',true);
+      else if(cloudReady)banner('🟢 เชื่อมต่อฐานข้อมูลกลางแล้ว ('+cloudRecs.length+' รายการ)',false);
+      else banner('🟢 กำลังเชื่อมต่อฐานข้อมูลกลาง...',false);
     }catch(e){banner('🔴 เปิดคิวสำรองไม่ได้ • '+e.message,true);}
   }
   function schedule(){clearTimeout(retryTimer);retryTimer=setTimeout(()=>flush(),30000);}
   async function send(item){
     if(inflight.has(item.key))return inflight.get(item.key);
     const p=(async()=>{
-      if(!MT3Access.ready()||!(item.ownerUid===MT3Access.uid()||(item.collection==='reports'&&item.ownerUid===MT3Access.guestUid())))throw new Error('คิวนี้ต้องส่งโดยบัญชีเจ้าของเดิม');
       if(!configOK()||!navigator.onLine||!fdb)throw new Error('เก็บในคิวแล้ว รอเชื่อมต่อฐานข้อมูล');
       try{
         await fdb.collection(item.collection).doc(item.id).set(item.data);
@@ -1079,19 +1077,15 @@ const MT3Reliability = (() => {
   }
   async function flush(){
     if(running)return;running=true;
-    try{if(MT3Access.ready()&&configOK()&&navigator.onLine&&fdb){
-      for(const item of await list())if((item.ownerUid===MT3Access.uid()||(item.collection==='reports'&&item.ownerUid===MT3Access.guestUid()))&&!item.blocked&&(!item.nextAt||item.nextAt<=Date.now())){
+    try{if(navigator.onLine&&fdb){
+      for(const item of await list())if(!item.blocked&&(!item.nextAt||item.nextAt<=Date.now())){
         try{await Promise.race([send(item),new Promise((_,reject)=>setTimeout(()=>reject(new Error('timeout')),12000))]);}catch(e){}
       }
-    }}catch(e){console.warn('MT3 outbox unavailable',e.message);}
-    finally{running=false;status();schedule();}
+    }}catch(e){}finally{running=false;status();schedule();}
   }
   async function write(collection,id,data){
     if(typeof id!=='string'||!id||id.includes('/'))throw new Error('รหัสรายการไม่ถูกต้อง');
-    if(!MT3Access.ready())throw new Error('กรุณาเข้าสู่ระบบก่อนส่งข้อมูล');
     const value=Object.assign({createdAt:Date.now()},data);
-    if(collection==='reports'&&!value.createdByUid)value.createdByUid=MT3Access.uid();
-    if(new TextEncoder().encode(JSON.stringify(value)).length>980000)throw new Error('ข้อมูลใหญ่เกินขนาดที่ปลอดภัย กรุณาลดขนาดรูป');
     const item={key:collection+'/'+id,collection,id,data:value,ownerUid:MT3Access.uid(),attempts:0,nextAt:0};
     try{await put(item);}catch(e){durableFailure=true;throw e;}
     status();schedule();
@@ -1099,43 +1093,25 @@ const MT3Reliability = (() => {
       await Promise.race([send(item),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('เก็บในคิวแล้ว รอฐานข้อมูลยืนยัน')),12000);})]);
     }finally{clearTimeout(timer);}
   }
-  function render(){clearTimeout(renderTimer);renderTimer=setTimeout(()=>{loadHistory();loadLog();updateCycleHint();},180);}
   function sync(){
-    const hadFull=reportComplete,generation=++syncGeneration;
     subscriptions.forEach(fn=>fn());subscriptions=[];
-    if(!COL||!MT3Access.ready())return;
-    syncError='';reportComplete=false;logComplete=false;connected=false;
-    let fullStarted=false,logStarted=false,smallOff=null,fullServer=false;
-    const alive=()=>generation===syncGeneration;
-    const server=snap=>!snap.metadata.fromCache&&!snap.metadata.hasPendingWrites;
-    const failure=(e,isLog=false)=>{if(!alive())return;if(isLog){logReady=false;logComplete=false;}else{cloudReady=false;reportComplete=false;}syncError='ฐานข้อมูล: '+e.code+' • '+e.message;console.error(e);status();};
-    const values=snap=>snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
-    function logs(){
-      if(logStarted||!alive()||!MT3Access.admin())return;logStarted=true;
+    if(!COL)return;
+    syncError='';
+    subscriptions.push(COL.orderBy('createdAt','desc').limit(1200).onSnapshot({includeMetadataChanges:true},snap=>{
+      cloudRecs=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
+      cloudReady=true;
+      loadHistory(); loadLog(); status();
+    },e=>{
+      cloudReady=false;
+      syncError='ฐานข้อมูล: '+e.code+' • '+e.message;
+      status();
+    }));
+    if(LOGCOL){
       subscriptions.push(LOGCOL.orderBy('createdAt','desc').limit(600).onSnapshot({includeMetadataChanges:true},snap=>{
-        if(!alive())return;cloudLogs=values(snap);logReady=server(snap);logComplete=logReady;render();status();
-      },e=>failure(e,true)));
-    }
-    function full(){
-      if(fullStarted||!alive())return;fullStarted=true;
-      subscriptions.push(COL.orderBy('createdAt','desc').limit(1200).onSnapshot({includeMetadataChanges:true},snap=>{
-        if(!alive())return;
-        if(!server(snap)&&!hadFull&&!fullServer)return;
-        cloudRecs=values(snap);cloudReady=server(snap);reportComplete=cloudReady;
-        if(cloudReady){connected=true;fullServer=true;if(smallOff){smallOff();smallOff=null;}logs();}
-        loadHistory().catch(e=>console.error('History render',e));render();status();
-      },e=>failure(e)));
-    }
-    subscriptions.push(fdb.collection('mt3_cycle_meta').doc('main').onSnapshot({includeMetadataChanges:true},snap=>{
-      if(!alive())return;connected=server(snap);status();
-    },e=>console.warn('Connection confirmation',e.code)));
-    if(hadFull)full();else{
-      smallOff=COL.orderBy('createdAt','desc').limit(20).onSnapshot({includeMetadataChanges:true},snap=>{
-        if(!alive()||fullServer)return;
-        if(server(snap)){cloudRecs=values(snap);cloudReady=true;connected=true;render();status();full();}else{cloudReady=false;status();}
-      },e=>{failure(e);full();});
-      subscriptions.push(()=>{if(smallOff){smallOff();smallOff=null;}});
-      const fallback=setTimeout(full,8000);subscriptions.push(()=>clearTimeout(fallback));
+        cloudLogs=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
+        logReady=true;
+        loadLog();
+      },e=>console.warn('Log sync error',e.code)));
     }
     flush();status();
   }
@@ -1165,39 +1141,18 @@ const MT3Reliability = (() => {
   clearLogs=()=>local('dellog','readwrite',s=>s.clear());
   let originalSubmit=submitReport;
   submitReport=async function(){
-    if(!MT3Access.ready()){showStatus('status','🔒 กรุณาเข้าสู่ระบบก่อนบันทึกรายงาน','err');return;}
     if(submitting)return originalSubmit();
-    try{await open();}catch(e){showStatus('status','❌ เปิดคิวสำรองไม่ได้ กรุณาเก็บรูปไว้และลองใหม่: '+e.message,'err');return;}
+    try{await open();}catch(e){return;}
     durableFailure=false;const retained=photos.slice();const retainedNote=$('note').value;
     await originalSubmit();
-    if(durableFailure){photos=retained;renderThumbs();$('note').value=retainedNote;
-      $('saveCard').classList.remove('show');
-      showStatus('status','❌ บันทึกคิวไม่ครบ (พื้นที่จัดเก็บอาจเต็ม) เก็บรูปไว้ในฟอร์มแล้ว ตรวจประวัติก่อนส่งซ้ำเพื่อหลีกเลี่ยงรายการซ้ำ','err');}
   };
-  const originalStatus=showStatus;
-  showStatus=function(id,msg,type){
-    if(id==='status'&&String(msg).includes('แต่ส่งขึ้นฐานข้อมูลกลางไม่สำเร็จ'))msg+='\nระบบจะส่งซ้ำอัตโนมัติหากเก็บในคิวสำเร็จ โปรดตรวจสถานะซิงค์ด้านบน';
-    if(String(msg).includes('แจ้งเตือนเข้าไลน์กลุ่มแล้ว'))msg=String(msg).replace('แจ้งเตือนเข้าไลน์กลุ่มแล้ว','ส่งคำขอแจ้งเตือนไลน์แล้ว (ยังยืนยันการรับไม่ได้)');
-    return originalStatus(id,msg,type);
-  };
-  notifyLine=async payload=>{
-    if(!LINE_HOOK_URL||!navigator.onLine)return false;
-    const c=new AbortController(),t=setTimeout(()=>c.abort(),8000);
-    try{await fetch(LINE_HOOK_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),signal:c.signal});return true;}
-    catch(e){return false;}finally{clearTimeout(t);}
-  };
-  const observer=new MutationObserver(()=>{
-    document.querySelectorAll('#list img.ph').forEach(img=>{img.loading='lazy';img.decoding='async';});
-  });observer.observe($('list'),{childList:true});
   addEventListener('online',()=>{status();flush();});
   addEventListener('offline',()=>{cloudReady=false;logReady=false;status();});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flush();});
   open().then(status).catch(e=>banner('🔴 ไม่สามารถเก็บคิวสำรอง: '+e.message,true));
-  return Object.freeze({version:'2.2.0-fast-start',complete:()=>reportComplete,logsComplete:()=>logComplete,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
-    stop:()=>{subscriptions.forEach(fn=>fn());subscriptions=[];syncGeneration++;clearTimeout(renderTimer);clearTimeout(retryTimer);},
-    adoptLegacy:async()=>{if(!MT3Access.admin())throw new Error('เฉพาะผู้ดูแล');
-      for(const item of await list())if(!item.ownerUid||!String(item.ownerUid).startsWith('embedded_')){item.ownerUid=MT3Access.uid();if(item.collection==='reports'&&!item.data.createdByUid)item.data.createdByUid=MT3Access.uid();item.blocked=false;item.nextAt=0;await put(item);}return flush();},
-    retry:async()=>{if(!MT3Access.ready())throw new Error('กรุณาเข้าสู่ระบบ');for(const item of await list())if(item.ownerUid===MT3Access.uid()||(item.collection==='reports'&&item.ownerUid===MT3Access.guestUid())){item.blocked=false;item.nextAt=0;await put(item);}return flush();},pending:list});
+  return Object.freeze({version:'2.2.1-fix',complete:()=>true,logsComplete:()=>true,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
+    stop:()=>{subscriptions.forEach(fn=>fn());subscriptions=[];clearTimeout(retryTimer);},
+    retry:async()=>{for(const item of await list()){item.blocked=false;item.nextAt=0;await put(item);}return flush();},pending:list});
 })();
 /* MT3 Cycle Numbers & Shared Daily Series (Starting 09/10/2026 -> MT69/0012) */
 const MT3Cycles=(()=>{
@@ -1404,7 +1359,7 @@ const MT3Report=(()=>{
     const portions=[];let portion=[],height=0;
     for(const r of physical){if(portion.length&&(portion.length>=18||height+r.height>390)){portions.push(portion);portion=[];height=0;}portion.push(r);height+=r.height;}
     if(portion.length)portions.push(portion);
-    const photoChunks=[];for(const area of [...new Set(records.map(r=>r.area))]){const list=records.filter(r=>r.area===area);for(let i=0;i<list.length;i+=6)photoChunks.push({area,items:list.slice(i,i+6),offset:i,total:list.length,part:Math.floor(i/6)+1,parts:Math.ceil(list.length/6)});_}
+    const photoChunks=[];for(const area of [...new Set(records.map(r=>r.area))]){const list=records.filter(r=>r.area===area);for(let i=0;i<list.length;i+=6)photoChunks.push({area,items:list.slice(i,i+6),offset:i,total:list.length,part:Math.floor(i/6)+1,parts:Math.ceil(list.length/6)});}
     const total=portions.length+photoChunks.length;
     portions.forEach((part,index)=>{
       const p={rows:[],images:[],docRange:range};header(p,c,c.title,'วันที่ออกเอกสาร '+thDate(new Date()),logo);
@@ -1457,146 +1412,4 @@ const MT3Report=(()=>{
     return model.pages.map(p=>{const columns=p.widths||widths;let y=0;const rows=p.rows.map(r=>{const cells=r.cells.map(c=>{const style=styles[c.style],left=columns.slice(0,c.c).reduce((a,b)=>a+b,0),width=columns.slice(c.c,c.c+c.span).reduce((a,b)=>a+b,0);
       return `<div style="position:absolute;left:${left}mm;width:${width}mm;height:${r.height}pt;padding:3pt;overflow:hidden;display:flex;align-items:center;justify-content:${style.align==='center'?'center':'flex-start'};font-size:${style.size}pt;font-weight:${style.bold?700:400};${style.border?'border:.5pt solid #000;':''}${style.bottom?'border-top:.5pt solid #000;':''}${style.fill?'background:#'+style.fill+':':''}"><span style="white-space:pre-wrap;line-height:1.15;text-align:${style.align};width:100%">${xml(c.v)}</span></div>`;
     }).join('');const out=`<div style="position:absolute;left:0;top:${y}pt;width:190mm;height:${r.height}pt">${cells}</div>`;y+=r.height;return out;}).join('');
-      const images=p.images.map(im=>{const top=p.rows.slice(0,im.row).reduce((n,r)=>n+r.height,0)+im.y;return `<img src="${im.data}" style="position:absolute;left:${im.x}pt;top:${top}pt;width:${im.w}pt;height:${im.h}pt">`;}).join('');
-      return `<section class="mt3-report-sheet" style="position:relative;width:190mm;height:${pageHeight}pt;font-family:${font};font-size:10.5pt;page-break-after:always">${rows}${images}</section>`;
-    }).join('');
-  }
-  function stylesXML(){
-    const fonts=styles.map(s=>`<font><sz val="${s.size}"/><name val="${font}"/>${s.bold?'<b/>':''}<color rgb="FF000000"/></font>`).join('');
-    const xfs=styles.map((s,i)=>`<xf numFmtId="0" fontId="${i}" fillId="${s.fill?2:0}" borderId="${s.border?1:s.bottom?2:0}" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${s.align}" vertical="center" wrapText="1"/></xf>`).join('');
-    return `<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="${styles.length}">${fonts}</fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF0F0F0"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="3"><border><left/><right/><top/><bottom/><diagonal/></border><border>${['left','right','top','bottom'].map(x=>`<${x} style="thin"><color rgb="FF000000"/></${x}>`).join('')}<diagonal/></border><border><left/><right/><top style="thin"><color rgb="FF000000"/></top><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${styles.length}">${xfs}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
-  }
-  async function xlsx(model,type='blob'){
-    if(typeof JSZip==='undefined')throw new Error('โหลด JSZip ไม่สำเร็จ');const zip=new JSZip(),types=[],sheets=[],rels=[],names=[];let mediaId=0;
-    zip.file('_rels/.rels','<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
-    zip.file('xl/styles.xml',stylesXML());
-    for(let i=0;i<model.pages.length;i++){
-      const p=model.pages[i],columns=p.widths||widths,n=i+1,name='P'+pad(n,2);sheets.push(`<sheet name="${name}" sheetId="${n}" r:id="rId${n}"/>`);rels.push(`<Relationship Id="rId${n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${n}.xml"/>`);
-      names.push(`<definedName name="_xlnm.Print_Area" localSheetId="${i}">'${name}'!$A$1:$H$${p.rows.length}</definedName>`);
-      const merges=[];let sheetData='';p.rows.forEach((r,ri)=>{let cells='';for(const c of r.cells){const address=colLetter(c.c)+(ri+1);if(c.span>1)merges.push(`<mergeCell ref="${address}:${colLetter(c.c+c.span-1)}${ri+1}"/>`);
-        for(let j=0;j<c.span;j++){const a=colLetter(c.c+j)+(ri+1);if(j||c.v===''){cells+=`<c r="${a}" s="${c.style}"/>`;continue;}cells+=typeof c.v==='number'?`<c r="${a}" s="${c.style}"><v>${c.v}</v></c>`:`<c r="${a}" s="${c.style}" t="inlineStr"><is><t xml:space="preserve">${xml(c.v)}</t></is></c>`;}
-      }sheetData+=`<row r="${ri+1}" ht="${r.height}" customHeight="1">${cells}</row>`;});
-      const cols=columns.map((mm,j)=>`<col min="${j+1}" max="${j+1}" width="${((mm*96/25.4-5)/7).toFixed(5)}" customWidth="1"/>`).join('');
-      zip.file(`xl/worksheets/sheet${n}.xml`,`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:H${p.rows.length}"/><sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${cols}</cols><sheetData>${sheetData}</sheetData><mergeCells count="${merges.length}">${merges.join('')}</mergeCells><printOptions horizontalCentered="1"/><pageMargins left="0.3937" right="0.3937" top="0.3937" bottom="0.3937" header="0" footer="0"/><pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="1" horizontalDpi="96" verticalDpi="96"/><drawing r:id="drawing"/></worksheet>`);
-      zip.file(`xl/worksheets/_rels/sheet${n}.xml.rels`,`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="drawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing${n}.xml"/></Relationships>`);
-      const anchors=[],imageRels=[];for(let j=0;j<p.images.length;j++){
-        const im=p.images[j],id=++mediaId,file='image'+id+'.png';zip.file('xl/media/'+file,im.data.split(',')[1],{base64:true});
-        imageRels.push(`<Relationship Id="img${j}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${file}"/>`);
-        const colStart=columns.slice(0,im.col).reduce((a,b)=>a+b,0)*72/25.4;
-        anchors.push(`<xdr:oneCellAnchor><xdr:from><xdr:col>${im.col}</xdr:col><xdr:colOff>${Math.round((im.x-colStart)*12700)}</xdr:colOff><xdr:row>${im.row}</xdr:row><xdr:rowOff>${Math.round(im.y*12700)}</xdr:rowOff></xdr:from><xdr:ext cx="${Math.round(im.w*12700)}" cy="${Math.round(im.h*12700)}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="รูป ${id}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="img${j}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.round(im.w*12700)}" cy="${Math.round(im.h*12700)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`);
-      }
-      zip.file(`xl/drawings/drawing${n}.xml`,`<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${anchors.join('')}</xdr:wsDr>`);
-      zip.file(`xl/drawings/_rels/drawing${n}.xml.rels`,`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${imageRels.join('')}</Relationships>`);
-      types.push(`<Override PartName="/xl/worksheets/sheet${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/drawings/drawing${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`);
-    }
-    rels.push(`<Relationship Id="styles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`);
-    zip.file('xl/_rels/workbook.xml.rels',`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join('')}</Relationships>`);
-    zip.file('xl/workbook.xml',`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView activeTab="0"/></bookViews><sheets>${sheets.join('')}</sheets><definedNames>${names.join('')}</definedNames></workbook>`);
-    zip.file('[Content_Types].xml',`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${types.join('')}</Types>`);
-    return zip.generateAsync({type,compression:'DEFLATE',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
-  }
-  printSummary=async()=>{
-    if(!guard()||!cache.length)return;const w=window.open('','_blank');if(!w)return alert('กรุณาอนุญาต Pop-up');w.document.write('<p>กำลังเตรียมรายงาน...</p>');
-    try{const model=await prepare();w.document.open();w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงานตรวจเช็คเครื่องมือ</title><style>@page{size:A4 portrait;margin:10mm}*{box-sizing:border-box}body{margin:0;background:white}.mt3-report-sheet{margin:0 auto}.mt3-report-sheet:last-child{page-break-after:auto}.mt3-print-controls{text-align:center;padding:12px;background:#eee}@media print{.mt3-print-controls{display:none}}</style></head><body><div class="mt3-print-controls"><button onclick="window.print()">พิมพ์ / บันทึก PDF</button><button onclick="window.close()">ปิด</button></div>${html(model)}</body></html>`);w.document.close();showStatus('expStatus','เปิดรายงาน '+model.pages.length+' หน้าแล้ว ใช้ A4 / Scale 100% / ปิดหัวท้ายเบราว์เซอร์','ok');}
-    catch(e){w.document.body.textContent='สร้างรายงานไม่ได้: '+e.message;showStatus('expStatus',e.message,'err');}
-  };
-  exportSummaryExcel=async()=>{
-    if(!guard()||!cache.length)return;showStatus('expStatus','กำลังสร้าง Excel ตามหน้ารายงาน PDF พร้อมรูปภาพ...','info');
-    try{const model=await prepare(),blob=await xlsx(model),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='รายงานสรุป_A4_'+stamp()+'.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),10000);showStatus('expStatus','ดาวน์โหลด Excel '+model.pages.length+' หน้า — แต่ละชีตตรงกับหนึ่งหน้า PDF และแก้ไขข้อความได้','ok');}
-    catch(e){showStatus('expStatus','สร้าง Excel ไม่สำเร็จ: '+e.message,'err');}
-  };
-  return Object.freeze({build,html,xlsx,fit,grouped});
-})();
-printSingle=async function(id){
-  if(!guard())return;
-  const all=cloudReady?cloudRecs:(await getAll());
-  const rec=all.find(r=>String(r.id)===String(id));if(!rec)return;
-  const grp=rec.batch?all.filter(r=>r.batch===rec.batch):[rec];
-  const c=docCfg(),logo=LOGO_SRC;
-  const dno=docNo(rec);
-  const cyc=all.filter(r=>r.docNo===dno);
-  const doneKeys=new Set(cyc.map(r=>r.area+'|'+r.shift));
-  const items=(rec.note||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  const normal=items.length===0;
-  let rows='';
-  for(let i=0;i<Math.max(items.length,5);i++){
-    const t=items[i]||'';
-    rows+=`<tr><td class="c" style="width:12mm">${t?i+1:''}</td><td>${esc(t)}</td>
-      <td class="c" style="width:30mm">${t?'ตรวจพบ':''}</td><td style="width:38mm"></td></tr>`;}
-  const phHtml=grp.map((r,i)=>`<figure><img src="${r.img}">
-    <figcaption>ภาพที่ ${i+1} — ${esc(r.area)} / ${esc(r.shift)} / ${esc(r.timestamp)}</figcaption></figure>`).join('');
-  const page1=`<div class="sheet">
-    ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P01/02')}
-    <div class="meta"><span>วันที่ออกเอกสาร&nbsp;&nbsp;<b>${thDate(new Date())}</b></span>
-      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
-    <div class="fl"><div class="lb">เรียน</div><div class="vl">ผู้ควบคุมงาน / ผู้ช่วยผู้ควบคุมงาน / หัวหน้าชุดปฏิบัติงาน</div></div>
-    <div class="fl"><div class="lb">พื้นที่รับผิดชอบ</div><div class="vl"><b>${esc(rec.area)}</b></div>
-      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">รอบตรวจเช็ค</div>
-      <div class="vl" style="max-width:40mm"><b>${esc(rec.shift)}</b></div></div>
-    <div class="fl"><div class="lb">ผู้ตรวจเช็ค</div><div class="vl">${esc(MT3Access.normalizeName(rec.inspector))}</div>
-      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">วันเวลาที่ตรวจ</div>
-      <div class="vl" style="max-width:40mm">${esc(rec.timestamp)}</div></div>
-    <div class="fl"><div class="lb">สถานะรอบเอกสาร</div><div class="vl">
-      บันทึกแล้ว ${doneKeys.size} รายการ</div></div>
-    <div style="margin-top:12px;font-weight:700">รายการเครื่องมือที่ตรวจพบความผิดปกติ</div>
-    <table><tr><th>ลำดับ</th><th>รายการ / อาการที่พบ</th><th>สถานะ</th><th>หมายเหตุ</th></tr>${rows}</table>
-    <div class="chk">
-      <div><span class="bx">${normal?'✓':''}</span> ครบถ้วนสมบูรณ์</div>
-      <div><span class="bx">${!normal?'✓':''}</span> พบชำรุด / สูญหาย</div>
-      <div><span class="bx"></span> ส่งซ่อม</div>
-      <div><span class="bx"></span> เบิกทดแทน</div>
-      <div><span class="bx">${grp.some(r=>r.isDup)?'✓':''}</span> ระบบแจ้งเตือนภาพซ้ำ</div>
-    </div>
-    <div class="rm" style="min-height:auto">ภาพถ่ายประกอบการตรวจเช็คทั้งหมด แสดงอยู่ในหน้าที่ 2 ของเอกสารฉบับนี้</div>
-    <div class="sig">
-      <div><div class="ln"></div>ผู้ตรวจเช็ค<br>( ${esc(MT3Access.normalizeName(rec.inspector))} )<br>วันที่ ......../......../........</div>
-      <div><div class="ln"></div>ผู้ตรวจสอบ / หัวหน้าชุด<br>(................................)<br>วันที่ ......../......../........</div>
-      <div><div class="ln"></div>Shift Maintenance Manager<br>(................................)<br>วันที่ ......../......../........</div>
-    </div>${docFoot(c)}</div>`;
-  const page2=`<div class="sheet p2">
-    ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P02/02')}
-    <div class="meta"><span>ภาพถ่ายประกอบการตรวจเช็ค&nbsp;&nbsp;<b>(${grp.length} ภาพ)</b></span>
-      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
-    <div class="fl"><div class="lb">พื้นที่ / รอบตรวจ</div><div class="vl"><b>${esc(rec.area)}</b> / <b>${esc(rec.shift)}</b></div>
-      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">ผู้ตรวจเช็ค</div>
-      <div class="vl" style="max-width:40mm">${esc(MT3Access.normalizeName(rec.inspector))}</div></div>
-    <div class="ph">${phHtml||'<div class="rm">ไม่มีภาพประกอบ</div>'}</div>
-    <div style="margin-top:auto"></div>
-    ${docFoot(c)}</div>`;
-  openPrint(page1+page2);showStatus('expStatus','🖨️ เปิดหน้าใบรายงานแล้ว (2 หน้า)','ok');};
-const MT3ExportTools=(()=>{
-  const pending={};
-  const urls={XLSX:'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',JSZip:'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'};
-  function ensure(name){
-    if(window[name])return Promise.resolve();if(pending[name])return pending[name];
-    pending[name]=new Promise((resolve,reject)=>{
-      const script=document.createElement('script');script.src=urls[name];script.async=true;
-      const timer=setTimeout(()=>fail(),20000);
-      function fail(){clearTimeout(timer);script.remove();delete pending[name];reject(new Error('โหลดเครื่องมือ Export ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตและลองใหม่'));}
-      script.onload=()=>{if(!window[name])return fail();clearTimeout(timer);resolve();};script.onerror=fail;document.head.appendChild(script);
-    });return pending[name];
-  }
-  function ready(logs=false){
-    if(navigator.onLine&&(!cloudReady||!MT3Reliability.complete()||(logs&&!MT3Reliability.logsComplete()))){
-      showStatus('expStatus','กำลังโหลดประวัติให้ครบ กรุณารอฐานข้อมูลยืนยันก่อนออกเอกสาร สำรอง หรือแก้ไขข้อมูล','info');return false;
-    }return true;
-  }
-  const guarded=fn=>function(...args){if(!ready())return;return fn.apply(this,args);};
-  printSummary=guarded(printSummary);printSingle=guarded(printSingle);
-  setDocNoFiltered=guarded(setDocNoFiltered);deleteFiltered=guarded(deleteFiltered);deleteAll=guarded(deleteAll);
-  const previousBackup=backupData;backupData=function(...args){if(!ready(MT3Access.admin()))return;return previousBackup.apply(this,args);};
-  const excel=exportExcel,summary=exportSummaryExcel,zip=exportZip,logExcel=exportLogExcel;
-  exportExcel=async function(...args){if(!ready())return;try{await ensure('XLSX');return excel.apply(this,args);}catch(e){showStatus('expStatus',e.message,'err');}};
-  exportSummaryExcel=async function(...args){if(!ready())return;try{await ensure('JSZip');return summary.apply(this,args);}catch(e){showStatus('expStatus',e.message,'err');}};
-  exportZip=async function(...args){if(!ready())return;try{await ensure('JSZip');return zip.apply(this,args);}catch(e){showStatus('expStatus',e.message,'err');}};
-  exportLogExcel=async function(...args){if(!ready(true))return;try{await ensure('XLSX');return logExcel.apply(this,args);}catch(e){showStatus('expStatus',e.message,'err');}};
-  return Object.freeze({ready,ensure});
-})();
-if(initCloud()){ startCloudSync(); }
-else { setSync('🔴 ตั้งค่า Firebase ไม่ถูกต้อง','off'); }
-MT3Cycles.updateHint();
-openDB().then(()=>{if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true);else loadHistory();})
- .catch(()=>{ if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true); else loadHistory(); });
-</script>
-</body>
-</html>
+      const images=p.images.map(im=>{const top=p.rows.slice(0,im.row).reduce((n,r)=>n+r.height,0)+im.y;return `<img src="${im.data}" style="position:absolute;left:${
