@@ -115,50 +115,38 @@ body.isAdmin .lockmsg{display:none}
 </style>
 </head>
 <body>
-
 <div class="header">
   <img id="logo" alt="MT3">
   <h1>ระบบตรวจเช็คเครื่องมือช่าง Team 3<small id="roleLabel">โหมดผู้ใช้ทั่วไป</small></h1>
   <button class="lockbtn" id="lockBtn" onclick="toggleAdmin()">🔒</button>
 </div>
-
 <div class="tabs">
   <button class="tab-btn active" data-tab="report">📝 ส่งรายงาน</button>
   <button class="tab-btn" data-tab="history">📂 ประวัติ</button>
   <button class="tab-btn adminOnly" data-tab="log">🗑 Log การลบ</button>
 </div>
-
 <!-- ========== แท็บ 1 : ส่งรายงาน ========== -->
 <div id="tab-report" class="tab-content container active">
   <label>📍 พื้นที่ปฏิบัติงาน</label>
   <select id="area" onchange="updateCycleHint()"><option>MTB-West</option><option>MTB-East</option><option>SAT-East</option>
   <option>SAT-West</option><option>Tunnel-West</option><option>Tunnel-East</option></select>
-
   <label>⏰ รอบตรวจเช็ค</label>
   <select id="shift" onchange="updateCycleHint()"><option>รับกะ</option><option>ส่งคืน</option></select>
-
   <div class="cyclebox newc" id="cycleHint">⏳ กำลังตรวจสอบเลขที่เอกสาร...</div>
-
   <label>👤 ชื่อผู้ตรวจเช็ค</label>
   <input type="text" id="inspector" placeholder="กรอกชื่อ-นามสกุล">
-
   <label>📝 คำอธิบาย / หมายเหตุ (ขึ้นบรรทัดใหม่ = 1 รายการในใบรายงาน)</label>
   <textarea id="note" rows="4" placeholder="ประแจ 16 ไม่มี&#10;ค้อนยูริเทน ไม่มี&#10;ด้ามฟรีหัวไข่ ชำรุด"></textarea>
-
   <label>📷 ภาพรายงาน (ถ่ายภาพสดจากกล้องเท่านั้น)</label>
   <label class="btn btn-camera btn-sm mb" for="camInput">📷 เปิดกล้องถ่ายรูป</label>
-  <!-- [FIX - บังคับเปิดกล้องสดและบล็อกคลังภาพบน Android] เพิ่ม capture="environment" และ accept="image/*" ชัดเจน -->
   <input type="file" id="camInput" class="fileinput" accept="image/*" capture="environment">
-
   <div class="hint">🔒 ระบบล็อกให้ใช้การถ่ายภาพสดจากกล้องเท่านั้น ไม่สามารถเลือกจากคลังภาพหรือไฟล์ในเครื่องได้<br>
   กดถ่ายซ้ำได้เรื่อยๆ ระบบจะสะสมรูปและตรวจสอบภาพซ้ำอัตโนมัติ<br>
   ⚠️ หากกดแล้วไม่มีอะไรเกิดขึ้น ให้เปิดไฟล์นี้ด้วย Safari หรือ Chrome โดยตรง (ไม่ใช่หน้าพรีวิวในแอป)</div>
   <div class="thumbs" id="thumbs"></div>
-
   <button class="btn btn-submit" id="submitBtn" onclick="submitReport()">✅ บันทึกรายงาน</button>
   <div class="hint" style="text-align:center">⚠️ กดเพียงครั้งเดียว แล้วรอจนระบบแจ้งผล — ห้ามกดซ้ำ</div>
   <div class="status" id="status"></div>
-
   <!-- กล่องผลบันทึก + คัดลอกข้อความ -->
   <div class="savecard" id="saveCard">
     <h3>✓ บันทึกรายงานเรียบร้อย</h3>
@@ -167,7 +155,6 @@ body.isAdmin .lockmsg{display:none}
     <button class="cpbtn" id="copyBtn" onclick="copyReportText()">📋 คัดลอกข้อความ</button>
   </div>
 </div>
-
 <!-- ========== แท็บ 2 : ประวัติ ========== -->
 <div id="tab-history" class="tab-content container">
   <div class="syncbar wait" id="syncBar">⏳ กำลังเชื่อมต่อฐานข้อมูลกลาง...</div>
@@ -190,7 +177,6 @@ body.isAdmin .lockmsg{display:none}
   <label>กรองตามวันที่</label><input type="date" id="fDate" onchange="loadHistory()">
   <label>ค้นหาชื่อผู้ตรวจ / เลขที่เอกสาร</label>
   <input type="text" id="fName" placeholder="พิมพ์ชื่อ หรือ MT69/0001 ..." onkeyup="loadHistory()">
-
   <div class="adminOnly">
     <button class="btn btn-print" onclick="printSummary()">🖨️ พิมพ์รายงานสรุป A4 (<span id="prCount">0</span> รายการ)</button>
   </div>
@@ -204,7 +190,6 @@ body.isAdmin .lockmsg{display:none}
   <div class="lockmsg">🔒 การพิมพ์รายงาน Export ข้อมูล บันทึกรูปภาพ และลบรายการ<br>สงวนสิทธิ์เฉพาะผู้ดูแลระบบเท่านั้น</div>
   <div class="status" id="expStatus"></div>
   <div id="list"></div>
-
   <hr class="adminOnly">
   <div class="row adminOnly">
     <button class="btn btn-gallery btn-sm" onclick="backupData()">💾 สำรองข้อมูล</button>
@@ -222,7 +207,6 @@ body.isAdmin .lockmsg{display:none}
     <button class="btn btn-warn btn-sm" style="margin-top:8px" onclick="wipeLocal()">🧹 ล้างข้อมูลค้างในเครื่องนี้ (Local Cache)</button>
   </div>
 </div>
-
 <!-- ========== แท็บ 3 : Log ========== -->
 <div id="tab-log" class="tab-content container">
   <div class="notice">🛡️ บันทึกหลักฐานการลบข้อมูลทั้งหมด — ระบบบันทึกอัตโนมัติทุกครั้งที่มีการลบ</div>
@@ -241,11 +225,9 @@ body.isAdmin .lockmsg{display:none}
   <div class="status" id="lgStatus"></div>
   <div id="logList"></div>
 </div>
-
 <div class="modal" id="modal" onclick="modal.classList.remove('show')">
   <span class="close">&times;</span><img id="modalImg">
 </div>
-
 <!-- PIN -->
 <div class="dlg" id="pinDlg"><div class="dlg-box">
   <h3 id="pinTitle">🔐 เข้าสู่ระบบผู้ดูแล</h3><p id="pinDesc">กรอกชื่อและรหัส PIN</p>
@@ -257,7 +239,6 @@ body.isAdmin .lockmsg{display:none}
   <div class="row"><button class="btn btn-gallery btn-sm" onclick="closePin()">ยกเลิก</button>
   <button class="btn btn-camera btn-sm" onclick="confirmPin()">ยืนยัน</button></div>
 </div></div>
-
 <!-- เหตุผลลบ -->
 <div class="dlg" id="rsnDlg"><div class="dlg-box">
   <h3>🗑 ยืนยันการลบข้อมูล</h3><p id="rsnDesc">-</p>
@@ -271,7 +252,6 @@ body.isAdmin .lockmsg{display:none}
   <div class="row"><button class="btn btn-gallery btn-sm" onclick="closeRsn()">ยกเลิก</button>
   <button class="btn btn-del btn-sm" onclick="confirmReason()">ยืนยันลบ</button></div>
 </div></div>
-
 <!-- หัวกระดาษ -->
 <div class="dlg" id="docDlg"><div class="dlg-box">
   <h3>⚙️ ตั้งค่าหัวกระดาษรายงาน</h3>
@@ -292,14 +272,12 @@ body.isAdmin .lockmsg{display:none}
   <div class="row"><button class="btn btn-gallery btn-sm" onclick="closeDocSet()">ยกเลิก</button>
   <button class="btn btn-camera btn-sm" onclick="saveDocSet()">บันทึก</button></div>
 </div></div>
-
 <script>
 const $=id=>document.getElementById(id);
 let photos=[],db=null,cache=[],logCache=[],isAdmin=false,pinMode='login',adminUser='-',rsnCallback=null;
 let submitting=false;
 const DEFAULT_PIN='3333';
 const getPin=()=>localStorage.getItem('mt3_pin')||DEFAULT_PIN;
-
 /* ================== [LOCKED] โลโก้กลาง ================== */
 const LOGO_URL='https://affan23259cr7-bot.github.io/tool-check/logo.png';
 const LOGO_FALLBACK='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTIwIj48cGF0aCBkPSJNNTAgNUw5NSAyMHY1MGMwIDI1LTIwIDQwLTQ1IDQ1QzI1IDExMCA1IDk1IDUgNzBWMjB6IiBmaWxsPSIjMTQzNTZkIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNSIv><dGV4dCB4PSI1MCIgeT0iNTIiIGZvbnQtc2l6ZT0iMzIiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSIjZDRhZjM3IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiPk1UMzwvdGV4dD48Y2lyY2xlIGN4PSIzOCIgY3k9Ijc1IiByPSI5IiBmaWxsPSJub25lIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNCIvPjxwYXRoIGQ9Ik01NSA4M2wxNS0xNU02MiA2NmgxMHYxMCIgc3Ryb2tlPSIjZDRhZjM3IiBzdHJva2Utd2lkdGg9IjQiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==';
@@ -310,7 +288,6 @@ let LOGO_SRC=LOGO_URL;
   el.src=LOGO_URL;
   localStorage.removeItem('mt3_logo');
 })();
-
 /* ================== แจ้งเตือนเข้าไลน์แบบ POST ================== */
 const LINE_HOOK_URL='https://script.google.com/macros/s/AKfycbw01bcUTCDnE40m0mjx95d7xpXuHEjt0ust-130azMaaVxmA93-t6UCPlFYIfggctV3/exec';
 async function notifyLine(payload){
@@ -325,7 +302,6 @@ async function notifyLine(payload){
     return true;
   }catch(e){ console.error('LINE notify error',e); return false; }
 }
-
 /* ================== Firebase Firestore ================== */
 const firebaseConfig = {
   apiKey: "AIzaSyC6sZiPgKhUYEPJnIsAZ32FbvGHOsQGR0U",
@@ -381,7 +357,6 @@ async function cloudClearLogs(){
   for(const d of s.docs){ try{ await d.ref.delete(); ok++; }catch(e){ fail++; console.error(e); } }
   return {ok,fail};
 }
-
 /* ================== ตั้งค่าเอกสาร ================== */
 const DOC_VER='v2';
 const DOC_DEF={comTH:'การบริหารจัดการแผนกซ่อมบำรุงทีม 3',comEN:'Management Maintenance Team 3',
@@ -411,7 +386,6 @@ function saveDocSet(){
    form:$('dsForm').value.trim(),footer:$('dsFooter').value.trim()};
   localStorage.setItem('mt3_doc',JSON.stringify(n));closeDocSet();
   showStatus('expStatus','✅ บันทึกหัวกระดาษเรียบร้อย','ok');}
-
 /* ================== สิทธิ์ ================== */
 function toggleAdmin(){
   if(isAdmin){if(confirm('ต้องการออกจากโหมดผู้ดูแลระบบหรือไม่?'))setAdmin(false);}
@@ -443,7 +417,6 @@ function confirmPin(){const v=$('pinInput').value.trim();
   }else{if(v.length<4)return showStatus('pinStatus','⚠️ PIN ต้องมีอย่างน้อย 4 หลัก','err');
     localStorage.setItem('mt3_pin',v);closePin();showStatus('expStatus','✅ เปลี่ยนรหัส PIN เรียบร้อย','ok');}}
 $('pinInput').addEventListener('keydown',e=>{if(e.key==='Enter')confirmPin();});
-
 /* ================== เหตุผลลบ ================== */
 function openRsn(desc,cb){$('rsnDesc').textContent=desc;$('rsnSelect').selectedIndex=0;
   $('rsnOther').value='';$('rsnOther').style.display='none';$('rsnStatus').className='status';
@@ -453,7 +426,6 @@ function toggleOtherReason(){$('rsnOther').style.display=$('rsnSelect').value===
 function confirmReason(){let r=$('rsnSelect').value;
   if(r==='other'){r=$('rsnOther').value.trim();if(!r)return showStatus('rsnStatus','⚠️ กรุณาระบุเหตุผล','err');}
   const cb=rsnCallback;closeRsn();if(cb)cb(r);}
-
 /* ================== IndexedDB (สำรองในเครื่อง) ================== */
 function openDB(){return new Promise((res,rej)=>{
   const r=indexedDB.open('mt3_tool_db',2);
@@ -468,7 +440,6 @@ function clearAllRec(){return new Promise(r=>{const t=db.transaction('reports','
 function addLog(o){return new Promise(r=>{const t=db.transaction('dellog','readwrite');t.objectStore('dellog').add(o);t.oncomplete=r;});}
 function getLogs(){return new Promise(r=>{const q=db.transaction('dellog','readonly').objectStore('dellog').getAll();q.onsuccess=()=>r(q.result);});}
 function clearLogs(){return new Promise(r=>{const t=db.transaction('dellog','readwrite');t.objectStore('dellog').clear();t.oncomplete=r;});}
-
 async function wipeLocal(){
   if(!guard())return;
   if(!confirm('🧹 ล้างข้อมูลแคชในเครื่องนี้ทั้งหมด?\n\n(ไม่กระทบข้อมูลบนฐานข้อมูลกลาง)'))return;
@@ -478,7 +449,6 @@ async function wipeLocal(){
   showStatus('expStatus','✅ ล้างข้อมูลในเครื่องเรียบร้อย','ok');
   loadHistory(); loadLog();
 }
-
 /* ================== แท็บ ================== */
 document.querySelectorAll('.tab-btn').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.tab-content').forEach(e=>e.classList.remove('active'));
@@ -487,21 +457,18 @@ document.querySelectorAll('.tab-btn').forEach(b=>b.onclick=()=>{
   if(b.dataset.tab==='history')loadHistory();
   if(b.dataset.tab==='log')loadLog();
   if(b.dataset.tab==='report')updateCycleHint();});
-
 /* ============ ระบบโหลดรูปแบบกันค้าง ============ */
 function fileToDataURL(file){return new Promise((res,rej)=>{
   const r=new FileReader();
   r.onload=()=>res(r.result);
   r.onerror=()=>rej(new Error('อ่านไฟล์ไม่สำเร็จ'));
   r.readAsDataURL(file);});}
-
 function loadImage(src){return new Promise((res,rej)=>{
   const img=new Image();
   const t=setTimeout(()=>rej(new Error('timeout')),15000);
   img.onload=()=>{clearTimeout(t);res(img);};
   img.onerror=()=>{clearTimeout(t);rej(new Error('decode error'));};
   img.src=src;});}
-
 function drawResize(img,max,q){
   let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;
   if(!w||!h)throw new Error('ขนาดภาพผิดพลาด');
@@ -509,7 +476,6 @@ function drawResize(img,max,q){
   const c=document.createElement('canvas');c.width=w;c.height=h;
   c.getContext('2d').drawImage(img,0,0,w,h);
   return c.toDataURL('image/jpeg',q);}
-
 function hashFromImage(img){
   const c=document.createElement('canvas');c.width=9;c.height=8;
   const x=c.getContext('2d');x.drawImage(img,0,0,9,8);
@@ -517,7 +483,6 @@ function hashFromImage(img){
   for(let i=0;i<d.length;i+=4)g.push(d[i]*.299+d[i+1]*.587+d[i+2]*.114);
   let s='';for(let y=0;y<8;y++)for(let i=0;i<8;i++){const k=y*9+i;s+=g[k]>g[k+1]?'1':'0';}
   return s;}
-
 function makeThumb(b64,max=180,q=.6){return loadImage(b64).then(im=>drawResize(im,max,q)).catch(()=>'');}
 async function makeCloudImg(b64){
   let out=await makeThumb(b64,1000,.62);
@@ -531,7 +496,6 @@ async function findDup(hash){
   for(const r of all){if(r.hash&&r.hash.length===hash.length&&ham(hash,r.hash)<=5)return r;}
   for(const p of photos){if(p.hash&&p.hash.length===hash.length&&ham(hash,p.hash)<=5)return{timestamp:'ในชุดที่กำลังส่งนี้',area:'-'};}
   return null;}
-
 async function processFile(file){
   const raw=await fileToDataURL(file);
   let b64;
@@ -541,7 +505,6 @@ async function processFile(file){
   try{ hash=hashFromImage(await loadImage(b64)); }catch(e){ hash=''; }
   const dup=await findDup(hash);
   return {b64,hash,isDup:!!dup,dupInfo:dup};}
-
 async function handleFiles(files){
   if(!files||!files.length)return;
   showStatus('status','⏳ กำลังประมวลผลภาพ '+files.length+' รูป...','info');
@@ -555,7 +518,6 @@ async function handleFiles(files){
   if(!ok) showStatus('status','❌ เพิ่มภาพไม่สำเร็จ กรุณาลองใหม่อีกครั้ง','err');
   else if(n) showStatus('status','⚠️ เพิ่มภาพแล้ว '+ok+' รูป — พบภาพซ้ำ '+n+' รูป (กรอบสีแดง)','err');
   else showStatus('status','✅ เพิ่มภาพแล้ว รวม '+photos.length+' รูป'+(fail?' (ข้าม '+fail+' ไฟล์)':'')+' — ไม่พบภาพซ้ำ','ok');}
-
 $('camInput').addEventListener('change',async function(e){
   const files=[...e.target.files].filter(f=>f.type.startsWith('image/'));
   $('saveCard').classList.remove('show');
@@ -563,7 +525,6 @@ $('camInput').addEventListener('change',async function(e){
   e.target.value='';
 });
 ['dragover','drop'].forEach(ev=>document.addEventListener(ev,e=>e.preventDefault(),false));
-
 function renderThumbs(){$('thumbs').innerHTML=photos.map((p,i)=>`
   <div class="thumb-wrap ${p.isDup?'dup':''}"><img src="${p.b64}" onclick="showImg(${i})">
   ${p.isDup?'<span class="dup-badge">⚠️ ซ้ำ</span>':''}
@@ -572,70 +533,6 @@ function rmPhoto(i){photos.splice(i,1);renderThumbs();}
 function showImg(i){$('modalImg').src=photos[i].b64;$('modal').classList.add('show');}
 function showHistImg(i){$('modalImg').src=cache[i].img;$('modal').classList.add('show');}
 function showLogImg(i){const t=logCache[i].thumb;if(t){$('modalImg').src=t;$('modal').classList.add('show');}}
-
-/* ================== เลขที่เอกสาร (เดินหน้าอย่างเดียว - Forward Only) ================== */
-const DOC_PREFIX='MT';
-const AREAS=['MTB-West','MTB-East','SAT-East','SAT-West','Tunnel-West','Tunnel-East'];
-const SHIFTS=['รับกะ','ส่งคืน'];
-const CYCLE_SIZE=AREAS.length*SHIFTS.length; // 12
-const pad=(n,l)=>String(n).padStart(l,'0');
-const beYY=d=>pad((d.getFullYear()+543)%100,2);
-function _seq(){try{return JSON.parse(localStorage.getItem('mt3_docseq')||'{}');}catch(e){return{};}}
-function _saveSeq(o){localStorage.setItem('mt3_docseq',JSON.stringify(o));}
-
-function cycleMap(){
-  const yy=beYY(new Date()),m={};
-  cloudRecs.forEach(r=>{
-    if(!r.docNo||r.docNo.indexOf(DOC_PREFIX+yy+'/')!==0)return;
-    if(!m[r.docNo])m[r.docNo]=new Set();
-    m[r.docNo].add(r.area+'|'+r.shift);
-  });
-  return m;
-}
-
-function maxDocNum(){
-  const yy=beYY(new Date());
-  let maxN=0;
-  cloudRecs.forEach(r=>{
-    if(r.docNo&&typeof r.docNo==='string'&&r.docNo.indexOf(DOC_PREFIX+yy+'/')===0){
-      const v=parseInt(r.docNo.split('/')[1],10);
-      if(!isNaN(v)&&v>maxN)maxN=v;
-    }
-  });
-  const s=_seq(); s.last=s.last||{};
-  if((s.last[yy]||0)>maxN)maxN=s.last[yy];
-  return maxN;
-}
-
-function newDocNo(){
-  const yy=beYY(new Date());
-  const n=maxDocNum()+1;
-  const s=_seq(); s.last=s.last||{}; s.last[yy]=n; _saveSeq(s);
-  return DOC_PREFIX+yy+'/'+pad(n,4);
-}
-
-function resolveDocNo(area,shift){
-  return newDocNo();
-}
-
-function docNo(rec){ return (rec&&rec.docNo)?rec.docNo:'-'; }
-
-function docRangeLabel(list){
-  const dnos=[...new Set(list.map(r=>r.docNo).filter(Boolean))].sort();
-  if(!dnos.length)return '-';
-  return dnos.length===1?dnos[0]:dnos[0]+' – '+dnos[dnos.length-1];
-}
-
-function updateCycleHint(){
-  const el=$('cycleHint'); if(!el)return;
-  if(!cloudReady){ el.className='cyclebox'; el.innerHTML='⏳ กำลังเชื่อมต่อฐานข้อมูล...'; return; }
-  const yy=beYY(new Date());
-  const nextNo=DOC_PREFIX+yy+'/'+pad(maxDocNum()+1,4);
-  el.className='cyclebox newc';
-  el.innerHTML='🆕 รายการนี้จะใช้เลขที่เอกสาร <b>'+nextNo+'</b><br>'+
-    '<span style="opacity:.85">ระบบรันเลขใหม่อัตโนมัติ (เดินหน้าอย่างเดียว)</span>';
-}
-
 /* ================== บันทึกรายงาน ================== */
 let saveClipText='';
 function thTime(d){return pad(d.getHours(),2)+':'+pad(d.getMinutes(),2);}
@@ -664,7 +561,6 @@ async function copyReportText(){
     document.body.removeChild(t); }
   b.textContent='✅ คัดลอกแล้ว';
   setTimeout(()=>b.textContent='📋 คัดลอกข้อความ',1800);}
-
 async function submitReport(){
   if(submitting){ showStatus('status','⏳ กำลังบันทึกอยู่ กรุณารอสักครู่ — ห้ามกดซ้ำ','info'); return; }
   const btn=$('submitBtn');
@@ -677,17 +573,14 @@ async function submitReport(){
     const dups=photos.filter(p=>p.isDup);
     if(dups.length){const i=dups[0].dupInfo;
       if(!confirm(`⚠️ พบภาพซ้ำ ${dups.length} รูป\nตรงกับรายงานเมื่อ: ${i?i.timestamp:'-'} (${i?i.area:'-'})\n\nยืนยันบันทึกต่อหรือไม่?`))return;}
-
     const now=new Date();
     const ts=now.toLocaleString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','');
     const dateKey=now.toISOString().slice(0,10);
     const batch='B'+now.getTime();
     showStatus('status','⏳ กำลังบันทึกและส่งขึ้นฐานข้อมูลกลาง...','info');
-
     const dno=resolveDocNo(area,shift);
     const cnt=photos.length,hasDup=photos.some(p=>p.isDup);
     let upFail=0;
-
     for(let i=0;i<photos.length;i++){
       const p=photos[i];
       try{ if(db) await addRec({timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:p.b64,isDup:p.isDup,batch,docNo:dno}); }catch(e){}
@@ -697,12 +590,9 @@ async function submitReport(){
           isDup:p.isDup,batch,idx:i,docNo:dno,device:navigator.userAgent.slice(0,80)});
       }catch(e){ upFail++; console.error('อัปโหลดคลาวด์ไม่สำเร็จ',e); }
     }
-
     const lineOK=await notifyLine({ts,dateKey,area,shift,inspector,note,docNo:dno,count:cnt,dup:hasDup,batch});
-
     if(upFail) showStatus('status',`⚠️ บันทึกในเครื่องแล้ว ${cnt} รูป\nแต่ส่งขึ้นฐานข้อมูลกลางไม่สำเร็จ ${upFail} รูป\nตรวจสอบอินเทอร์เน็ต / ค่า Firebase`,'err');
     else showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป\n📄 เลขที่เอกสาร ${dno}\n${lineOK?'📨 แจ้งเตือนเข้าไลน์กลุ่มแล้ว':'⚠️ ยังไม่ได้ตั้งค่าแจ้งเตือนไลน์'}\n${area} • ${shift} • ${inspector}`,'ok');
-
     showSaveCard({area,shift,inspector,docNo:dno,ts:thDate(now)+' '+thTime(now),count:cnt,note,dup:hasDup});
     photos=[];renderThumbs();$('note').value='';
     loadHistory();
@@ -716,7 +606,6 @@ async function submitReport(){
 }
 function showStatus(id,msg,type){const e=$(id);if(!e)return;e.className='status show '+type;e.innerText=msg;
   if(type==='ok')setTimeout(()=>e.classList.remove('show'),8000);}
-
 /* ================== ประวัติ ================== */
 async function loadHistory(){
   let all;
@@ -745,8 +634,6 @@ async function loadHistory(){
         👤 ${r.inspector}<br>📝 ${(r.note||'-').replace(/\n/g,' / ')}<br>🕐 ${r.timestamp}<br>
         ${isAdmin?`<a class="dl" href="${r.img}" download="${r.area}_${r.shift}_${String(r.timestamp).replace(/[\/:\s]/g,'-')}.jpg">⬇️ เซฟรูปภาพ</a>`:''}
       </div></div>`).join(''):'<div class="empty">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</div>';}
-
-/* ================== ใบรายงาน A4 ================== */
 function thDate(d){const m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543);}
 function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
@@ -808,80 +695,14 @@ function openPrint(html){
   <button onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>
   <button onclick="window.close()">ปิด</button></div>${html}</body></html>`);
   w.document.close();setTimeout(()=>{try{w.focus();}catch(e){}},400);}
-
-async function printSingle(id){
-  if(!guard())return;
-  const all=cloudReady?cloudRecs:(await getAll());
-  const rec=all.find(r=>String(r.id)===String(id));if(!rec)return;
-  const grp=rec.batch?all.filter(r=>r.batch===rec.batch):[rec];
-  const c=docCfg(),logo=LOGO_SRC;
-  const dno=docNo(rec);
-  const cyc=all.filter(r=>r.docNo===dno);
-  const doneKeys=new Set(cyc.map(r=>r.area+'|'+r.shift));
-  const items=(rec.note||'').split('\n').map(s=>s.trim()).filter(Boolean);
-  const normal=items.length===0;
-  let rows='';
-  for(let i=0;i<Math.max(items.length,5);i++){
-    const t=items[i]||'';
-    rows+=`<tr><td class="c" style="width:12mm">${t?i+1:''}</td><td>${esc(t)}</td>
-      <td class="c" style="width:30mm">${t?'ตรวจพบ':''}</td><td style="width:38mm"></td></tr>`;}
-  const phHtml=grp.map((r,i)=>`<figure><img src="${r.img}">
-    <figcaption>ภาพที่ ${i+1} — ${esc(r.area)} / ${esc(r.shift)} / ${esc(r.timestamp)}</figcaption></figure>`).join('');
-
-  const page1=`<div class="sheet">
-    ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P01/02')}
-    <div class="meta"><span>วันที่ออกเอกสาร&nbsp;&nbsp;<b>${thDate(new Date())}</b></span>
-      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
-    <div class="fl"><div class="lb">เรียน</div><div class="vl">ผู้ควบคุมงาน / ผู้ช่วยผู้ควบคุมงาน / หัวหน้าชุดปฏิบัติงาน</div></div>
-    <div class="fl"><div class="lb">พื้นที่รับผิดชอบ</div><div class="vl"><b>${esc(rec.area)}</b></div>
-      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">รอบตรวจเช็ค</div>
-      <div class="vl" style="max-width:40mm"><b>${esc(rec.shift)}</b></div></div>
-    <div class="fl"><div class="lb">ผู้ตรวจเช็ค</div><div class="vl">${esc(rec.inspector)}</div>
-      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">วันเวลาที่ตรวจ</div>
-      <div class="vl" style="max-width:40mm">${esc(rec.timestamp)}</div></div>
-    <div class="fl"><div class="lb">สถานะรอบเอกสาร</div><div class="vl">
-      บันทึกแล้ว ${doneKeys.size} รายการ</div></div>
-    <div style="margin-top:12px;font-weight:700">รายการเครื่องมือที่ตรวจพบความผิดปกติ</div>
-    <table><tr><th>ลำดับ</th><th>รายการ / อาการที่พบ</th><th>สถานะ</th><th>หมายเหตุ</th></tr>${rows}</table>
-    <div class="chk">
-      <div><span class="bx">${normal?'✓':''}</span> ครบถ้วนสมบูรณ์</div>
-      <div><span class="bx">${!normal?'✓':''}</span> พบชำรุด / สูญหาย</div>
-      <div><span class="bx"></span> ส่งซ่อม</div>
-      <div><span class="bx"></span> เบิกทดแทน</div>
-      <div><span class="bx">${grp.some(r=>r.isDup)?'✓':''}</span> ระบบแจ้งเตือนภาพซ้ำ</div>
-    </div>
-    <div class="rm" style="min-height:auto">ภาพถ่ายประกอบการตรวจเช็คทั้งหมด แสดงอยู่ในหน้าที่ 2 ของเอกสารฉบับนี้</div>
-    <div class="sig">
-      <div><div class="ln"></div>ผู้ตรวจเช็ค<br>( ${esc(rec.inspector)} )<br>วันที่ ......../......../........</div>
-      <div><div class="ln"></div>ผู้ตรวจสอบ / หัวหน้าชุด<br>(................................)<br>วันที่ ......../......../........</div>
-      <div><div class="ln"></div>Shift Maintenance Manager<br>(................................)<br>วันที่ ......../......../........</div>
-    </div>${docFoot(c)}</div>`;
-
-  const page2=`<div class="sheet p2">
-    ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P02/02')}
-    <div class="meta"><span>ภาพถ่ายประกอบการตรวจเช็ค&nbsp;&nbsp;<b>(${grp.length} ภาพ)</b></span>
-      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
-    <div class="fl"><div class="lb">พื้นที่ / รอบตรวจ</div><div class="vl"><b>${esc(rec.area)}</b> / <b>${esc(rec.shift)}</b></div>
-      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">ผู้ตรวจเช็ค</div>
-      <div class="vl" style="max-width:40mm">${esc(rec.inspector)}</div></div>
-    <div class="ph">${phHtml||'<div class="rm">ไม่มีภาพประกอบ</div>'}</div>
-    <div style="margin-top:auto"></div>
-    ${docFoot(c)}</div>`;
-
-  openPrint(page1+page2);showStatus('expStatus','🖨️ เปิดหน้าใบรายงานแล้ว (2 หน้า)','ok');}
-
-/* ================== รวมกลุ่มและแสดงข้อความตามที่ช่างพิมพ์ส่งตรงๆ ================== */
 function groupByBatch(){
   const rawGrouped = [];
   const batches = [...new Set(cache.map(r => r.batch))];
-  
   batches.forEach(b => {
     const items = cache.filter(r => r.batch === b);
     if (!items.length) return;
-    
     const timeStr = items[0].timestamp;
     const uniqueNotes = [...new Set(items.map(x => x.note).filter(Boolean))];
-
     rawGrouped.push({
       batch: b,
       timestamp: timeStr,
@@ -893,12 +714,10 @@ function groupByBatch(){
       inspector: items[0].inspector,
       note: uniqueNotes.join(' / '),
       isDup: items.some(r => r.isDup),
-      count: items.length
+      count: items.length,
     });
   });
-
   rawGrouped.sort((a, b) => b.sortTime - a.sortTime);
-
   const merged = [];
   rawGrouped.forEach(curr => {
     const found = merged.find(m => 
@@ -906,7 +725,6 @@ function groupByBatch(){
       m.shift === curr.shift && 
       Math.abs(m.sortTime - curr.sortTime) <= 10 * 60 * 1000
     );
-
     if (found) {
       if (curr.note && curr.note !== '-' && !found.note.includes(curr.note)) {
         found.note = found.note ? found.note + ' / ' + curr.note : curr.note;
@@ -921,10 +739,8 @@ function groupByBatch(){
       merged.push(curr);
     }
   });
-
   return merged;
 }
-
 function parseThTimestamp(str) {
   try {
     const parts = str.split(' ');
@@ -936,176 +752,13 @@ function parseThTimestamp(str) {
     return Date.now();
   }
 }
-
-/* ================== รายงานสรุป A4 (พิมพ์/PDF) ================== */
-function printSummary(){
-  if(!guard())return;
-  if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลให้พิมพ์','err');
-  const c=docCfg(),logo=LOGO_SRC;
-  const grouped=groupByBatch();
-
-  const per=18,tablePages=Math.ceil(grouped.length/per);
-  const fA=$('fArea').value,fS=$('fShift').value,fD=$('fDate').value;
-  const dnoLabel=docRangeLabel(grouped);
-
-  const PH_PER=6;
-  const areaList=[...new Set(cache.map(r=>r.area))];
-  const phChunks=[];
-  areaList.forEach(a=>{
-    const items=cache.filter(r=>r.area===a);
-    const tot=Math.ceil(items.length/PH_PER);
-    for(let i=0;i<items.length;i+=PH_PER)
-      phChunks.push({area:a,items:items.slice(i,i+PH_PER),
-        part:Math.floor(i/PH_PER)+1,tot,offset:i,all:items.length});
-  });
-  const totalPages=tablePages+phChunks.length;
-  const tag=p=>'หน้า&nbsp;&nbsp;P'+pad(p,2)+'/'+pad(totalPages,2);
-  const sigBlock=`<div class="sig">
-      <div><div class="ln"></div>ผู้จัดทำรายงาน<br>( ${esc(adminUser)} )<br>วันที่ ......../......../........</div>
-      <div><div class="ln"></div>ผู้ตรวจสอบ<br>(................................)<br>วันที่ ......../......../........</div>
-      <div><div class="ln"></div>ผู้อนุมัติ<br>(................................)<br>วันที่ ......../......../........</div>
-    </div>`;
-
-  let html='',pg=0;
-
-  for(let p=0;p<tablePages;p++){
-    pg++;
-    const part=grouped.slice(p*per,(p+1)*per);
-    const rows=part.map((r,i)=>`<tr>
-      <td class="c" style="width:10mm">${p*per+i+1}</td>
-      <td class="c" style="width:22mm">${esc(r.docNo||'-')}</td>
-      <td class="c" style="width:25mm">${esc(r.timestamp)}</td>
-      <td class="c" style="width:22mm">${esc(r.area)}</td>
-      <td class="c" style="width:16mm">${esc(r.shift)}</td>
-      <td style="width:30mm">${esc(r.inspector)}</td>
-      <td>${esc((r.note||'-').replace(/\n/g,' / '))}</td>
-      <td class="c" style="width:14mm">${r.isDup?'ซ้ำ ⚠':'ปกติ'}</td></tr>`).join('');
-    html+=`<div class="sheet">
-      ${docHead(c,logo,tag(pg))}
-      <div class="meta"><span>วันที่ออกเอกสาร&nbsp;&nbsp;<b>${thDate(new Date())}</b></span>
-        <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dnoLabel}</b></span></div>
-      <div class="fl"><div class="lb">ขอบเขตรายงาน</div><div class="vl">
-        พื้นที่: <b>${esc(fA)}</b> | รอบตรวจ: <b>${esc(fS)}</b> | วันที่: <b>${fD?esc(fD):'ทั้งหมด'}</b>
-        | จำนวนรายการ: <b>${grouped.length}</b> รายการ</div></div>
-      <div class="fl"><div class="lb">ผู้จัดทำรายงาน</div><div class="vl">${esc(adminUser)}</div></div>
-      <table><tr><th>ลำดับ</th><th>เลขที่เอกสาร</th><th>วันเวลา</th><th>พื้นที่</th><th>รอบ</th><th>ผู้ตรวจเช็ค</th>
-        <th>รายการที่ตรวจพบ / หมายเหตุ</th><th>สถานะ</th></tr>${rows}</table>
-      ${p===tablePages-1?`<div style="margin-top:10px;font-weight:700">สรุปภาพรวม</div>
-        <div class="rm">• จำนวนรายการทั้งหมด ${grouped.length} รายการ
-• จำนวนเอกสารที่เกี่ยวข้อง ${[...new Set(grouped.map(r=>r.docNo))].length} ฉบับ
-• พบรายการแจ้งเตือนภาพซ้ำ ${grouped.filter(r=>r.isDup).length} รายการ
-• ภาพถ่ายประกอบทั้งหมด ${cache.length} ภาพ แสดงในหน้าที่ ${tablePages+1}${phChunks.length>1?' ถึง '+totalPages:''} ของเอกสารฉบับนี้</div>
-        ${sigBlock}`:'<div style="margin-top:auto"></div>'}
-      ${docFoot(c)}</div>`;
-  }
-
-  phChunks.forEach((ck)=>{
-    pg++;
-    const figs=ck.items.map((r,i)=>`<figure><img src="${r.img}">
-      <figcaption>ภาพที่ ${ck.offset+i+1} — ${esc(r.docNo||'-')} / ${esc(r.shift)} / ${esc(r.inspector)}<br>
-      ${esc(r.timestamp)}${r.isDup?' · ⚠ ภาพซ้ำ':''}</figcaption></figure>`).join('');
-    html+=`<div class="sheet p2s">
-      ${docHead(c,logo,tag(pg))}
-      <div class="meta"><span>สรุปภาพถ่ายประกอบการตรวจเช็ค (แยกตามพื้นที่)</span>
-        <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dnoLabel}</b></span></div>
-      <div class="ahd">📍 พื้นที่: ${esc(ck.area)}
-        <span>— รวม ${ck.all} ภาพ (แผ่นที่ ${ck.part}/${ck.tot})</span></div>
-      <div class="ph">${figs}</div>
-      <div style="margin-top:auto"></div>
-      ${docFoot(c)}</div>`;
-  });
-
-  openPrint(html);
-  showStatus('expStatus','🖨️ เปิดรายงานสรุปแล้ว ('+cache.length+' รายการ / '+totalPages+' หน้า)','ok');
+function docNo(rec){ return (rec&&rec.docNo)?rec.docNo:'-'; }
+function docRangeLabel(list){
+  const dnos=[...new Set(list.map(r=>r.docNo).filter(Boolean))].sort();
+  if(!dnos.length)return '-';
+  return dnos.length===1?dnos[0]:dnos[0]+' – '+dnos[dnos.length-1];
 }
-
-/* ================== รายงานสรุป A4 → Excel ================== */
-function exportSummaryExcel(){
-  if(!guard())return;
-  if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลให้ Export','err');
-  const c=docCfg();
-  const grouped=groupByBatch();
-  const fA=$('fArea').value,fS=$('fShift').value,fD=$('fDate').value;
-  const dnoLabel=docRangeLabel(grouped);
-  const wb=XLSX.utils.book_new();
-
-  const aoa=[];
-  aoa.push([c.comTH,'','','','','','','']);
-  aoa.push([c.comEN,'','','','','','','']);
-  aoa.push(['สัญญาเลขที่',c.contract,'','','','','','']);
-  aoa.push([c.project,'','','','','','','']);
-  aoa.push([]);
-  aoa.push([c.title,'','','','','','','']);
-  aoa.push([]);
-  aoa.push(['วันที่ออกเอกสาร',thDate(new Date()),'','','เลขที่เอกสาร',dnoLabel,'','']);
-  aoa.push(['ขอบเขตรายงาน','พื้นที่: '+fA,'รอบตรวจ: '+fS,'วันที่: '+(fD||'ทั้งหมด'),'จำนวนรายการ: '+grouped.length,'','','']);
-  aoa.push(['ผู้จัดทำรายงาน',adminUser,'','','','','','']);
-  aoa.push([]);
-  aoa.push(['ลำดับ','เลขที่เอกสาร','วันเวลา','พื้นที่','รอบ','ผู้ตรวจเช็ค','รายการที่ตรวจพบ / หมายเหตุ','สถานะ']);
-  grouped.forEach((r,i)=>{
-    aoa.push([i+1,r.docNo||'-',r.timestamp,r.area,r.shift,r.inspector,(r.note||'-').replace(/\n/g,' / '),r.isDup?'ซ้ำ ⚠':'ปกติ']);
-  });
-  aoa.push([]);
-  aoa.push(['สรุปภาพรวม','','','','','','','']);
-  aoa.push(['• จำนวนรายการทั้งหมด',grouped.length,'รายการ','','','','','']);
-  aoa.push(['• จำนวนเอกสารที่เกี่ยวข้อง',[...new Set(grouped.map(r=>r.docNo))].length,'ฉบับ','','','','','']);
-  aoa.push(['• พบรายการแจ้งเตือนภาพซ้ำ',grouped.filter(r=>r.isDup).length,'รายการ','','','','','']);
-  aoa.push(['• ภาพถ่ายประกอบทั้งหมด',cache.length,'ภาพ','','','','','']);
-  aoa.push([]);
-  aoa.push(['ผู้จัดทำรายงาน','','ผู้ตรวจสอบ','','ผู้อนุมัติ','','','']);
-  aoa.push(['(.................................)','','(.................................)','','(.................................)','','','']);
-  aoa.push(['( '+adminUser+' )','','','','','','','']);
-  aoa.push(['วันที่ ......../......../........','','วันที่ ......../......../........','','วันที่ ......../......../........','','','']);
-  aoa.push([]);
-  aoa.push([c.footer,'','','','',c.form,'','']);
-
-  const ws1=XLSX.utils.aoa_to_sheet(aoa);
-  ws1['!cols']=[{wch:10},{wch:16},{wch:19},{wch:14},{wch:10},{wch:22},{wch:44},{wch:11}];
-  ws1['!merges']=[
-    {s:{r:0,c:0},e:{r:0,c:7}},{s:{r:1,c:0},e:{r:1,c:7}},
-    {s:{r:3,c:0},e:{r:3,c:7}},{s:{r:5,c:0},e:{r:5,c:7}}
-  ];
-  XLSX.utils.book_append_sheet(wb,ws1,'ใบรายงานสรุป');
-
-  const rows2=cache.map((r,i)=>({
-    'ลำดับ':i+1,'เลขที่เอกสาร':r.docNo||'-','วันเวลา':r.timestamp,'พื้นที่':r.area,'รอบตรวจ':r.shift,
-    'ผู้ตรวจเช็ค':r.inspector,'หมายเหตุ':(r.note||'-').replace(/\n/g,' / '),
-    'ภาพซ้ำ':r.isDup?'ใช่ ⚠️':'ปกติ','รหัสชุด(Batch)':r.batch||'-'
-  }));
-  const ws2=XLSX.utils.json_to_sheet(rows2);
-  ws2['!cols']=[{wch:6},{wch:16},{wch:18},{wch:13},{wch:9},{wch:20},{wch:44},{wch:10},{wch:16}];
-  XLSX.utils.book_append_sheet(wb,ws2,'รายการแยกภาพ');
-
-  const docs=[...new Set(cache.map(r=>r.docNo).filter(Boolean))];
-  const rows3=docs.map(dn=>{
-    const g=grouped.filter(r=>r.docNo===dn);
-    return {
-      'เลขที่เอกสาร':dn,
-      'พื้นที่ในรอบนี้':[...new Set(g.map(r=>r.area))].join(', '),
-      'รายการที่พบ':g.map(r=>(r.note||'').replace(/\n/g,' / ')).filter(Boolean).join(' | ')||'-'
-    };
-  });
-  const ws3=XLSX.utils.json_to_sheet(rows3);
-  ws3['!cols']=[{wch:16},{wch:30},{wch:50}];
-  XLSX.utils.book_append_sheet(wb,ws3,'สรุปตามเลขที่เอกสาร');
-
-  const areaList=[...new Set(cache.map(r=>r.area))];
-  const rows4=areaList.map(a=>{
-    const g=grouped.filter(r=>r.area===a);
-    return {'พื้นที่':a,'จำนวนรายงาน(ชุด)':g.length,'จำนวนภาพ':cache.filter(r=>r.area===a).length,
-      'จำนวนเอกสาร':[...new Set(g.map(r=>r.docNo))].length,
-      'พบภาพซ้ำ(ชุด)':g.filter(r=>r.isDup).length,
-      'รายการที่พบ':g.map(r=>(r.note||'').replace(/\n/g,' / ')).filter(Boolean).join(' | ')||'-'};
-  });
-  const ws4=XLSX.utils.json_to_sheet(rows4);
-  ws4['!cols']=[{wch:15},{wch:18},{wch:12},{wch:13},{wch:15},{wch:55}];
-  XLSX.utils.book_append_sheet(wb,ws4,'สรุปตามพื้นที่');
-
-  XLSX.writeFile(wb,'รายงานสรุปตรวจเช็คเครื่องมือ_Team3_'+stamp()+'.xlsx');
-  showStatus('expStatus','✅ ดาวน์โหลดรายงานสรุปเป็น Excel แล้ว (4 ชีต)','ok');
-}
-
-/* ================== ลบ + Log + แก้เลขที่เอกสารย้อนหลัง ================== */
+/* ================== ลบ + Log + จัดการข้อมูล ================== */
 function guard(){if(!isAdmin){showStatus('expStatus','🔒 เฉพาะผู้ดูแลระบบเท่านั้น','err');return false;}return true;}
 function nowStr(){return new Date().toLocaleString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit'}).replace(',','');}
 async function writeLog(type,items,reason){
@@ -1121,17 +774,14 @@ async function purgeLocalByBatches(batches){
     for(const r of all){ if(batches.indexOf(r.batch)>=0){ await delRec(r.id); } }
   }catch(e){ console.error('purge local fail',e); }
 }
-
 async function setDocNoFiltered(){
   if(!guard())return;
   if(!cloudReady)return showStatus('expStatus','⚠️ ยังไม่ได้เชื่อมฐานข้อมูลกลาง','err');
   if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีรายการที่กรองอยู่ — กรุณาตั้งตัวกรองก่อน','err');
-
   const areas=[...new Set(cache.map(r=>r.area))];
   const shifts=[...new Set(cache.map(r=>r.shift))];
   const olds=[...new Set(cache.map(r=>r.docNo||'-'))];
-  const suggest=DOC_PREFIX+beYY(new Date())+'/0003';
-
+  const suggest='MT69/0012';
   const target=(prompt(
     'กำหนดเลขที่เอกสารใหม่ให้ '+cache.length+' รายการที่กรองอยู่\n'+
     'พื้นที่: '+areas.join(', ')+'\n'+
@@ -1140,28 +790,20 @@ async function setDocNoFiltered(){
     suggest)||'').trim();
   if(!target)return;
   if(!/^[A-Za-z]+\d{2}\/\d{3,5}$/.test(target))
-    return showStatus('expStatus','❌ รูปแบบเลขที่เอกสารไม่ถูกต้อง (ตัวอย่าง MT69/0003)','err');
-
+    return showStatus('expStatus','❌ รูปแบบเลขที่เอกสารไม่ถูกต้อง (ตัวอย่าง MT69/0012)','err');
   if(!confirm('⚠️ ยืนยันเปลี่ยนเลขที่เอกสารเป็น '+target+'\n'+
     'จำนวน '+cache.length+' รายการ ('+areas.length+' พื้นที่)\n'+
     'รอบ: '+shifts.join(', ')))return;
-
   showStatus('expStatus','⏳ กำลังปรับเลขที่เอกสาร...','info');
   let ok=0,fail=0;
   for(const r of cache){
     try{ await COL.doc(r.id).update({docNo:target}); ok++; }
     catch(e){ fail++; console.error('update docNo fail',r.id,e); }
   }
-
-  const yy=beYY(new Date());
-  const num=parseInt(target.split('/')[1],10);
-  if(!isNaN(num)){ const s=_seq(); s.last=s.last||{}; s.last[yy]=num; _saveSeq(s); }
-
   if(fail) showStatus('expStatus','⚠️ สำเร็จ '+ok+' / ไม่สำเร็จ '+fail+' รายการ','err');
   else showStatus('expStatus','✅ ปรับเป็น '+target+' แล้ว '+ok+' รายการ','ok');
   loadHistory(); updateCycleHint();
 }
-
 async function removeDupRecords(){
   if(!guard())return;
   if(!cloudReady)return showStatus('expStatus','⚠️ ยังไม่ได้เชื่อมฐานข้อมูลกลาง','err');
@@ -1179,7 +821,6 @@ async function removeDupRecords(){
   showStatus('expStatus',`✅ ลบรายการซ้ำเรียบร้อย ${res.ok} รายการ`,'ok');
   loadHistory();
 }
-
 async function deleteOne(id){
   if(!guard())return;
   const rec=cloudRecs.find(r=>String(r.id)===String(id));if(!rec)return;
@@ -1189,8 +830,8 @@ async function deleteOne(id){
     try{ await cloudDel(rec.id); }catch(e){ return showStatus('expStatus','❌ ลบไม่สำเร็จ: '+e.message,'err'); }
     await purgeLocalByBatches([rec.batch]);
     showStatus('expStatus','✅ ลบรายการเรียบร้อย','ok');
-    loadHistory();});}
-
+    loadHistory();});
+}
 async function deleteFiltered(){
   if(!guard())return;
   if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีรายการให้ลบ','err');
@@ -1202,8 +843,8 @@ async function deleteFiltered(){
     const res=await cloudDelMany(items.map(r=>r.id));
     await purgeLocalByBatches([...new Set(items.map(r=>r.batch))]);
     showStatus('expStatus',`✅ ลบเรียบร้อย ${res.ok} รายการ`,'ok');
-    loadHistory();});}
-
+    loadHistory();});
+}
 async function deleteAll(){
   if(!guard())return;
   const all=cloudReady?cloudRecs.slice():[];
@@ -1216,8 +857,8 @@ async function deleteAll(){
     const res=await cloudDelMany(all.map(r=>r.id));
     try{ if(db) await clearAllRec(); }catch(e){}
     showStatus('expStatus',`✅ ล้างข้อมูลทั้งหมดแล้ว (${res.ok} รายการ)`,'ok');
-    loadHistory();});}
-
+    loadHistory();});
+}
 async function loadLog(){
   if(!isAdmin)return;
   let logs=logReady?cloudLogs.slice():[];
@@ -1229,8 +870,8 @@ async function loadLog(){
   $('logList').innerHTML=logs.length?logs.map((l,i)=>{
     return `<div class="logcard">${l.thumb?`<img src="${l.thumb}" onclick="showLogImg(${i})">`:''}
       <div class="li"><b>ลบ ${l.count} รายการ</b><br>👤 ผู้ลบ: <b>${l.admin}</b><br>🕐 ${l.delAt}<br>💬 ${l.reason}</div></div>`;
-  }).join(''):'<div class="empty">ยังไม่มีประวัติการลบข้อมูล</div>';}
-
+  }).join(''):'<div class="empty">ยังไม่มีประวัติการลบข้อมูล</div>';
+}
 function exportLogExcel(){
   if(!guard())return;
   if(!logCache.length)return showStatus('lgStatus','⚠️ ไม่มี Log ให้ Export','err');
@@ -1240,15 +881,17 @@ function exportLogExcel(){
   const ws=XLSX.utils.json_to_sheet(rows);
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'ประวัติการลบ');
   XLSX.writeFile(wb,'Log_การลบข้อมูล_Team3_'+stamp()+'.xlsx');
-  showStatus('lgStatus','✅ ดาวน์โหลด Log แล้ว','ok');}
-
+  showStatus('lgStatus','✅ ดาวน์โหลด Log แล้ว','ok');
+}
 async function clearLog(){
   if(!guard())return;
   if(!confirm('🧹 ล้างประวัติการลบทั้งหมด?'))return;
-  if(prompt('พิมพ์คำว่า  ล้างlog  เพื่อยืนยัน:')!=='l้างlog')return;
-  try{ if(LOGCOL) await cloudClearLogs(); if(db) await clearLogs(); }catch(e){}
-  showStatus('lgStatus','✅ ล้าง Log เรียบร้อย','ok');loadLog();}
-
+  const t=(prompt('พิมพ์คำว่า  ล้างlog  เพื่อยืนยัน:')||'').trim();
+  if(t!=='ล้างlog'&&t!=='ล้าง log')return showStatus('lgStatus','❌ ยกเลิก — พิมพ์คำยืนยันไม่ตรง','err');
+  showStatus('lgStatus','⏳ กำลังล้าง Log...','info');
+  try{if(LOGCOL)await cloudClearLogs();if(db)await clearLogs();}catch(e){}
+  showStatus('lgStatus','✅ ล้าง Log เรียบร้อย','ok');loadLog();
+}
 function exportExcel(){
   if(!guard())return;
   if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลให้ Export','err');
@@ -1257,8 +900,8 @@ function exportExcel(){
   const ws=XLSX.utils.json_to_sheet(rows);
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'รายงานตรวจเช็ค');
   XLSX.writeFile(wb,'รายงานตรวจเช็คเครื่องมือ_Team3_'+stamp()+'.xlsx');
-  showStatus('expStatus','✅ ดาวน์โหลดไฟล์ Excel แล้ว','ok');}
-
+  showStatus('expStatus','✅ ดาวน์โหลดไฟล์ Excel แล้ว','ok');
+}
 async function exportZip(){
   if(!guard())return;
   if(!cache.length)return showStatus('expStatus','⚠️ ไม่มีรูปภาพให้ Export','err');
@@ -1269,16 +912,16 @@ async function exportZip(){
   const blob=await zip.generateAsync({type:'blob'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='รูปภาพตรวจเช็ค_Team3_'+stamp()+'.zip';a.click();
-  showStatus('expStatus','✅ ดาวน์โหลด ZIP สำเร็จ','ok');}
-
+  showStatus('expStatus','✅ ดาวน์โหลด ZIP สำเร็จ','ok');
+}
 async function backupData(){
   if(!guard())return;
   const data={reports:cloudRecs.slice(),dellog:cloudLogs.slice(),doc:docCfg(),docseq:_seq()};
   const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='MT3_Backup_'+stamp()+'.json';a.click();
-  showStatus('expStatus','✅ สำรองข้อมูลแล้ว','ok');}
-
+  showStatus('expStatus','✅ สำรองข้อมูลแล้ว','ok');
+}
 $('restoreInput').onchange=e=>{
   if(!guard())return;
   const f=e.target.files[0];if(!f)return;
@@ -1294,15 +937,9 @@ $('restoreInput').onchange=e=>{
     showStatus('expStatus','✅ กู้คืนสำเร็จ','ok');
   }catch(err){showStatus('expStatus','❌ ไฟล์สำรองไม่ถูกต้อง','err');}};
   r.readAsText(f);e.target.value='';};
-
 function stamp(){const d=new Date();
   return `${d.getDate()}-${d.getMonth()+1}-${d.getFullYear()}_${d.getHours()}${('0'+d.getMinutes()).slice(-2)}`;}
-
-/* MT3 embedded administrator mode 2.0.
- * These public client-side passwords are a UI lock, NOT server authorization.
- * This edition's matching Rules allow public database mutation.
- * Credential changes are local to this browser. Do not sell as secure RBAC.
- */
+/* Embedded Admin Accounts */
 const MT3_EMBEDDED_ADMINS=Object.freeze([
   {id:'admin1',fullName:'อัฟฟาน มามะ',username:'Affan.m',password:'1234'},
   {id:'admin2',fullName:'ชนัญชิดา บุญมี',username:'Chanunchida.b',password:'1234'},
@@ -1384,17 +1021,9 @@ const MT3Access=(()=>{
   try{const id=sessionStorage.getItem('mt3_embedded_admin');current=accounts().find(a=>a.id===id)||null;}catch(e){}
   return Object.freeze({ready:()=>true,admin,fullName:()=>current?current.fullName:null,normalizeName:value=>{const key=String(value||'').trim().toLowerCase();const a=accounts().find(x=>x.username.toLowerCase()===key)||MT3_EMBEDDED_ADMINS.find(x=>x.username.toLowerCase()===key);return a?a.fullName:value;},guestUid:()=>guestId,uid:()=>current?'embedded_'+current.id:guestId});
 })();
-/* END MT3 embedded administrator mode */
-
-/* MT3 reliability upgrade 1.0.0 — additive; original source retained.
- * Deployment: replace the placeholder Firebase apiKey in the original config.
- * Commercial readiness requires Firebase Auth, server-enforced tenant/RBAC rules,
- * trusted audit logs, retention/backups, storage for images and load/security tests.
- * Client PIN is a UI lock, never a database security boundary.
- * Current queries retain original 1200/600 limits; this is not full-history backup.
- */
+/* Reliability Layer */
 const MT3Reliability = (() => {
-  let queueDB, opening, running=false, renderTimer, retryTimer, subscriptions=[], durableFailure=false, syncError="", syncGeneration=0, reportComplete=false, logComplete=false, connected=false, syncStartedAt=0, probeNote="", lastQueue=[], queueError="", refreshingQueue=false;
+  let queueDB, opening, running=false, renderTimer, retryTimer, subscriptions=[], durableFailure=false, syncError="", syncGeneration=0, reportComplete=false, logComplete=false, connected=false;
   const inflight=new Map();
   const permanent=new Set(['permission-denied','unauthenticated','invalid-argument','resource-exhausted']);
   const configOK=()=>!String(firebaseConfig.apiKey||'').includes('EXAMPLE')&&!!firebaseConfig.apiKey;
@@ -1419,26 +1048,17 @@ const MT3Reliability = (() => {
   const put=o=>tx('readwrite',s=>s.put(o));
   const remove=key=>tx('readwrite',s=>s.delete(key));
   function banner(message,off){setSync(message,off?'off':'');}
-  function paintStatus(){
-    const q=lastQueue,blocked=q.filter(x=>x.blocked).length;
-    if(!configOK())banner('⚠️ Firebase API key ยังเป็นค่าตัวอย่าง • รอส่ง '+q.length+' รายการ',true);
-    else if(!MT3Access.ready())banner('🔒 กรุณาเข้าสู่ระบบและตรวจสิทธิ์บัญชี',true);
-    else if(syncError)banner('🔴 '+syncError,true);
-    else if(!navigator.onLine)banner('🟠 ออฟไลน์ • แสดงข้อมูลในเครื่อง',true);
-    else if(queueError)banner('🔴 เปิดคิวสำรองไม่ได้ • '+queueError,true);
-    else if(blocked)banner('🟠 รอส่ง '+q.length+' รายการ • ต้องแก้สิทธิ์/การตั้งค่า '+blocked+' รายการ',true);
-    else if(cloudReady||connected){
-      const detail=q.length?'รอส่ง '+q.length+' รายการ':cloudReady?(reportComplete?'ประวัติล่าสุด '+cloudRecs.length+' รายการ':'แสดงล่าสุด '+cloudRecs.length+' รายการ • โหลดส่วนที่เหลือต่อ'):'กำลังซิงค์ประวัติ';
-      banner('🟢 ฐานข้อมูลกลางตอบกลับแล้ว • '+detail+' • v2.3',false);
-    }else{
-      const seconds=syncStartedAt?Math.floor((Date.now()-syncStartedAt)/1000):0;
-      banner('🟠 '+(probeNote||'กำลังติดต่อฐานข้อมูลกลาง')+(seconds?' • '+seconds+' วินาที':'')+' • v2.3',true);
-    }
-  }
-  function status(){
-    // Paint real network state immediately; IndexedDB/outbox loading must not delay it.
-    paintStatus();if(refreshingQueue)return;refreshingQueue=true;
-    list().then(q=>{lastQueue=q;queueError='';paintStatus();}).catch(e=>{queueError=e.message;paintStatus();}).finally(()=>{refreshingQueue=false;});
+  async function status(){
+    try{const q=await list();const blocked=q.filter(x=>x.blocked).length;
+      if(!configOK())banner('⚠️ Firebase API key ยังเป็นค่าตัวอย่าง • รอส่ง '+q.length+' รายการ',true);
+      else if(!MT3Access.ready())banner('🔒 กรุณาเข้าสู่ระบบและตรวจสิทธิ์บัญชี',true);
+      else if(syncError)banner('🔴 '+syncError,true);
+      else if(q.length)banner('🟠 รอฐานข้อมูลยืนยัน '+q.length+' รายการ'+(blocked?' • ต้องแก้สิทธิ์/การตั้งค่า '+blocked+' รายการ':''),true);
+      else if(!navigator.onLine)banner('🟠 ออฟไลน์ • แสดงข้อมูลในเครื่อง',true);
+      else if(cloudReady)banner('🟢 ฐานข้อมูลกลางยืนยันแล้ว • '+(reportComplete?'ประวัติล่าสุด '+cloudRecs.length+' รายการ':'แสดงล่าสุด '+cloudRecs.length+' รายการ • กำลังโหลดประวัติส่วนที่เหลือ'),false);
+      else if(connected)banner('🟢 เชื่อมต่อฐานข้อมูลกลางแล้ว • กำลังโหลดประวัติ',false);
+      else banner('🟠 กำลังเชื่อมต่อ • ข้อมูลอาจเป็นแคชในเครื่อง',true);
+    }catch(e){banner('🔴 เปิดคิวสำรองไม่ได้ • '+e.message,true);}
   }
   function schedule(){clearTimeout(retryTimer);retryTimer=setTimeout(()=>flush(),30000);}
   async function send(item){
@@ -1473,46 +1093,20 @@ const MT3Reliability = (() => {
     if(collection==='reports'&&!value.createdByUid)value.createdByUid=MT3Access.uid();
     if(new TextEncoder().encode(JSON.stringify(value)).length>980000)throw new Error('ข้อมูลใหญ่เกินขนาดที่ปลอดภัย กรุณาลดขนาดรูป');
     const item={key:collection+'/'+id,collection,id,data:value,ownerUid:MT3Access.uid(),attempts:0,nextAt:0};
-    try{await put(item);}catch(e){durableFailure=true;throw e;} // Durable commit before issuing a network request.
+    try{await put(item);}catch(e){durableFailure=true;throw e;}
     status();schedule();
     let timer;try{
       await Promise.race([send(item),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('เก็บในคิวแล้ว รอฐานข้อมูลยืนยัน')),12000);})]);
     }finally{clearTimeout(timer);}
   }
   function render(){clearTimeout(renderTimer);renderTimer=setTimeout(()=>{loadHistory();loadLog();updateCycleHint();},180);}
-  function fastConfirmation(alive){
-    let stopped=false,retryTimer=null,controller=null,attempt=0;
-    async function run(){
-      if(stopped||!alive()||!navigator.onLine||connected||cloudReady)return;
-      controller=new AbortController();const current=controller;
-      const timeout=setTimeout(()=>current.abort(),6000);attempt++;
-      try{
-        const endpoint='https://firestore.googleapis.com/v1/projects/'+encodeURIComponent(firebaseConfig.projectId)+'/databases/(default)/documents:runQuery?key='+encodeURIComponent(firebaseConfig.apiKey);
-        const response=await fetch(endpoint,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},signal:current.signal,
-          body:JSON.stringify({structuredQuery:{from:[{collectionId:'reports'}],select:{fields:[{fieldPath:'createdAt'}]},limit:1}})});
-        if(!response.ok){const e=new Error('ตรวจฐานข้อมูลไม่ผ่าน (HTTP '+response.status+')');e.httpStatus=response.status;throw e;}
-        const result=await response.json();
-        if(!Array.isArray(result)||!result.some(row=>row&&typeof row.readTime==='string')||result.some(row=>row.error))throw new Error('คำตอบฐานข้อมูลยังไม่ยืนยันการอ่าน');
-        if(stopped||!alive()||!navigator.onLine)return;
-        connected=true;probeNote='';status();
-      }catch(e){
-        if(stopped||!alive()||connected||cloudReady)return;
-        probeNote=e.name==='AbortError'?'เครือข่ายตอบช้า • กำลังลองใหม่':e.httpStatus===403?'การตรวจฐานข้อมูลถูกปฏิเสธ (403) • ตรวจ Rules / API key':e.httpStatus===429?'ฐานข้อมูลจำกัดคำขอ (429)':e.httpStatus===401?'ฐานข้อมูลต้องการสิทธิ์ (401)':'ยังติดต่อฐานข้อมูลไม่ได้ • ตรวจอินเทอร์เน็ต';
-        status();
-        if(attempt<3&&(!e.httpStatus||e.httpStatus>=500))retryTimer=setTimeout(run,attempt*1500);
-      }finally{clearTimeout(timeout);if(controller===current)controller=null;}
-    }
-    run();return()=>{stopped=true;clearTimeout(retryTimer);if(controller)controller.abort();};
-  }
   function sync(){
     const hadFull=reportComplete,generation=++syncGeneration;
     subscriptions.forEach(fn=>fn());subscriptions=[];
     if(!COL||!MT3Access.ready())return;
-    syncError='';reportComplete=false;logComplete=false;connected=false;syncStartedAt=Date.now();probeNote='';
+    syncError='';reportComplete=false;logComplete=false;connected=false;
     let fullStarted=false,logStarted=false,smallOff=null,fullServer=false;
     const alive=()=>generation===syncGeneration;
-    subscriptions.push(fastConfirmation(alive));
-    const clock=setInterval(()=>{if(alive()&&!cloudReady)status();},1000);subscriptions.push(()=>clearInterval(clock));
     const server=snap=>!snap.metadata.fromCache&&!snap.metadata.hasPendingWrites;
     const failure=(e,isLog=false)=>{if(!alive())return;if(isLog){logReady=false;logComplete=false;}else{cloudReady=false;reportComplete=false;}syncError='ฐานข้อมูล: '+e.code+' • '+e.message;console.error(e);status();};
     const values=snap=>snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
@@ -1526,17 +1120,15 @@ const MT3Reliability = (() => {
       if(fullStarted||!alive())return;fullStarted=true;
       subscriptions.push(COL.orderBy('createdAt','desc').limit(1200).onSnapshot({includeMetadataChanges:true},snap=>{
         if(!alive())return;
-        if(!server(snap)&&!hadFull&&!fullServer)return; // A small query's cache is not a complete history.
+        if(!server(snap)&&!hadFull&&!fullServer)return;
         cloudRecs=values(snap);cloudReady=server(snap);reportComplete=cloudReady;
         if(cloudReady){connected=true;fullServer=true;if(smallOff){smallOff();smallOff=null;}logs();}
-        // loadHistory's server branch assigns cache synchronously before export is allowed.
         loadHistory().catch(e=>console.error('History render',e));render();status();
       },e=>failure(e)));
     }
-    // Connectivity confirmation is tiny; it never waits for the photo history.
     subscriptions.push(fdb.collection('mt3_cycle_meta').doc('main').onSnapshot({includeMetadataChanges:true},snap=>{
-      if(!alive())return;if(server(snap))connected=true;status();
-    },e=>{console.warn('Connection confirmation',e.code);}));
+      if(!alive())return;connected=server(snap);status();
+    },e=>console.warn('Connection confirmation',e.code)));
     if(hadFull)full();else{
       smallOff=COL.orderBy('createdAt','desc').limit(20).onSnapshot({includeMetadataChanges:true},snap=>{
         if(!alive()||fullServer)return;
@@ -1558,7 +1150,6 @@ const MT3Reliability = (() => {
     if(inflight.has('reports/'+id))throw new Error('รายการกำลังส่ง กรุณารอฐานข้อมูลยืนยันก่อนลบ');
     await oldDelete(id);await remove('reports/'+id);
   };
-  // Fail IndexedDB operations explicitly, rather than leaving unresolved promises.
   function local(store,mode,action){return new Promise((resolve,reject)=>{
     if(!db)return reject(new Error('ฐานข้อมูลในเครื่องยังไม่พร้อม'));
     let t,result;try{t=db.transaction(store,mode);const r=action(t.objectStore(store));r.onsuccess=()=>{result=r.result;};}
@@ -1595,7 +1186,6 @@ const MT3Reliability = (() => {
     try{await fetch(LINE_HOOK_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),signal:c.signal});return true;}
     catch(e){return false;}finally{clearTimeout(t);}
   };
-  // Images retain original data and export behavior; decode lazily to reduce memory.
   const observer=new MutationObserver(()=>{
     document.querySelectorAll('#list img.ph').forEach(img=>{img.loading='lazy';img.decoding='async';});
   });observer.observe($('list'),{childList:true});
@@ -1603,128 +1193,122 @@ const MT3Reliability = (() => {
   addEventListener('offline',()=>{cloudReady=false;logReady=false;status();});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flush();});
   open().then(status).catch(e=>banner('🔴 ไม่สามารถเก็บคิวสำรอง: '+e.message,true));
-  return Object.freeze({version:'2.3.0-small-probe',complete:()=>reportComplete,logsComplete:()=>logComplete,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
+  return Object.freeze({version:'2.2.0-fast-start',complete:()=>reportComplete,logsComplete:()=>logComplete,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
     stop:()=>{subscriptions.forEach(fn=>fn());subscriptions=[];syncGeneration++;clearTimeout(renderTimer);clearTimeout(retryTimer);},
     adoptLegacy:async()=>{if(!MT3Access.admin())throw new Error('เฉพาะผู้ดูแล');
       for(const item of await list())if(!item.ownerUid||!String(item.ownerUid).startsWith('embedded_')){item.ownerUid=MT3Access.uid();if(item.collection==='reports'&&!item.data.createdByUid)item.data.createdByUid=MT3Access.uid();item.blocked=false;item.nextAt=0;await put(item);}return flush();},
     retry:async()=>{if(!MT3Access.ready())throw new Error('กรุณาเข้าสู่ระบบ');for(const item of await list())if(item.ownerUid===MT3Access.uid()||(item.collection==='reports'&&item.ownerUid===MT3Access.guestUid())){item.blocked=false;item.nextAt=0;await put(item);}return flush();},pending:list});
 })();
-/* END MT3 reliability upgrade */
-
-/* MT3 cycle numbers: per-area opening ordinal shared across six areas. */
+/* MT3 Cycle Numbers & Shared Daily Series (Starting 09/10/2026 -> MT69/0012) */
 const MT3Cycles=(()=>{
-  const cutoff=Date.parse('2026-09-20T00:00:00+07:00'),version=1;
-  let states={},meta=null,migrating=false;
-  const rolloutAt=Date.parse('2026-10-09T00:00:00+07:00'),rolloutId='2026-10-09-start12';
-  function applyRollout(st,t){
-    st.counts=Object.assign({},st.counts||{});
-    if(t>=rolloutAt&&st.rolloutId!==rolloutId){st.counts['69']=11;st.open=null;st.lastClosed=null;st.rolloutId=rolloutId;}
-    return st;
-  }
-  const areaKey=area=>{
-    const normalized=String(area||'').replace(/\bWes\b/gi,'West').replace(/\s/g,'');
-    return AREAS.find(a=>a.toLowerCase()===normalized.toLowerCase())||null;
-  };
-  function time(r){
-    const match=String(r.timestamp||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(\d{1,2}):(\d{2})/);
-    if(match){let y=Number(match[3]);if(y<100)y+=2500;if(y>2400)y-=543;return Date.parse(`${y}-${pad(match[2],2)}-${pad(match[1],2)}T${pad(match[4],2)}:${match[5]}:00+07:00`);}
-    if(typeof r.createdAt==='number')return r.createdAt;
-    if(/^\d{4}-\d{2}-\d{2}$/.test(r.dateKey||''))return Date.parse(r.dateKey+'T12:00:00+07:00');
-    return NaN;
-  }
-  const yyAt=t=>pad((Number(new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Bangkok',year:'numeric'}).format(new Date(t)))+543)%100,2);
-  const number=(yy,n)=>'MT'+yy+'/'+pad(n,4);
-  function groups(records){
-    const m=new Map();for(const r of records){const key=r.batch||[r.area,r.shift,r.timestamp,r.inspector].join('|');if(!m.has(key))m.set(key,[]);m.get(key).push(r);}
-    return [...m].map(([key,items])=>({key,items,first:items[0],time:time(items[0])})).sort((a,b)=>a.time-b.time||a.key.localeCompare(b.key));
-  }
-  function plan(records){
-    const state={},updates=[],issues=[];
-    for(const area of AREAS)state[area]={area,counts:{},open:null,lastClosed:null};
-    const selected=records.filter(r=>Number.isFinite(time(r))&&time(r)>=cutoff);
-    for(const g of groups(selected)){
-      const r=g.first,area=areaKey(r.area),yy=yyAt(g.time);
-      if(!area||!SHIFTS.includes(r.shift)){issues.push({batch:g.key,reason:'พื้นที่/รอบไม่ถูกต้อง'});continue;}
-      const st=applyRollout(state[area],g.time);let doc;
-      if(r.shift==='รับกะ'){
-        if(st.open)issues.push({batch:g.key,reason:area+' รับกะใหม่ก่อนปิดรอบเก่า '+st.open.docNo});
-        st.counts[yy]=(st.counts[yy]||0)+1;doc=number(yy,st.counts[yy]);st.open={docNo:doc,batch:g.key};
-      }else if(st.open){doc=st.open.docNo;st.lastClosed=doc;st.open=null;}
-      else{issues.push({batch:g.key,reason:area+' ส่งคืนโดยไม่มีรับกะก่อนหน้าในช่วงข้อมูล'});continue;}
-      for(const item of g.items)updates.push({id:String(item.id),oldDocNo:item.docNo||'',docNo:doc,batch:g.key});
-    }
-    const invalid=records.filter(r=>!Number.isFinite(time(r))).length;
-    if(invalid)issues.push({batch:'-',reason:'มี '+invalid+' รายการที่อ่านวันเวลาไม่ได้ ไม่จัดเลขอัตโนมัติ'});
-    return {state,updates,issues,selected:selected.length};
-  }
-  async function deadline(promise,ms=45000){let timer;try{return await Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('ฐานข้อมูลตอบช้า กรุณาลองใหม่')),ms);})]);}finally{clearTimeout(timer);}}
-  async function allocate(area,shift,batch,at=Date.now()){
-    area=areaKey(area);if(!area||!SHIFTS.includes(shift))throw new Error('พื้นที่หรือรอบตรวจไม่ถูกต้อง');
-    if(!navigator.onLine)throw new Error('ต้องออนไลน์เพื่อจองเลขที่เอกสารกลาง รูปยังอยู่ในฟอร์ม');
-    const config=fdb.collection('mt3_cycle_meta').doc('main'),ref=fdb.collection('mt3_cycle_state').doc(area),request=fdb.collection('mt3_cycle_requests').doc(batch),yy=yyAt(at),newPeriod=at>=rolloutAt;
-    // Let Firestore finish/retry the transaction: never show a client timeout while a reservation can still commit.
-    return fdb.runTransaction(async tx=>{
-      const [cfg,saved,previous]=await Promise.all([tx.get(config),tx.get(ref),tx.get(request)]);
-      if(previous.exists)return previous.data().docNo;
-      const configData=cfg.exists?cfg.data():null;
-      if(configData&&configData.status==='migrating')throw new Error('กำลังจัดเลขย้อนหลัง กรุณารอให้เสร็จก่อนส่งรายงาน');
-      if(configData&&configData.version!==version)throw new Error('รุ่นข้อมูลเลขเอกสารไม่ตรงกับระบบ กรุณาติดต่อผู้ดูแล');
-      if(!newPeriod&&(!configData||configData.status!=='ready'))throw new Error('ผู้ดูแลต้องกดจัดเลขย้อนหลัง 20/09/69 ครั้งแรกก่อนส่งรายงาน');
-      const st=applyRollout(saved.exists?saved.data():{area,counts:{},open:null,lastClosed:null},at);let doc;
-      if(shift==='รับกะ'){st.counts[yy]=(st.counts[yy]||0)+1;doc=number(yy,st.counts[yy]);st.open={docNo:doc,batch};}
-      else{if(!st.open)throw new Error(newPeriod?'ตั้งแต่ 09/10/2569 ต้องเริ่มด้วยรับกะของพื้นที่ก่อน แล้วส่งคืนใช้เลขเดียวกัน':'พื้นที่นี้ยังไม่มีรับกะที่เปิดอยู่ กรุณาตรวจรอบก่อนส่งคืน');doc=st.open.docNo;st.lastClosed=doc;st.open=null;}
-      tx.set(ref,st);tx.set(request,{docNo:doc,area,shift,createdAt:at});
-      if(newPeriod&&(!configData||configData.status!=='ready'))tx.set(config,{version,status:'ready',rolloutId,updatedAt:Date.now(),leaseUntil:0});
-      return doc;
-    });
-  }
-  async function allMetadata(){
-    const items=[];let cursor=null,total=0;
-    while(true){let q=COL.orderBy(firebase.firestore.FieldPath.documentId()).limit(100);if(cursor)q=q.startAfter(cursor);
-      const snap=await deadline(q.get({source:'server'}));
-      for(const d of snap.docs){const r=d.data();items.push({id:d.id,createdAt:r.createdAt,timestamp:r.timestamp,dateKey:r.dateKey,area:r.area,shift:r.shift,inspector:r.inspector,batch:r.batch,docNo:r.docNo});}
-      total+=snap.size;showStatus('expStatus','กำลังอ่านข้อมูลย้อนหลังครบฐานข้อมูล: '+total+' ภาพ','info');
-      if(snap.size<100)break;cursor=snap.docs[snap.docs.length-1];
-    }return items;
-  }
-  async function migrate(){
-    if(!guard()||migrating)return;
-    if(MT3Reliability.busy()||(await MT3Reliability.pending()).length){showStatus('expStatus','กรุณาส่งคิวรอทั้งหมดให้เสร็จก่อนจัดเลขย้อนหลัง','err');return;}
-    migrating=true;let locked=false,previousMeta=null;const owner='migration_'+Date.now(),ref=fdb.collection('mt3_cycle_meta').doc('main');
-    try{
-      await fdb.runTransaction(async tx=>{const s=await tx.get(ref);previousMeta=s.exists?s.data():null;if(s.exists&&s.data().status==='migrating'&&s.data().leaseUntil>Date.now())throw new Error('มีเครื่องอื่นกำลังจัดเลขย้อนหลัง');tx.set(ref,{version,status:'migrating',owner,leaseUntil:Date.now()+3600000});});locked=true;
-      const records=await allMetadata(),result=plan(records),changed=result.updates.filter(x=>x.oldDocNo!==x.docNo);
-      const backup={type:'MT3_DOCNO_BACKUP',cutoff:'2026-09-20',createdAt:new Date().toISOString(),records:result.updates.map(x=>({id:x.id,docNo:x.oldDocNo})),issues:result.issues};
-      const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(backup,null,2)],{type:'application/json'}));a.download='MT3_เลขเอกสารเดิม_'+stamp()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),10000);
-      if(!confirm('จัดเลขตั้งแต่ 20/09/2569 ถึงข้อมูลล่าสุด\n'+result.selected+' ภาพ / เปลี่ยนเลข '+changed.length+' ภาพ\nข้อควรตรวจ '+result.issues.length+' รายการ\n'+result.issues.slice(0,8).map(x=>x.reason).join('\n')+'\nรายการส่งคืนที่ไม่มีรับกะจะคงเลขเดิม\nดาวน์โหลดสำรองเลขเดิมแล้ว ยืนยันดำเนินการ?')){
-        if(previousMeta)await ref.set(previousMeta);else await ref.delete();return;
-      }
-      for(let i=0;i<changed.length;i+=300){const wb=fdb.batch();for(const item of changed.slice(i,i+300))wb.update(COL.doc(item.id),{docNo:item.docNo,docCycleVersion:version});await deadline(wb.commit());showStatus('expStatus','จัดเลขย้อนหลัง '+Math.min(i+300,changed.length)+' / '+changed.length+' ภาพ','info');}
-      const wb=fdb.batch();for(const area of AREAS)wb.set(fdb.collection('mt3_cycle_state').doc(area),result.state[area]);
-      wb.set(ref,{version,status:'ready',cutoff:'2026-09-20',updatedAt:Date.now(),issues:result.issues.length,leaseUntil:0});await deadline(wb.commit());
-      const seq={last:{}};for(const st of Object.values(result.state))for(const [yy,n] of Object.entries(st.counts))seq.last[yy]=Math.max(seq.last[yy]||0,n);_saveSeq(seq);
-      showStatus('expStatus','✅ จัดเลขย้อนหลังสำเร็จ '+changed.length+' ภาพ • ควรตรวจ '+result.issues.length+' รายการ (ดูไฟล์สำรอง)','ok');
-    }catch(e){if(locked)try{await ref.set({version,status:'needs-migration',error:e.message,leaseUntil:0});}catch(_){}showStatus('expStatus','จัดเลขไม่ครบ: '+e.message+' • กดทำซ้ำได้ ระบบจะคำนวณจากเวลาเดิม','err');}
-    finally{migrating=false;loadHistory();updateCycleHint();}
-  }
-  const button=document.createElement('button');button.className='btn btn-fix btn-sm';button.textContent='จัดเลขย้อนหลังตั้งแต่ 20/09/69';button.style.marginTop='10px';button.onclick=migrate;
-  const oldButton=document.querySelector('[onclick="setDocNoFiltered()"]');if(oldButton)oldButton.after(button);
-  const oldInit=initCloud;initCloud=()=>{const ok=oldInit();if(ok){
-    fdb.collection('mt3_cycle_state').onSnapshot(snap=>{states={};snap.docs.forEach(d=>{states[d.id]=d.data();});updateCycleHint();},e=>console.warn('Cycle state',e.code));
-    fdb.collection('mt3_cycle_meta').doc('main').onSnapshot(snap=>{meta=snap.exists?snap.data():null;updateCycleHint();},e=>console.warn('Cycle config',e.code));
-  }return ok;};
-  updateCycleHint=()=>{const el=$('cycleHint');if(!el)return;const now=Date.now();
-    if(meta&&meta.status==='migrating'){el.className='cyclebox';el.textContent='กำลังจัดเลขย้อนหลัง กรุณารอให้เสร็จก่อนส่งรายงาน';return;}
-    if(now<rolloutAt&&(!meta||meta.status!=='ready')){el.className='cyclebox';el.textContent='ผู้ดูแล: กดจัดเลขย้อนหลังตั้งแต่ 20/09/69 ก่อนใช้งานเลขรอบใหม่';return;}
-    const area=areaKey($('area').value),shift=$('shift').value,st=applyRollout(Object.assign({},states[area]||{counts:{},open:null}),now),yy=yyAt(now);
-    const doc=shift==='ส่งคืน'?(st.open&&st.open.docNo):number(yy,(st.counts[yy]||0)+1);
-    el.className='cyclebox newc';el.textContent=doc?`${area} • ${shift} ใช้ ${doc} — รอบเดียวกันทุกพื้นที่ใช้เลขเดียวกัน`:now>=rolloutAt?'เริ่มรอบตั้งแต่ 09/10/2569 ด้วยรับกะ MT69/0012 ก่อนส่งคืน':'พื้นที่นี้ยังไม่มีรับกะที่เปิดอยู่';
-  };
-  $('area').addEventListener('change',updateCycleHint);$('shift').addEventListener('change',updateCycleHint);
-  if(Date.now()<rolloutAt&&rolloutAt-Date.now()<2147483647)setTimeout(updateCycleHint,rolloutAt-Date.now()+1000);
-  return Object.freeze({allocate,plan,groups,time,areaKey,migrate});
-})();
+  const AREAS=['MTB-West','MTB-East','SAT-East','SAT-West','Tunnel-West','Tunnel-East'];
+  const SHIFTS=['รับกะ','ส่งคืน'];
+  const ROLLOUT_AT=Date.parse('2026-10-09T00:00:00+07:00');
+  const START_NO=12; // วันที่ 9 ต.ค. 69 เริ่มที่ MT69/0012
+  const PRE_NO=11;
+  const ANCHOR_DATE='2026-10-09';
+  const PAIR_HOURS=24;
+  const bkkDate=t=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(t));
+  const dayStart=dk=>Date.parse(dk+'T00:00:00+07:00');
+  const yyOf=dk=>String((Number(dk.slice(0,4))+543)%100).padStart(2,'0');
+  const fmtNo=(yy,n)=>'MT'+yy+'/'+String(n).padStart(4,'0');
+  const hm=t=>new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit'}).format(new Date(t));
+  const withTimeout=(p,ms,msg)=>{let t;return Promise.race([p,new Promise((_,rej)=>{t=setTimeout(()=>rej(new Error(msg||'timeout')),ms);})]).finally(()=>clearTimeout(t));};
 
+  let states={},statesServer=false;
+  function listenStates(){
+    try{fdb.collection('mt3_cycle_state').onSnapshot({includeMetadataChanges:true},snap=>{
+      const m={};snap.docs.forEach(d=>{m[d.id]=d.data();});
+      states=m;statesServer=!snap.metadata.fromCache;updateCycleHint();
+    },e=>console.warn('DocNo state',e.code));}catch(e){}
+  }
+  function nextDayNo(counter,dk){
+    const yy=yyOf(dk);
+    if(dk<ANCHOR_DATE)return{yy,no:PRE_NO};
+    if(!counter||!counter.lastDate||counter.lastDate<ANCHOR_DATE)return{yy,no:START_NO};
+    if(counter.yy!==yy)return{yy,no:1};
+    if(counter.lastDate>=dk)return{yy,no:counter.lastNo};
+    return{yy,no:counter.lastNo+1};
+  }
+  const recs=()=>(cloudRecs&&cloudRecs.length)?cloudRecs:(cache||[]);
+  function openFromRecords(area,at){
+    const lim=PAIR_HOURS*3600000;let best=null;
+    for(const r of recs()){
+      if(r.docNoV!==3||r.area!==area||typeof r.createdAt!=='number')continue;
+      if(r.createdAt>at||at-r.createdAt>lim)continue;
+      if(!best||r.createdAt>best.createdAt)best=r;
+    }
+    return best&&best.shift==='รับกะ'?{docNo:best.docNo,at:best.createdAt}:null;
+  }
+  function dayFromRecords(dk){
+    for(const r of recs())if(r.docNoV===3&&r.shift==='รับกะ'&&r.dateKey===dk&&r.docNo)return r.docNo;
+    return null;
+  }
+  function validOpen(o,at){return o&&o.docNo&&typeof o.at==='number'&&at-o.at<=PAIR_HOURS*3600000&&o.at<=at+60000;}
+  function estimate(area,shift,at){
+    const dk=bkkDate(at);
+    if(shift==='ส่งคืน'){
+      const a=states[area]||{};
+      let open=validOpen(a.v3Open,at)?a.v3Open:null;
+      if(!open&&!statesServer)open=openFromRecords(area,at);
+      if(open)return{docNo:open.docNo,paired:true,openAt:open.at};
+    }
+    const day=states['v3day_'+dk];
+    if(day&&day.docNo)return{docNo:day.docNo};
+    const fr=dayFromRecords(dk);if(fr)return{docNo:fr};
+    const r=nextDayNo(states.v3_counter||null,dk);
+    return{docNo:fmtNo(r.yy,r.no)};
+  }
+  async function allocate(area,shift,batch,at=Date.now()){
+    if(!AREAS.includes(area)||!SHIFTS.includes(shift))throw new Error('พื้นที่หรือรอบตรวจไม่ถูกต้อง');
+    const dk=bkkDate(at);
+    if(fdb&&navigator.onLine){
+      try{
+        const S=fdb.collection('mt3_cycle_state');
+        const reqRef=fdb.collection('mt3_cycle_requests').doc(batch),areaRef=S.doc(area),dayRef=S.doc('v3day_'+dk),ctrRef=S.doc('v3_counter');
+        const docNo=await withTimeout(fdb.runTransaction(async tx=>{
+          const [rq,ar,dy,ct]=await Promise.all([tx.get(reqRef),tx.get(areaRef),tx.get(dayRef),tx.get(ctrRef)]);
+          if(rq.exists&&rq.data().docNo)return rq.data().docNo;
+          const open=ar.exists?(ar.data().v3Open||null):null;
+          let doc;
+          if(shift==='ส่งคืน'&&validOpen(open,at)){
+            doc=open.docNo;
+            tx.set(areaRef,{v3Open:null,v3LastClosed:{docNo:doc,at,batch}},{merge:true});
+          }else{
+            if(dy.exists&&dy.data().docNo){doc=dy.data().docNo;}
+            else{
+              const c=ct.exists?ct.data():null,r=nextDayNo(c,dk);doc=fmtNo(r.yy,r.no);
+              tx.set(dayRef,{v:3,date:dk,no:r.no,yy:r.yy,docNo:doc,createdAt:Date.now()});
+              if(dk>=ANCHOR_DATE&&(!c||!c.lastDate||c.lastDate<dk))
+                tx.set(ctrRef,{v:3,lastDate:dk,lastNo:r.no,yy:r.yy,updatedAt:Date.now()});
+            }
+            if(shift==='รับกะ')tx.set(areaRef,{v3Open:{docNo:doc,at,batch}},{merge:true});
+          }
+          tx.set(reqRef,{v:3,docNo:doc,area,shift,createdAt:at});
+          return doc;
+        }),15000,'จองเลขช้า');
+        return docNo;
+      }catch(e){console.warn('DocNo fallback',e&&(e.code||e.message));}
+    }
+    return estimate(area,shift,at).docNo;
+  }
+  updateCycleHint=function(){
+    const el=$('cycleHint');if(!el)return;
+    const area=$('area').value,shift=$('shift').value,at=Date.now(),dk=bkkDate(at);
+    const e=estimate(area,shift,at);
+    let note;
+    if(e.paired)note='ส่งคืนคู่กับรับกะของพื้นที่นี้เมื่อ '+hm(e.openAt)+' น. — ใช้เลขเดียวกัน';
+    else if(dk<ANCHOR_DATE)note='ตั้งแต่ '+thDate(new Date(dayStart(ANCHOR_DATE)))+' ทุกพื้นที่เริ่มเลข '+fmtNo(yyOf(ANCHOR_DATE),START_NO);
+    else note='รอบวันที่ '+thDate(new Date(dayStart(dk)))+' — ทุกพื้นที่ รับกะ/ส่งคืน ใช้เลขเดียวกัน • วันถัดไปรันต่ออัตโนมัติ';
+    if(shift==='ส่งคืน'&&!e.paired)note+=' (ไม่พบรับกะค้างของพื้นที่นี้ จึงใช้เลขรอบวันนี้)';
+    if(!statesServer)note+=' • กำลังยืนยันกับฐานข้อมูลกลาง';
+    el.className='cyclebox newc';
+    el.innerHTML='📄 <b>'+esc(area)+'</b> • '+esc(shift)+' → เลขที่เอกสาร <b>'+esc(e.docNo)+'</b><br><span style="opacity:.85">'+esc(note)+'</span>';
+  };
+  const oldInit=initCloud;
+  initCloud=function(){const ok=oldInit();if(ok){listenStates();}return ok;};
+  return Object.freeze({allocate,estimate,updateHint:updateCycleHint});
+})();
 async function mt3SubmitCycle(){
   if(submitting){ showStatus('status','⏳ กำลังบันทึกอยู่ กรุณารอสักครู่ — ห้ามกดซ้ำ','info'); return; }
   const btn=$('submitBtn');
@@ -1737,32 +1321,26 @@ async function mt3SubmitCycle(){
     const dups=photos.filter(p=>p.isDup);
     if(dups.length){const i=dups[0].dupInfo;
       if(!confirm(`⚠️ พบภาพซ้ำ ${dups.length} รูป\nตรงกับรายงานเมื่อ: ${i?i.timestamp:'-'} (${i?i.area:'-'})\n\nยืนยันบันทึกต่อหรือไม่?`))return;}
-
-    const now=new Date();
+    const now=new Date(),at=now.getTime();
     const ts=now.toLocaleString('th-TH',{timeZone:'Asia/Bangkok',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','');
     const dateKey=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
-    const batch='B'+now.getTime()+'_'+crypto.randomUUID().slice(0,8);
-    showStatus('status','⏳ กำลังบันทึกและส่งขึ้นฐานข้อมูลกลาง...','info');
-
-    const dno=await MT3Cycles.allocate(area,shift,batch,now.getTime());
+    const batch='B'+at+'_'+(window.crypto&&crypto.randomUUID?crypto.randomUUID().slice(0,8):Math.random().toString(36).slice(2,10));
+    showStatus('status','⏳ กำลังจองเลขที่เอกสารกลาง...','info');
+    const dno=await MT3Cycles.allocate(area,shift,batch,at);
     const cnt=photos.length,hasDup=photos.some(p=>p.isDup);
     let upFail=0;
-
     for(let i=0;i<photos.length;i++){
       const p=photos[i];
       try{ if(db) await addRec({timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:p.b64,isDup:p.isDup,batch,docNo:dno}); }catch(e){}
       try{
         const cimg=await makeCloudImg(p.b64);
         await cloudSet(batch+'_'+i,{timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:cimg,
-          isDup:p.isDup,batch,idx:i,docNo:dno,device:navigator.userAgent.slice(0,80)});
+          isDup:p.isDup,batch,idx:i,docNo:dno,docNoV:3,device:navigator.userAgent.slice(0,80)});
       }catch(e){ upFail++; console.error('อัปโหลดคลาวด์ไม่สำเร็จ',e); }
     }
-
     const lineOK=await notifyLine({ts,dateKey,area,shift,inspector,note,docNo:dno,count:cnt,dup:hasDup,batch});
-
     if(upFail) showStatus('status',`⚠️ บันทึกในเครื่องแล้ว ${cnt} รูป\nแต่ส่งขึ้นฐานข้อมูลกลางไม่สำเร็จ ${upFail} รูป\nตรวจสอบอินเทอร์เน็ต / ค่า Firebase`,'err');
     else showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป\n📄 เลขที่เอกสาร ${dno}\n${lineOK?'📨 แจ้งเตือนเข้าไลน์กลุ่มแล้ว':'⚠️ ยังไม่ได้ตั้งค่าแจ้งเตือนไลน์'}\n${area} • ${shift} • ${inspector}`,'ok');
-
     showSaveCard({area,shift,inspector,docNo:dno,ts:thDate(now)+' '+thTime(now),count:cnt,note,dup:hasDup});
     photos=[];renderThumbs();$('note').value='';
     loadHistory();
@@ -1775,8 +1353,7 @@ async function mt3SubmitCycle(){
   }
 }
 MT3Reliability.setSubmit(mt3SubmitCycle);
-
-/* One editable page model supplies both the PDF print view and native XLSX. */
+/* Report Builder & Export Tools */
 const MT3Report=(()=>{
   const widths=[10,22,25,22,16,30,51,14],pageHeight=771,font='Tahoma';
   const styles=[
@@ -1811,12 +1388,12 @@ const MT3Report=(()=>{
     row(page,16,[cell(0,6,c.footer,9),cell(6,2,c.form,9)]);
   }
   function grouped(records){
-    return MT3Cycles.groups(records).map(g=>{const r=g.first;return {batch:g.key,sortTime:g.time,timestamp:r.timestamp,docNo:r.docNo,area:r.area,shift:r.shift,inspector:MT3Access.normalizeName(r.inspector),note:[...new Set(g.items.map(x=>x.note).filter(Boolean))].join(' / '),isDup:g.items.some(x=>x.isDup),count:g.items.length};}).reverse();
+    return MT3Cycles.groups?MT3Cycles.groups(records):records;
   }
-  groupByBatch=()=>grouped(cache);
+  groupByBatch=()=>groupByBatch();
   const previousExportExcel=exportExcel;exportExcel=()=>{const original=cache;try{cache=cache.map(r=>Object.assign({},r,{inspector:MT3Access.normalizeName(r.inspector)}));return previousExportExcel();}finally{cache=original;}};
   function build(records,c,author,filters,logo){
-    const g=grouped(records),range=docRangeLabel(g),pages=[],physical=[];
+    const g=groupByBatch(),range=docRangeLabel(g),pages=[],physical=[];
     for(let i=0;i<g.length;i++){
       const r=g[i],notes=wrap((r.note||'-').replace(/\n/g,' / '),51,9).split('\n');
       for(let j=0;j<notes.length;j+=8){const values=[j?String(i+1)+' (ต่อ)':i+1,r.docNo||'-',String(r.timestamp||'').replace(/\s+/, '\n'),r.area,r.shift,r.inspector,notes.slice(j,j+8).join('\n'),r.isDup?'ซ้ำ':'ปกติ'];
@@ -1827,7 +1404,7 @@ const MT3Report=(()=>{
     const portions=[];let portion=[],height=0;
     for(const r of physical){if(portion.length&&(portion.length>=18||height+r.height>390)){portions.push(portion);portion=[];height=0;}portion.push(r);height+=r.height;}
     if(portion.length)portions.push(portion);
-    const photoChunks=[];for(const area of [...new Set(records.map(r=>r.area))]){const list=records.filter(r=>r.area===area);for(let i=0;i<list.length;i+=6)photoChunks.push({area,items:list.slice(i,i+6),offset:i,total:list.length,part:Math.floor(i/6)+1,parts:Math.ceil(list.length/6)});}
+    const photoChunks=[];for(const area of [...new Set(records.map(r=>r.area))]){const list=records.filter(r=>r.area===area);for(let i=0;i<list.length;i+=6)photoChunks.push({area,items:list.slice(i,i+6),offset:i,total:list.length,part:Math.floor(i/6)+1,parts:Math.ceil(list.length/6)});_}
     const total=portions.length+photoChunks.length;
     portions.forEach((part,index)=>{
       const p={rows:[],images:[],docRange:range};header(p,c,c.title,'วันที่ออกเอกสาร '+thDate(new Date()),logo);
@@ -1876,623 +1453,9 @@ const MT3Report=(()=>{
     const memo=new Map();for(const p of model.pages)for(const im of p.images){if(im.record){const src=im.record.img;if(!memo.has(src))memo.set(src,await imageAsset(src));Object.assign(im,memo.get(src));delete im.record;}Object.assign(im,fit(im,p.widths||widths));}
     return model;
   }
- <!-- ===== MT3 FastSync + DocNo v3 (2026-10-08) — วางก่อน </body> ===== -->
-<script>
-/* MT3 FastSync & DocNo v3 — additive layer, original lines untouched
- * 1) Fast connect: windowed realtime history + cache-first paint + auto reconnect + parallel upload
- * 2) Removes legacy "จัดเลขย้อนหลังตั้งแต่ 20/09/69"
- * 3) Daily shared doc number: 2026-10-09 = MT69/0012 (all areas, รับกะ/ส่งคืน), +1 per operating day
- * 4) Cross-device sync: realtime + outbox retry + sync-now + shared report header
- */
-(function(){
-'use strict';
-if(window.MT3FastSync)return;
-const CFG={
-  ANCHOR_DATE:'2026-10-09', // วันเริ่มเลขชุดใหม่ (เวลาไทย)
-  START_NO:12,              // เลขของวันเริ่ม -> MT69/0012
-  PRE_NO:11,                // เลขที่ใช้ก่อนวันเริ่ม
-  PAIR_HOURS:24,            // ส่งคืนใช้เลขเดียวกับรับกะของพื้นที่เดียวกันภายใน 24 ชม.
-  DEFAULT_DAYS:2,           // ช่วงประวัติเริ่มต้น = วันนี้ + เมื่อวาน
-  RECONNECT_MS:12000,
-  GIVEUP_MS:28000,
-  ALLOC_TIMEOUT_MS:15000
-};
-const DAY=86400000;
-const bkkDate=t=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(t));
-const dayStart=dk=>Date.parse(dk+'T00:00:00+07:00');
-const yyOf=dk=>String((Number(dk.slice(0,4))+543)%100).padStart(2,'0');
-const fmtNo=(yy,n)=>'MT'+yy+'/'+String(n).padStart(4,'0');
-const hm=t=>new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit'}).format(new Date(t));
-const hms=t=>new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(t));
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const withTimeout=(p,ms,msg)=>{let t;return Promise.race([p,new Promise((_,rej)=>{t=setTimeout(()=>rej(new Error(msg||'timeout')),ms);})]).finally(()=>clearTimeout(t));};
-
-/* ---------- 1) ช่วงประวัติแบบเบา (realtime เฉพาะช่วงที่เลือก) ---------- */
-let histDays=(()=>{try{const v=sessionStorage.getItem('mt3_hist_days');return v===null?CFG.DEFAULT_DAYS:(Number(v)||0);}catch(e){return CFG.DEFAULT_DAYS;}})();
-function windowStart(){if(!histDays)return 0;return dayStart(bkkDate(Date.now()))-(histDays-1)*DAY;}
-function rangeLabel(){return !histDays?'ทั้งหมด (≤1,200)':histDays===2?'วันนี้+เมื่อวาน':histDays+' วัน';}
-function wrapCol(real){
-  if(!real||real.__mt3v3)return real;
-  return new Proxy(real,{get(t,p){
-    if(p==='__mt3v3')return true;
-    if(p==='__real')return t;
-    if(p==='orderBy')return function(field,dir){
-      let q=t.orderBy(field,dir);const ws=windowStart();
-      if(field==='createdAt'&&ws>0)q=q.where('createdAt','>=',ws);
-      return q;};
-    const v=Reflect.get(t,p,t);return typeof v==='function'?v.bind(t):v;
-  }});
-}
-
-/* ---------- แสดงแคชทันที ---------- */
-let fastCache=null;
-async function paintFromCache(){
-  try{
-    if(!COL||cloudReady)return;
-    const snap=await COL.orderBy('createdAt','desc').limit(60).get({source:'cache'});
-    if(cloudReady||!snap.size)return;
-    fastCache=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
-    loadHistory();updateCycleHint();
-  }catch(e){}
-}
-const _loadHistory=loadHistory;
-loadHistory=function(){
-  if(!cloudReady){
-    const src=(cloudRecs&&cloudRecs.length)?cloudRecs:fastCache;
-    if(src&&src.length){
-      const keep=cloudRecs;cloudRecs=src;cloudReady=true;
-      try{return _loadHistory.apply(this,arguments);}finally{cloudReady=false;cloudRecs=keep;}
-    }
-  }
-  return _loadHistory.apply(this,arguments);
-};
-
-/* ---------- แถบสถานะ: เวลาเชื่อมต่อ / ช่วงประวัติ / อัปเดตล่าสุด ---------- */
-let connMs=null,lastOkAt=0,lastSync=null,lastRef=null,rescueTimer=null,giveTimer=null;
-const _setSync=setSync;
-setSync=function(txt,cls){
-  lastSync=[txt,cls];
-  let s=String(txt||'')+' • ช่วงประวัติ: '+rangeLabel();
-  if(cloudReady&&connMs!=null)s+=' • ⚡ พร้อมใน '+(connMs/1000).toFixed(1)+' วิ';
-  if(lastOkAt)s+=' • อัปเดต '+hms(lastOkAt);
-  return _setSync.call(this,s,cls);
-};
-function refreshBanner(){if(lastSync)setSync(lastSync[0],lastSync[1]);}
-setInterval(()=>{
-  if(!cloudReady)return;
-  if(connMs==null){connMs=performance.now();refreshBanner();}
-  if(cloudRecs!==lastRef){lastRef=cloudRecs;lastOkAt=Date.now();refreshBanner();}
-},1000);
-
-/* ---------- เชื่อมต่อใหม่อัตโนมัติ ---------- */
-function armRescue(){
-  clearTimeout(rescueTimer);clearTimeout(giveTimer);
-  rescueTimer=setTimeout(async()=>{
-    if(cloudReady||!navigator.onLine||!fdb)return;
-    try{await fdb.disableNetwork();await sleep(300);await fdb.enableNetwork();}catch(e){}
-    try{startCloudSync();}catch(e){}
-  },CFG.RECONNECT_MS);
-  giveTimer=setTimeout(()=>{
-    if(cloudReady)return;
-    showStatus('expStatus',navigator.onLine
-      ?'⚠️ เครือข่ายนี้เชื่อมฐานข้อมูลกลางช้า — กด "🔄 ซิงค์ทันที" หรือสลับ Wi-Fi/4G (รายงานที่บันทึกจะอยู่ในคิวและส่งอัตโนมัติ ไม่หาย)'
-      :'📴 ออฟไลน์ — บันทึกได้ตามปกติ ระบบจะส่งให้อัตโนมัติเมื่อมีสัญญาณ','err');
-  },CFG.GIVEUP_MS);
-}
-function restart(){
-  fastCache=null;
-  try{startCloudSync();}catch(e){console.warn('sync',e);}
-  paintFromCache();armRescue();
-}
-function setRange(days){
-  histDays=Math.max(0,Number(days)||0);
-  try{sessionStorage.setItem('mt3_hist_days',String(histDays));}catch(e){}
-  const sel=$('mt3v3Range');
-  if(sel){
-    if(![...sel.options].some(o=>o.value===String(histDays))){const o=document.createElement('option');o.value=String(histDays);o.textContent='ย้อนหลัง '+histDays+' วัน';sel.appendChild(o);}
-    sel.value=String(histDays);
-  }
-  showStatus('expStatus','⏳ กำลังโหลดประวัติช่วง '+rangeLabel()+' ...','info');
-  restart();
-}
-function autoExpand(){
-  const d=$('fDate')&&$('fDate').value;if(!d)return;
-  const ws=windowStart();if(!ws)return;
-  const t=dayStart(d);if(t>=ws)return;
-  const need=Math.round((dayStart(bkkDate(Date.now()))-t)/DAY)+1;
-  setRange(need<=7?7:need<=31?31:0);
-}
-async function syncNow(){
-  const b=$('mt3v3SyncNow');if(b){b.disabled=true;b.textContent='⏳ กำลังซิงค์...';}
-  try{
-    if(fdb){try{await fdb.enableNetwork();}catch(e){}}
-    restart();
-    try{await withTimeout(MT3Reliability.retry(),20000);}catch(e){}
-    let q=[];try{q=await MT3Reliability.pending();}catch(e){}
-    showStatus('expStatus',q.length?'⏫ ยังมีรายการรอส่ง '+q.length+' รายการ — ระบบจะส่งต่ออัตโนมัติ':'✅ ซิงค์ข้อมูลกับฐานข้อมูลกลางแล้ว',q.length?'info':'ok');
-  }finally{if(b){b.disabled=false;b.textContent='🔄 ซิงค์ทันที';}}
-}
-function insertBar(){
-  const sb=$('syncBar');if(!sb||$('mt3v3Bar'))return;
-  const bar=document.createElement('div');bar.id='mt3v3Bar';bar.className='row';bar.style.cssText='margin-top:8px;align-items:center';
-  bar.innerHTML='<select id="mt3v3Range" style="flex:1;padding:9px;font-size:13px">'+
-    '<option value="2">ประวัติ: วันนี้ + เมื่อวาน (เร็วที่สุด)</option>'+
-    '<option value="7">ย้อนหลัง 7 วัน</option>'+
-    '<option value="31">ย้อนหลัง 31 วัน</option>'+
-    '<option value="0">ทั้งหมด (สูงสุด 1,200 รูป • ช้า)</option></select>'+
-    '<button type="button" id="mt3v3SyncNow" class="btn btn-gallery btn-sm" style="flex:0 0 auto;width:auto;padding:9px 12px">🔄 ซิงค์ทันที</button>';
-  sb.after(bar);
-  const sel=$('mt3v3Range');
-  if(![...sel.options].some(o=>o.value===String(histDays))){const o=document.createElement('option');o.value=String(histDays);o.textContent='ย้อนหลัง '+histDays+' วัน';sel.appendChild(o);}
-  sel.value=String(histDays);
-  sel.onchange=()=>setRange(Number(sel.value));
-  $('mt3v3SyncNow').onclick=syncNow;
-  const fd=$('fDate');if(fd)fd.addEventListener('change',autoExpand);
-}
-addEventListener('online',()=>{if(fdb)fdb.enableNetwork().catch(()=>{});setTimeout(()=>{if(!cloudReady)restart();},1500);});
-let hiddenAt=0;
-document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='hidden'){hiddenAt=Date.now();return;}
-  const away=hiddenAt?Date.now()-hiddenAt:0;hiddenAt=0;
-  if(away>180000&&navigator.onLine&&COL)restart();
-  updateCycleHint();
-});
-
-/* ---------- 3) เลขที่เอกสารรายวัน ใช้ร่วมทุกพื้นที่ ---------- */
-let states={},statesServer=false;
-function listenStates(){
-  try{fdb.collection('mt3_cycle_state').onSnapshot({includeMetadataChanges:true},snap=>{
-    const m={};snap.docs.forEach(d=>{m[d.id]=d.data();});
-    states=m;statesServer=!snap.metadata.fromCache;updateCycleHint();
-  },e=>console.warn('DocNo state',e.code));}catch(e){}
-}
-function nextDayNo(counter,dk){
-  const yy=yyOf(dk);
-  if(dk<CFG.ANCHOR_DATE)return{yy,no:CFG.PRE_NO};
-  if(!counter||!counter.lastDate||counter.lastDate<CFG.ANCHOR_DATE)return{yy,no:CFG.START_NO};
-  if(counter.yy!==yy)return{yy,no:1};                 // ขึ้นปี พ.ศ. ใหม่ เริ่ม 0001
-  if(counter.lastDate>=dk)return{yy,no:counter.lastNo};
-  return{yy,no:counter.lastNo+1};                      // วันทำงานถัดไป รันต่อ
-}
-const recs=()=>(cloudRecs&&cloudRecs.length)?cloudRecs:(fastCache||[]);
-function openFromRecords(area,at){
-  const lim=CFG.PAIR_HOURS*3600000;let best=null;
-  for(const r of recs()){
-    if(r.docNoV!==3||r.area!==area||typeof r.createdAt!=='number')continue;
-    if(r.createdAt>at||at-r.createdAt>lim)continue;
-    if(!best||r.createdAt>best.createdAt)best=r;
-  }
-  return best&&best.shift==='รับกะ'?{docNo:best.docNo,at:best.createdAt}:null;
-}
-function dayFromRecords(dk){
-  for(const r of recs())if(r.docNoV===3&&r.shift==='รับกะ'&&r.dateKey===dk&&r.docNo)return r.docNo;
-  return null;
-}
-function validOpen(o,at){return o&&o.docNo&&typeof o.at==='number'&&at-o.at<=CFG.PAIR_HOURS*3600000&&o.at<=at+60000;}
-function estimate(area,shift,at){
-  const dk=bkkDate(at);
-  if(shift==='ส่งคืน'){
-    const a=states[area]||{};
-    let open=validOpen(a.v3Open,at)?a.v3Open:null;
-    if(!open&&!statesServer)open=openFromRecords(area,at);
-    if(open)return{docNo:open.docNo,paired:true,openAt:open.at};
-  }
-  const day=states['v3day_'+dk];
-  if(day&&day.docNo)return{docNo:day.docNo};
-  const fr=dayFromRecords(dk);if(fr)return{docNo:fr};
-  const r=nextDayNo(states.v3_counter||null,ผมอ่านไฟล์จริงที่คุณแนบมาครบทั้ง 1,880 บรรทัดแล้วครับ ก่อนอื่นมีเรื่องสำคัญต้องบอก
-
-> ⚠️ **ไฟล์ HTML "ฉบับสมบูรณ์" ที่ผมให้ไปรอบก่อน ไม่ได้ทำจากไฟล์นี้** ในไฟล์จริงของคุณมีระบบแอดมิน 6 คน คิวส่งซ้ำ (outbox) ระบบเลขรอบ และรายงาน A4/Excel แต่ฉบับรอบก่อนไม่มีของพวกนี้เลย **อย่านำฉบับนั้นไปวางทับใน GitHub** ขออภัยด้วยครับ รอบนี้ผมทำจากไฟล์จริงทั้งหมด
-
-## ต้นเหตุที่เชื่อมฐานข้อมูลกลางช้า
-
-| จุดที่พบ (บรรทัด) | ผลกระทบ |
-|---|---|
-| ทุกครั้งที่เปิดแอป ระบบดึง `reports` ล่าสุดถึง **1,200 รายการ** (1389) และแต่ละรายการเก็บ**รูปเต็มไว้ในตัวเอกสาร** | รูปละประมาณ 100 KB ขึ้นไป รวมแล้วอาจหลายสิบถึงหลายร้อย MB ต่อการเปิดแอปหนึ่งครั้ง |
-| ข้อมูลก้อนใหญ่วิ่งผ่านช่องเชื่อมต่อเดียวกับข้อมูลเรียลไทม์ | การอัปเดตเรียลไทม์ต้องรอคิวข้อมูลก้อนใหญ่ จึงดูเหมือนไม่เรียลไทม์ |
-| ข้อมูลที่แคชไว้ในเครื่องไม่ถูกนำมาแสดง (1391) | หน้าประวัติว่างอยู่จนกว่าเซิร์ฟเวอร์จะตอบ |
-| ตอนบันทึก ส่งรูปทีละรูป แต่ละรูปรอได้ถึง 12 วิ (1608–1616) | ถ้ามี 5 รูป อาจต้องรอเกือบ 1 นาที |
-| เลขเอกสารนับแยกตามพื้นที่ (1475–1587) | ถ้าพื้นที่ใดส่งรับกะซ้ำ เลขของพื้นที่นั้นจะวิ่งเลยพื้นที่อื่น ส่งคืนจะโดนบล็อกถ้าไม่มีรับกะ และก่อนวันที่ 9 ต.ค. แอดมินต้องกดจัดเลขย้อนหลังก่อนถึงจะส่งรายงานได้ |
-| บั๊ก: `clearLog` เทียบคำยืนยันกับ `'l้างlog'` (ตัว l เป็นอักษรอังกฤษ) (1152) | กดล้าง Log ไม่ได้ตลอดไป |
-
-## สิ่งที่บล็อกใหม่นี้ทำ
-
-1. **เชื่อมต่อเร็ว:** ค่าเริ่มต้นโหลดประวัติแค่ **วันนี้ + เมื่อวาน** ซึ่งเบากว่าเดิมหลายสิบเท่า และยังเป็นเรียลไทม์เหมือนเดิม
-   - แสดงข้อมูลจากแคชในเครื่องทันทีที่เปิดแอป
-   - ถ้า 12 วิยังเชื่อมไม่ติด ระบบจะรีสตาร์ทการเชื่อมต่อเอง
-   - ส่งรูปพร้อมกันทุกรูป
-   - แถบสถานะบอกว่าพร้อมใช้งานในกี่วินาที
-   - ถ้าต้องการดูย้อนหลัง เลือกช่วง 7 วัน, 31 วัน หรือทั้งหมดได้ และถ้าเลือก "กรองตามวันที่" เป็นวันเก่า ระบบจะขยายช่วงให้เอง
-2. **เอาระบบ "จัดเลขย้อนหลังตั้งแต่ 20/09/69" ออก:** ทั้งปุ่ม ข้อความเตือน และเงื่อนไขที่บล็อกการส่งรายงาน
-3. **เลขเอกสารแบบรายวันใช้ร่วมทุกพื้นที่:** วันที่ 09/10/2569 ทุกพื้นที่ทั้งรับกะและส่งคืนใช้ **MT69/0012** วันถัดไปเป็น 0013, 0014 ต่อไปเรื่อย ๆ ระบบจองเลขผ่านฐานข้อมูลกลาง ทุกเครื่องจึงได้เลขเดียวกันและไม่วิ่งเลยกัน
-4. **ซิงค์ทุกเครื่อง:**
-   - ข้อมูลเรียลไทม์ทุกเครื่อง
-   - คิวส่งซ้ำอัตโนมัติ และมีปุ่ม **🔄 ซิงค์ทันที**
-   - เชื่อมต่อใหม่ให้เองเมื่อกลับมาออนไลน์หรือกลับมาเปิดแอป
-   - หัวกระดาษรายงานซิงค์จากเครื่องแอดมินไปทุกเครื่อง
-   - แก้บั๊กล้าง Log ให้ด้วย
-
-## วิธีติดตั้ง (ไม่ต้องแก้บรรทัดเดิมเลย)
-
-วางบล็อกด้านล่าง**ระหว่างบรรทัด 1878 `</script>` กับบรรทัด 1879 `</body>`** แล้ว commit ขึ้น GitHub ได้เลย
-
-ที่ไม่ส่งไฟล์เต็ม 1,880 บรรทัด เพราะไฟล์ที่อัปโหลดถูกแปลงเป็น CSV ทำให้จุลภาคท้ายบรรทัดหายไปหลายจุด (เช่นบรรทัด 298, 308–314) ถ้าผมประกอบไฟล์กลับทั้งหมด โค้ดอาจพังโดยไม่มีใครเห็น การวางบล็อกเพิ่มจึงปลอดภัยกว่า และโค้ดเดิมยังเหมือนเดิมทุกบรรทัด
-
-```html
-<!-- ===== MT3 FastSync + DocNo v3 (2026-10-08) — วางก่อน </body> ===== -->
-<script>
-/* MT3 FastSync & DocNo v3 — additive layer, original lines untouched
- * 1) Fast connect: windowed realtime history + cache-first paint + auto reconnect + parallel upload
- * 2) Removes legacy "จัดเลขย้อนหลังตั้งแต่ 20/09/69"
- * 3) Daily shared doc number: 2026-10-09 = MT69/0012 (all areas, รับกะ/ส่งคืน), +1 per operating day
- * 4) Cross-device sync: realtime + outbox retry + sync-now + shared report header
- */
-(function(){
-'use strict';
-if(window.MT3FastSync)return;
-const CFG={
-  ANCHOR_DATE:'2026-10-09', // วันเริ่มเลขชุดใหม่ (เวลาไทย)
-  START_NO:12,              // เลขของวันเริ่ม -> MT69/0012
-  PRE_NO:11,                // เลขที่ใช้ก่อนวันเริ่ม
-  PAIR_HOURS:24,            // ส่งคืนใช้เลขเดียวกับรับกะของพื้นที่เดียวกันภายใน 24 ชม.
-  DEFAULT_DAYS:2,           // ช่วงประวัติเริ่มต้น = วันนี้ + เมื่อวาน
-  RECONNECT_MS:12000,
-  GIVEUP_MS:28000,
-  ALLOC_TIMEOUT_MS:15000
-};
-const DAY=86400000;
-const bkkDate=t=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(t));
-const dayStart=dk=>Date.parse(dk+'T00:00:00+07:00');
-const yyOf=dk=>String((Number(dk.slice(0,4))+543)%100).padStart(2,'0');
-const fmtNo=(yy,n)=>'MT'+yy+'/'+String(n).padStart(4,'0');
-const hm=t=>new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit'}).format(new Date(t));
-const hms=t=>new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(t));
-const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const withTimeout=(p,ms,msg)=>{let t;return Promise.race([p,new Promise((_,rej)=>{t=setTimeout(()=>rej(new Error(msg||'timeout')),ms);})]).finally(()=>clearTimeout(t));};
-
-/* ---------- 1) ช่วงประวัติแบบเบา (realtime เฉพาะช่วงที่เลือก) ---------- */
-let histDays=(()=>{try{const v=sessionStorage.getItem('mt3_hist_days');return v===null?CFG.DEFAULT_DAYS:(Number(v)||0);}catch(e){return CFG.DEFAULT_DAYS;}})();
-function windowStart(){if(!histDays)return 0;return dayStart(bkkDate(Date.now()))-(histDays-1)*DAY;}
-function rangeLabel(){return !histDays?'ทั้งหมด (≤1,200)':histDays===2?'วันนี้+เมื่อวาน':histDays+' วัน';}
-function wrapCol(real){
-  if(!real||real.__mt3v3)return real;
-  return new Proxy(real,{get(t,p){
-    if(p==='__mt3v3')return true;
-    if(p==='__real')return t;
-    if(p==='orderBy')return function(field,dir){
-      let q=t.orderBy(field,dir);const ws=windowStart();
-      if(field==='createdAt'&&ws>0)q=q.where('createdAt','>=',ws);
-      return q;};
-    const v=Reflect.get(t,p,t);return typeof v==='function'?v.bind(t):v;
-  }});
-}
-
-/* ---------- แสดงแคชทันที ---------- */
-let fastCache=null;
-async function paintFromCache(){
-  try{
-    if(!COL||cloudReady)return;
-    const snap=await COL.orderBy('createdAt','desc').limit(60).get({source:'cache'});
-    if(cloudReady||!snap.size)return;
-    fastCache=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
-    loadHistory();updateCycleHint();
-  }catch(e){}
-}
-const _loadHistory=loadHistory;
-loadHistory=function(){
-  if(!cloudReady){
-    const src=(cloudRecs&&cloudRecs.length)?cloudRecs:fastCache;
-    if(src&&src.length){
-      const keep=cloudRecs;cloudRecs=src;cloudReady=true;
-      try{return _loadHistory.apply(this,arguments);}finally{cloudReady=false;cloudRecs=keep;}
-    }
-  }
-  return _loadHistory.apply(this,arguments);
-};
-
-/* ---------- แถบสถานะ: เวลาเชื่อมต่อ / ช่วงประวัติ / อัปเดตล่าสุด ---------- */
-let connMs=null,lastOkAt=0,lastSync=null,lastRef=null,rescueTimer=null,giveTimer=null;
-const _setSync=setSync;
-setSync=function(txt,cls){
-  lastSync=[txt,cls];
-  let s=String(txt||'')+' • ช่วงประวัติ: '+rangeLabel();
-  if(cloudReady&&connMs!=null)s+=' • ⚡ พร้อมใน '+(connMs/1000).toFixed(1)+' วิ';
-  if(lastOkAt)s+=' • อัปเดต '+hms(lastOkAt);
-  return _setSync.call(this,s,cls);
-};
-function refreshBanner(){if(lastSync)setSync(lastSync[0],lastSync[1]);}
-setInterval(()=>{
-  if(!cloudReady)return;
-  if(connMs==null){connMs=performance.now();refreshBanner();}
-  if(cloudRecs!==lastRef){lastRef=cloudRecs;lastOkAt=Date.now();refreshBanner();}
-},1000);
-
-/* ---------- เชื่อมต่อใหม่อัตโนมัติ ---------- */
-function armRescue(){
-  clearTimeout(rescueTimer);clearTimeout(giveTimer);
-  rescueTimer=setTimeout(async()=>{
-    if(cloudReady||!navigator.onLine||!fdb)return;
-    try{await fdb.disableNetwork();await sleep(300);await fdb.enableNetwork();}catch(e){}
-    try{startCloudSync();}catch(e){}
-  },CFG.RECONNECT_MS);
-  giveTimer=setTimeout(()=>{
-    if(cloudReady)return;
-    showStatus('expStatus',navigator.onLine
-      ?'⚠️ เครือข่ายนี้เชื่อมฐานข้อมูลกลางช้า — กด "🔄 ซิงค์ทันที" หรือสลับ Wi-Fi/4G (รายงานที่บันทึกจะอยู่ในคิวและส่งอัตโนมัติ ไม่หาย)'
-      :'📴 ออฟไลน์ — บันทึกได้ตามปกติ ระบบจะส่งให้อัตโนมัติเมื่อมีสัญญาณ','err');
-  },CFG.GIVEUP_MS);
-}
-function restart(){
-  fastCache=null;
-  try{startCloudSync();}catch(e){console.warn('sync',e);}
-  paintFromCache();armRescue();
-}
-function setRange(days){
-  histDays=Math.max(0,Number(days)||0);
-  try{sessionStorage.setItem('mt3_hist_days',String(histDays));}catch(e){}
-  const sel=$('mt3v3Range');
-  if(sel){
-    if(![...sel.options].some(o=>o.value===String(histDays))){const o=document.createElement('option');o.value=String(histDays);o.textContent='ย้อนหลัง '+histDays+' วัน';sel.appendChild(o);}
-    sel.value=String(histDays);
-  }
-  showStatus('expStatus','⏳ กำลังโหลดประวัติช่วง '+rangeLabel()+' ...','info');
-  restart();
-}
-function autoExpand(){
-  const d=$('fDate')&&$('fDate').value;if(!d)return;
-  const ws=windowStart();if(!ws)return;
-  const t=dayStart(d);if(t>=ws)return;
-  const need=Math.round((dayStart(bkkDate(Date.now()))-t)/DAY)+1;
-  setRange(need<=7?7:need<=31?31:0);
-}
-async function syncNow(){
-  const b=$('mt3v3SyncNow');if(b){b.disabled=true;b.textContent='⏳ กำลังซิงค์...';}
-  try{
-    if(fdb){try{await fdb.enableNetwork();}catch(e){}}
-    restart();
-    try{await withTimeout(MT3Reliability.retry(),20000);}catch(e){}
-    let q=[];try{q=await MT3Reliability.pending();}catch(e){}
-    showStatus('expStatus',q.length?'⏫ ยังมีรายการรอส่ง '+q.length+' รายการ — ระบบจะส่งต่ออัตโนมัติ':'✅ ซิงค์ข้อมูลกับฐานข้อมูลกลางแล้ว',q.length?'info':'ok');
-  }finally{if(b){b.disabled=false;b.textContent='🔄 ซิงค์ทันที';}}
-}
-function insertBar(){
-  const sb=$('syncBar');if(!sb||$('mt3v3Bar'))return;
-  const bar=document.createElement('div');bar.id='mt3v3Bar';bar.className='row';bar.style.cssText='margin-top:8px;align-items:center';
-  bar.innerHTML='<select id="mt3v3Range" style="flex:1;padding:9px;font-size:13px">'+
-    '<option value="2">ประวัติ: วันนี้ + เมื่อวาน (เร็วที่สุด)</option>'+
-    '<option value="7">ย้อนหลัง 7 วัน</option>'+
-    '<option value="31">ย้อนหลัง 31 วัน</option>'+
-    '<option value="0">ทั้งหมด (สูงสุด 1,200 รูป • ช้า)</option></select>'+
-    '<button type="button" id="mt3v3SyncNow" class="btn btn-gallery btn-sm" style="flex:0 0 auto;width:auto;padding:9px 12px">🔄 ซิงค์ทันที</button>';
-  sb.after(bar);
-  const sel=$('mt3v3Range');
-  if(![...sel.options].some(o=>o.value===String(histDays))){const o=document.createElement('option');o.value=String(histDays);o.textContent='ย้อนหลัง '+histDays+' วัน';sel.appendChild(o);}
-  sel.value=String(histDays);
-  sel.onchange=()=>setRange(Number(sel.value));
-  $('mt3v3SyncNow').onclick=syncNow;
-  const fd=$('fDate');if(fd)fd.addEventListener('change',autoExpand);
-}
-addEventListener('online',()=>{if(fdb)fdb.enableNetwork().catch(()=>{});setTimeout(()=>{if(!cloudReady)restart();},1500);});
-let hiddenAt=0;
-document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='hidden'){hiddenAt=Date.now();return;}
-  const away=hiddenAt?Date.now()-hiddenAt:0;hiddenAt=0;
-  if(away>180000&&navigator.onLine&&COL)restart();
-  updateCycleHint();
-});
-
-/* ---------- 3) เลขที่เอกสารรายวัน ใช้ร่วมทุกพื้นที่ ---------- */
-let states={},statesServer=false;
-function listenStates(){
-  try{fdb.collection('mt3_cycle_state').onSnapshot({includeMetadataChanges:true},snap=>{
-    const m={};snap.docs.forEach(d=>{m[d.id]=d.data();});
-    states=m;statesServer=!snap.metadata.fromCache;updateCycleHint();
-  },e=>console.warn('DocNo state',e.code));}catch(e){}
-}
-function nextDayNo(counter,dk){
-  const yy=yyOf(dk);
-  if(dk<CFG.ANCHOR_DATE)return{yy,no:CFG.PRE_NO};
-  if(!counter||!counter.lastDate||counter.lastDate<CFG.ANCHOR_DATE)return{yy,no:CFG.START_NO};
-  if(counter.yy!==yy)return{yy,no:1};                 // ขึ้นปี พ.ศ. ใหม่ เริ่ม 0001
-  if(counter.lastDate>=dk)return{yy,no:counter.lastNo};
-  return{yy,no:counter.lastNo+1};                      // วันทำงานถัดไป รันต่อ
-}
-const recs=()=>(cloudRecs&&cloudRecs.length)?cloudRecs:(fastCache||[]);
-function openFromRecords(area,at){
-  const lim=CFG.PAIR_HOURS*3600000;let best=null;
-  for(const r of recs()){
-    if(r.docNoV!==3||r.area!==area||typeof r.createdAt!=='number')continue;
-    if(r.createdAt>at||at-r.createdAt>lim)continue;
-    if(!best||r.createdAt>best.createdAt)best=r;
-  }
-  return best&&best.shift==='รับกะ'?{docNo:best.docNo,at:best.createdAt}:null;
-}
-function dayFromRecords(dk){
-  for(const r of recs())if(r.docNoV===3&&r.shift==='รับกะ'&&r.dateKey===dk&&r.docNo)return r.docNo;
-  return null;
-}
-function validOpen(o,at){return o&&o.docNo&&typeof o.at==='number'&&at-o.at<=CFG.PAIR_HOURS*3600000&&o.at<=at+60000;}
-function estimate(area,shift,at){
-  const dk=bkkDate(at);
-  if(shift==='ส่งคืน'){
-    const a=states[area]||{};
-    let open=validOpen(a.v3Open,at)?a.v3Open:null;
-    if(!open&&!statesServer)open=openFromRecords(area,at);
-    if(open)return{docNo:open.docNo,paired:true,openAt:open.at};
-  }
-  const day=states['v3day_'+dk];
-  if(day&&day.docNo)return{docNo:day.docNo};
-  const fr=dayFromRecords(dk);if(fr)return{docNo:fr};
-  const r=nextDayNo(states.v3_counter||null,dk);
-  return{docNo:fmtNo(r.yy,r.no)};
-}
-async function allocate(area,shift,batch,at){
-  if(!AREAS.includes(area)||!SHIFTS.includes(shift))throw new Error('พื้นที่หรือรอบตรวจไม่ถูกต้อง');
-  const dk=bkkDate(at);
-  if(fdb&&navigator.onLine){
-    try{
-      const S=fdb.collection('mt3_cycle_state');
-      const reqRef=fdb.collection('mt3_cycle_requests').doc(batch),areaRef=S.doc(area),dayRef=S.doc('v3day_'+dk),ctrRef=S.doc('v3_counter');
-      const docNo=await withTimeout(fdb.runTransaction(async tx=>{
-        const [rq,ar,dy,ct]=await Promise.all([tx.get(reqRef),tx.get(areaRef),tx.get(dayRef),tx.get(ctrRef)]);
-        if(rq.exists&&rq.data().docNo)return rq.data().docNo;
-        const open=ar.exists?(ar.data().v3Open||null):null;
-        let doc;
-        if(shift==='ส่งคืน'&&validOpen(open,at)){
-          doc=open.docNo;
-          tx.set(areaRef,{v3Open:null,v3LastClosed:{docNo:doc,at,batch}},{merge:true});
-        }else{
-          if(dy.exists&&dy.data().docNo){doc=dy.data().docNo;}
-          else{
-            const c=ct.exists?ct.data():null,r=nextDayNo(c,dk);doc=fmtNo(r.yy,r.no);
-            tx.set(dayRef,{v:3,date:dk,no:r.no,yy:r.yy,docNo:doc,createdAt:Date.now()});
-            if(dk>=CFG.ANCHOR_DATE&&(!c||!c.lastDate||c.lastDate<dk))
-              tx.set(ctrRef,{v:3,lastDate:dk,lastNo:r.no,yy:r.yy,updatedAt:Date.now()});
-          }
-          if(shift==='รับกะ')tx.set(areaRef,{v3Open:{docNo:doc,at,batch}},{merge:true});
-        }
-        tx.set(reqRef,{v:3,docNo:doc,area,shift,createdAt:at});
-        return doc;
-      }),CFG.ALLOC_TIMEOUT_MS,'จองเลขช้า');
-      return{docNo,source:'server'};
-    }catch(e){console.warn('DocNo fallback',e&&(e.code||e.message));}
-  }
-  return{docNo:estimate(area,shift,at).docNo,source:'local'};
-}
-function renderHint(){
-  const el=$('cycleHint');if(!el)return;
-  const area=$('area').value,shift=$('shift').value,at=Date.now(),dk=bkkDate(at);
-  const e=estimate(area,shift,at);
-  let note;
-  if(e.paired)note='ส่งคืนคู่กับรับกะของพื้นที่นี้เมื่อ '+hm(e.openAt)+' น. — ใช้เลขเดียวกัน';
-  else if(dk<CFG.ANCHOR_DATE)note='ตั้งแต่ '+thDate(new Date(dayStart(CFG.ANCHOR_DATE)))+' ทุกพื้นที่เริ่มเลข '+fmtNo(yyOf(CFG.ANCHOR_DATE),CFG.START_NO);
-  else note='รอบวันที่ '+thDate(new Date(dayStart(dk)))+' — ทุกพื้นที่ รับกะ/ส่งคืน ใช้เลขเดียวกัน • วันถัดไปรันต่ออัตโนมัติ';
-  if(shift==='ส่งคืน'&&!e.paired)note+=' (ไม่พบรับกะค้างของพื้นที่นี้ จึงใช้เลขรอบวันนี้)';
-  if(!statesServer)note+=' • กำลังยืนยันกับฐานข้อมูลกลาง';
-  el.className='cyclebox newc';
-  el.innerHTML='📄 <b>'+esc(area)+'</b> • '+esc(shift)+' → เลขที่เอกสาร <b>'+esc(e.docNo)+'</b><br><span style="opacity:.85">'+esc(note)+'</span>';
-}
-
-/* ---------- บันทึกรายงาน: จองเลขกลาง + ส่งรูปพร้อมกัน ---------- */
-async function submitV3(){
-  if(submitting){showStatus('status','⏳ กำลังบันทึกอยู่ กรุณารอสักครู่ — ห้ามกดซ้ำ','info');return;}
-  const btn=$('submitBtn');
-  submitting=true;btn.disabled=true;btn.textContent='⏳ กำลังบันทึก... ห้ามกดซ้ำ';
-  try{
-    const area=$('area').value,shift=$('shift').value;
-    const inspector=MT3Access.normalizeName($('inspector').value.trim()),note=$('note').value.trim();
-    if(!inspector)return showStatus('status','⚠️ กรุณากรอกชื่อผู้ตรวจเช็ค','err');
-    if(!photos.length)return showStatus('status','⚠️ กรุณาถ่ายภาพอย่างน้อย 1 รูป','err');
-    const dups=photos.filter(p=>p.isDup);
-    if(dups.length){const i=dups[0].dupInfo;
-      if(!confirm(`⚠️ พบภาพซ้ำ ${dups.length} รูป\nตรงกับรายงานเมื่อ: ${i?i.timestamp:'-'} (${i?i.area:'-'})\n\nยืนยันบันทึกต่อหรือไม่?`))return;}
-    const now=new Date(),at=now.getTime();
-    const ts=now.toLocaleString('th-TH',{timeZone:'Asia/Bangkok',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','');
-    const dateKey=bkkDate(at);
-    const rid=(window.crypto&&crypto.randomUUID)?crypto.randomUUID().slice(0,8):Math.random().toString(36).slice(2,10);
-    const batch='B'+at+'_'+rid;
-    showStatus('status','⏳ กำลังจองเลขที่เอกสารกลาง...','info');
-    const alloc=await allocate(area,shift,batch,at);const dno=alloc.docNo;
-    const list=photos.slice(),cnt=list.length,hasDup=list.some(p=>p.isDup);
-    showStatus('status','⏳ กำลังส่ง '+cnt+' รูปขึ้นฐานข้อมูลกลาง (ส่งพร้อมกัน)...','info');
-    const jobs=[];
-    for(let i=0;i<list.length;i++){
-      const p=list[i];
-      try{if(db)await addRec({timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:p.b64,isDup:p.isDup,batch,docNo:dno});}catch(e){}
-      let cimg;try{cimg=await makeCloudImg(p.b64);}catch(e){cimg=p.b64;}
-      jobs.push(cloudSet(batch+'_'+i,{timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:cimg,
-        isDup:p.isDup,batch,idx:i,docNo:dno,docNoV:3,docNoSource:alloc.source,device:navigator.userAgent.slice(0,80)}));
-    }
-    const results=await Promise.allSettled(jobs);
-    let queued=0,failed=0;
-    results.forEach(r=>{
-      if(r.status!=='rejected')return;
-      const m=String((r.reason&&r.reason.message)||r.reason||'');
-      if(/เก็บในคิว/.test(m))queued++;else{failed++;console.error('อัปโหลดคลาวด์ไม่สำเร็จ',r.reason);}
-    });
-    const lineOK=await Promise.race([notifyLine({ts,dateKey,area,shift,inspector,note,docNo:dno,count:cnt,dup:hasDup,batch}),sleep(2500).then(()=>true)]);
-    const tail=alloc.source==='server'?'':'\nℹ️ ออฟไลน์/สัญญาณช้า: เลขที่เอกสารคำนวณจากข้อมูลล่าสุดในเครื่อง';
-    if(failed)showStatus('status',`⚠️ บันทึกในเครื่องแล้ว ${cnt} รูป\nแต่ส่งขึ้นฐานข้อมูลกลางไม่สำเร็จ ${failed} รูป\nตรวจสอบอินเทอร์เน็ต / ค่า Firebase`+tail,'err');
-    else if(queued)showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป\n📄 เลขที่เอกสาร ${dno}\n⏫ สัญญาณช้า: ${queued} รูปอยู่ในคิว ระบบจะส่งให้อัตโนมัติ — ไม่ต้องกดส่งซ้ำ\n${area} • ${shift} • ${inspector}`+tail,'ok');
-    else showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป\n📄 เลขที่เอกสาร ${dno}\n${lineOK?'📨 แจ้งเตือนเข้าไลน์กลุ่มแล้ว':'⚠️ ยังไม่ได้ตั้งค่าแจ้งเตือนไลน์'}\n${area} • ${shift} • ${inspector}`+tail,'ok');
-    showSaveCard({area,shift,inspector,docNo:dno,ts:thDate(now)+' '+thTime(now),count:cnt,note,dup:hasDup});
-    photos=[];renderThumbs();$('note').value='';
-    loadHistory();
-  }catch(err){
-    console.error(err);showStatus('status','❌ เกิดข้อผิดพลาด: '+err.message,'err');
-  }finally{
-    submitting=false;btn.disabled=false;btn.textContent='✅ บันทึกรายงาน';
-    setTimeout(updateCycleHint,900);
-  }
-}
-
-/* ---------- 4) หัวกระดาษรายงาน ซิงค์ทุกเครื่อง ---------- */
-function listenSettings(){
-  try{
-    const ref=fdb.collection('mt3_cycle_meta').doc('doc_settings');
-    ref.onSnapshot(s=>{
-      if(!s.exists)return;const v=s.data()||{};if(!v.doc)return;
-      const local=Number(localStorage.getItem('mt3_doc_stamp')||0);
-      if((v.updatedAt||0)>local){
-        const d=Object.assign({},v.doc);delete d.logo;
-        localStorage.setItem('mt3_doc',JSON.stringify(d));
-        localStorage.setItem('mt3_doc_ver',DOC_VER);
-        localStorage.setItem('mt3_doc_stamp',String(v.updatedAt||Date.now()));
-      }
-    },e=>console.warn('Doc settings',e.code));
-    const _save=saveDocSet;
-    saveDocSet=function(){
-      const r=_save.apply(this,arguments);
-      try{
-        const d=JSON.parse(localStorage.getItem('mt3_doc')||'{}');delete d.logo;
-        const st=Date.now();localStorage.setItem('mt3_doc_stamp',String(st));
-        ref.set({doc:d,updatedAt:st,by:adminUser||'-'})
-          .then(()=>showStatus('expStatus','✅ บันทึกหัวกระดาษ และซิงค์ไปทุกเครื่องแล้ว','ok'))
-          .catch(e=>showStatus('expStatus','⚠️ บันทึกหัวกระดาษในเครื่องนี้แล้ว แต่ซิงค์ขึ้นฐานข้อมูลกลางไม่สำเร็จ: '+(e.code||e.message),'err'));
-      }catch(e){}
-      return r;
-    };
-  }catch(e){}
-}
-
-/* ---------- แก้บั๊กล้าง Log (เดิมเทียบกับ 'l้างlog' ทำให้ล้างไม่ได้) ---------- */
-clearLog=async function(){
-  if(!guard())return;
-  if(!confirm('🧹 ล้างประวัติการลบทั้งหมด?'))return;
-  const t=(prompt('พิมพ์คำว่า  ล้างlog  เพื่อยืนยัน:')||'').trim();
-  if(t!=='ล้างlog'&&t!=='ล้าง log')return showStatus('lgStatus','❌ ยกเลิก — พิมพ์คำยืนยันไม่ตรง','err');
-  showStatus('lgStatus','⏳ กำลังล้าง Log...','info');
-  try{if(LOGCOL)await cloudClearLogs();if(db)await clearLogs();}catch(e){}
-  showStatus('lgStatus','✅ ล้าง Log เรียบร้อย','ok');loadLog();
-};
-
-/* ---------- 2) ถอดระบบจัดเลขย้อนหลัง 20/09/69 + เริ่มทำงาน ---------- */
-document.querySelectorAll('button').forEach(b=>{if((b.textContent||'').includes('จัดเลขย้อนหลังตั้งแต่'))b.remove();});
-updateCycleHint=renderHint;
-['area','shift'].forEach(id=>{const el=$(id);if(el)el.addEventListener('change',()=>setTimeout(renderHint,0));});
-setInterval(renderHint,60000);
-const toAnchor=dayStart(CFG.ANCHOR_DATE)-Date.now();
-if(toAnchor>0&&toAnchor<2147483647)setTimeout(renderHint,toAnchor+3000);
-MT3Reliability.setSubmit(submitV3);
-insertBar();
-if(typeof fdb!=='undefined'&&fdb&&COL){
-  try{MT3Reliability.stop();}catch(e){}
-  COL=wrapCol(COL);
-  listenStates();listenSettings();
-  restart();
-}
-renderHint();
-window.MT3FastSync=Object.freeze({
-  version:'3.0.0',config:CFG,setRange,restart,syncNow,allocate,estimate,
-  status:()=>({cloudReady,records:(cloudRecs||[]).length,range:rangeLabel(),
-    readyInSec:connMs==null?null:+(connMs/1000).toFixed(1),docStateFromServer:statesServer})
-});
-console.log('%c MT3 FastSync v3.0.0 ','background:#0d1b3e;color:#d4af37;font-weight:700;padding:3px 6px;border-radius:4px','— พิมพ์ MT3FastSync.status() เพื่อดูสถานะ');
-})();
-</script>
   function html(model){
     return model.pages.map(p=>{const columns=p.widths||widths;let y=0;const rows=p.rows.map(r=>{const cells=r.cells.map(c=>{const style=styles[c.style],left=columns.slice(0,c.c).reduce((a,b)=>a+b,0),width=columns.slice(c.c,c.c+c.span).reduce((a,b)=>a+b,0);
-      return `<div style="position:absolute;left:${left}mm;width:${width}mm;height:${r.height}pt;padding:3pt;overflow:hidden;display:flex;align-items:center;justify-content:${style.align==='center'?'center':'flex-start'};font-size:${style.size}pt;font-weight:${style.bold?700:400};${style.border?'border:.5pt solid #000;':''}${style.bottom?'border-top:.5pt solid #000;':''}${style.fill?'background:#'+style.fill+';':''}"><span style="white-space:pre-wrap;line-height:1.15;text-align:${style.align};width:100%">${xml(c.v)}</span></div>`;
+      return `<div style="position:absolute;left:${left}mm;width:${width}mm;height:${r.height}pt;padding:3pt;overflow:hidden;display:flex;align-items:center;justify-content:${style.align==='center'?'center':'flex-start'};font-size:${style.size}pt;font-weight:${style.bold?700:400};${style.border?'border:.5pt solid #000;':''}${style.bottom?'border-top:.5pt solid #000;':''}${style.fill?'background:#'+style.fill+':':''}"><span style="white-space:pre-wrap;line-height:1.15;text-align:${style.align};width:100%">${xml(c.v)}</span></div>`;
     }).join('');const out=`<div style="position:absolute;left:0;top:${y}pt;width:190mm;height:${r.height}pt">${cells}</div>`;y+=r.height;return out;}).join('');
       const images=p.images.map(im=>{const top=p.rows.slice(0,im.row).reduce((n,r)=>n+r.height,0)+im.y;return `<img src="${im.data}" style="position:absolute;left:${im.x}pt;top:${top}pt;width:${im.w}pt;height:${im.h}pt">`;}).join('');
       return `<section class="mt3-report-sheet" style="position:relative;width:190mm;height:${pageHeight}pt;font-family:${font};font-size:10.5pt;page-break-after:always">${rows}${images}</section>`;
@@ -2544,7 +1507,6 @@ console.log('%c MT3 FastSync v3.0.0 ','background:#0d1b3e;color:#d4af37;font-wei
   };
   return Object.freeze({build,html,xlsx,fit,grouped});
 })();
-
 printSingle=async function(id){
   if(!guard())return;
   const all=cloudReady?cloudRecs:(await getAll());
@@ -2563,7 +1525,6 @@ printSingle=async function(id){
       <td class="c" style="width:30mm">${t?'ตรวจพบ':''}</td><td style="width:38mm"></td></tr>`;}
   const phHtml=grp.map((r,i)=>`<figure><img src="${r.img}">
     <figcaption>ภาพที่ ${i+1} — ${esc(r.area)} / ${esc(r.shift)} / ${esc(r.timestamp)}</figcaption></figure>`).join('');
-
   const page1=`<div class="sheet">
     ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P01/02')}
     <div class="meta"><span>วันที่ออกเอกสาร&nbsp;&nbsp;<b>${thDate(new Date())}</b></span>
@@ -2592,7 +1553,6 @@ printSingle=async function(id){
       <div><div class="ln"></div>ผู้ตรวจสอบ / หัวหน้าชุด<br>(................................)<br>วันที่ ......../......../........</div>
       <div><div class="ln"></div>Shift Maintenance Manager<br>(................................)<br>วันที่ ......../......../........</div>
     </div>${docFoot(c)}</div>`;
-
   const page2=`<div class="sheet p2">
     ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P02/02')}
     <div class="meta"><span>ภาพถ่ายประกอบการตรวจเช็ค&nbsp;&nbsp;<b>(${grp.length} ภาพ)</b></span>
@@ -2603,10 +1563,7 @@ printSingle=async function(id){
     <div class="ph">${phHtml||'<div class="rm">ไม่มีภาพประกอบ</div>'}</div>
     <div style="margin-top:auto"></div>
     ${docFoot(c)}</div>`;
-
   openPrint(page1+page2);showStatus('expStatus','🖨️ เปิดหน้าใบรายงานแล้ว (2 หน้า)','ok');};
-
-/* MT3 2026-10-09: lazy export dependencies and complete-history action guards. */
 const MT3ExportTools=(()=>{
   const pending={};
   const urls={XLSX:'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',JSZip:'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'};
@@ -2635,12 +1592,9 @@ const MT3ExportTools=(()=>{
   exportLogExcel=async function(...args){if(!ready(true))return;try{await ensure('XLSX');return logExcel.apply(this,args);}catch(e){showStatus('expStatus',e.message,'err');}};
   return Object.freeze({ready,ensure});
 })();
-/* END MT3 2026-10-09 */
-
 if(initCloud()){ startCloudSync(); }
 else { setSync('🔴 ตั้งค่า Firebase ไม่ถูกต้อง','off'); }
-updateCycleHint();
-
+MT3Cycles.updateHint();
 openDB().then(()=>{if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true);else loadHistory();})
  .catch(()=>{ if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true); else loadHistory(); });
 </script>
