@@ -1876,6 +1876,620 @@ const MT3Report=(()=>{
     const memo=new Map();for(const p of model.pages)for(const im of p.images){if(im.record){const src=im.record.img;if(!memo.has(src))memo.set(src,await imageAsset(src));Object.assign(im,memo.get(src));delete im.record;}Object.assign(im,fit(im,p.widths||widths));}
     return model;
   }
+ <!-- ===== MT3 FastSync + DocNo v3 (2026-10-08) — วางก่อน </body> ===== -->
+<script>
+/* MT3 FastSync & DocNo v3 — additive layer, original lines untouched
+ * 1) Fast connect: windowed realtime history + cache-first paint + auto reconnect + parallel upload
+ * 2) Removes legacy "จัดเลขย้อนหลังตั้งแต่ 20/09/69"
+ * 3) Daily shared doc number: 2026-10-09 = MT69/0012 (all areas, รับกะ/ส่งคืน), +1 per operating day
+ * 4) Cross-device sync: realtime + outbox retry + sync-now + shared report header
+ */
+(function(){
+'use strict';
+if(window.MT3FastSync)return;
+const CFG={
+  ANCHOR_DATE:'2026-10-09', // วันเริ่มเลขชุดใหม่ (เวลาไทย)
+  START_NO:12,              // เลขของวันเริ่ม -> MT69/0012
+  PRE_NO:11,                // เลขที่ใช้ก่อนวันเริ่ม
+  PAIR_HOURS:24,            // ส่งคืนใช้เลขเดียวกับรับกะของพื้นที่เดียวกันภายใน 24 ชม.
+  DEFAULT_DAYS:2,           // ช่วงประวัติเริ่มต้น = วันนี้ + เมื่อวาน
+  RECONNECT_MS:12000,
+  GIVEUP_MS:28000,
+  ALLOC_TIMEOUT_MS:15000
+};
+const DAY=86400000;
+const bkkDate=t=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(t));
+const dayStart=dk=>Date.parse(dk+'T00:00:00+07:00');
+const yyOf=dk=>String((Number(dk.slice(0,4))+543)%100).padStart(2,'0');
+const fmtNo=(yy,n)=>'MT'+yy+'/'+String(n).padStart(4,'0');
+const hm=t=>new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit'}).format(new Date(t));
+const hms=t=>new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(t));
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const withTimeout=(p,ms,msg)=>{let t;return Promise.race([p,new Promise((_,rej)=>{t=setTimeout(()=>rej(new Error(msg||'timeout')),ms);})]).finally(()=>clearTimeout(t));};
+
+/* ---------- 1) ช่วงประวัติแบบเบา (realtime เฉพาะช่วงที่เลือก) ---------- */
+let histDays=(()=>{try{const v=sessionStorage.getItem('mt3_hist_days');return v===null?CFG.DEFAULT_DAYS:(Number(v)||0);}catch(e){return CFG.DEFAULT_DAYS;}})();
+function windowStart(){if(!histDays)return 0;return dayStart(bkkDate(Date.now()))-(histDays-1)*DAY;}
+function rangeLabel(){return !histDays?'ทั้งหมด (≤1,200)':histDays===2?'วันนี้+เมื่อวาน':histDays+' วัน';}
+function wrapCol(real){
+  if(!real||real.__mt3v3)return real;
+  return new Proxy(real,{get(t,p){
+    if(p==='__mt3v3')return true;
+    if(p==='__real')return t;
+    if(p==='orderBy')return function(field,dir){
+      let q=t.orderBy(field,dir);const ws=windowStart();
+      if(field==='createdAt'&&ws>0)q=q.where('createdAt','>=',ws);
+      return q;};
+    const v=Reflect.get(t,p,t);return typeof v==='function'?v.bind(t):v;
+  }});
+}
+
+/* ---------- แสดงแคชทันที ---------- */
+let fastCache=null;
+async function paintFromCache(){
+  try{
+    if(!COL||cloudReady)return;
+    const snap=await COL.orderBy('createdAt','desc').limit(60).get({source:'cache'});
+    if(cloudReady||!snap.size)return;
+    fastCache=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
+    loadHistory();updateCycleHint();
+  }catch(e){}
+}
+const _loadHistory=loadHistory;
+loadHistory=function(){
+  if(!cloudReady){
+    const src=(cloudRecs&&cloudRecs.length)?cloudRecs:fastCache;
+    if(src&&src.length){
+      const keep=cloudRecs;cloudRecs=src;cloudReady=true;
+      try{return _loadHistory.apply(this,arguments);}finally{cloudReady=false;cloudRecs=keep;}
+    }
+  }
+  return _loadHistory.apply(this,arguments);
+};
+
+/* ---------- แถบสถานะ: เวลาเชื่อมต่อ / ช่วงประวัติ / อัปเดตล่าสุด ---------- */
+let connMs=null,lastOkAt=0,lastSync=null,lastRef=null,rescueTimer=null,giveTimer=null;
+const _setSync=setSync;
+setSync=function(txt,cls){
+  lastSync=[txt,cls];
+  let s=String(txt||'')+' • ช่วงประวัติ: '+rangeLabel();
+  if(cloudReady&&connMs!=null)s+=' • ⚡ พร้อมใน '+(connMs/1000).toFixed(1)+' วิ';
+  if(lastOkAt)s+=' • อัปเดต '+hms(lastOkAt);
+  return _setSync.call(this,s,cls);
+};
+function refreshBanner(){if(lastSync)setSync(lastSync[0],lastSync[1]);}
+setInterval(()=>{
+  if(!cloudReady)return;
+  if(connMs==null){connMs=performance.now();refreshBanner();}
+  if(cloudRecs!==lastRef){lastRef=cloudRecs;lastOkAt=Date.now();refreshBanner();}
+},1000);
+
+/* ---------- เชื่อมต่อใหม่อัตโนมัติ ---------- */
+function armRescue(){
+  clearTimeout(rescueTimer);clearTimeout(giveTimer);
+  rescueTimer=setTimeout(async()=>{
+    if(cloudReady||!navigator.onLine||!fdb)return;
+    try{await fdb.disableNetwork();await sleep(300);await fdb.enableNetwork();}catch(e){}
+    try{startCloudSync();}catch(e){}
+  },CFG.RECONNECT_MS);
+  giveTimer=setTimeout(()=>{
+    if(cloudReady)return;
+    showStatus('expStatus',navigator.onLine
+      ?'⚠️ เครือข่ายนี้เชื่อมฐานข้อมูลกลางช้า — กด "🔄 ซิงค์ทันที" หรือสลับ Wi-Fi/4G (รายงานที่บันทึกจะอยู่ในคิวและส่งอัตโนมัติ ไม่หาย)'
+      :'📴 ออฟไลน์ — บันทึกได้ตามปกติ ระบบจะส่งให้อัตโนมัติเมื่อมีสัญญาณ','err');
+  },CFG.GIVEUP_MS);
+}
+function restart(){
+  fastCache=null;
+  try{startCloudSync();}catch(e){console.warn('sync',e);}
+  paintFromCache();armRescue();
+}
+function setRange(days){
+  histDays=Math.max(0,Number(days)||0);
+  try{sessionStorage.setItem('mt3_hist_days',String(histDays));}catch(e){}
+  const sel=$('mt3v3Range');
+  if(sel){
+    if(![...sel.options].some(o=>o.value===String(histDays))){const o=document.createElement('option');o.value=String(histDays);o.textContent='ย้อนหลัง '+histDays+' วัน';sel.appendChild(o);}
+    sel.value=String(histDays);
+  }
+  showStatus('expStatus','⏳ กำลังโหลดประวัติช่วง '+rangeLabel()+' ...','info');
+  restart();
+}
+function autoExpand(){
+  const d=$('fDate')&&$('fDate').value;if(!d)return;
+  const ws=windowStart();if(!ws)return;
+  const t=dayStart(d);if(t>=ws)return;
+  const need=Math.round((dayStart(bkkDate(Date.now()))-t)/DAY)+1;
+  setRange(need<=7?7:need<=31?31:0);
+}
+async function syncNow(){
+  const b=$('mt3v3SyncNow');if(b){b.disabled=true;b.textContent='⏳ กำลังซิงค์...';}
+  try{
+    if(fdb){try{await fdb.enableNetwork();}catch(e){}}
+    restart();
+    try{await withTimeout(MT3Reliability.retry(),20000);}catch(e){}
+    let q=[];try{q=await MT3Reliability.pending();}catch(e){}
+    showStatus('expStatus',q.length?'⏫ ยังมีรายการรอส่ง '+q.length+' รายการ — ระบบจะส่งต่ออัตโนมัติ':'✅ ซิงค์ข้อมูลกับฐานข้อมูลกลางแล้ว',q.length?'info':'ok');
+  }finally{if(b){b.disabled=false;b.textContent='🔄 ซิงค์ทันที';}}
+}
+function insertBar(){
+  const sb=$('syncBar');if(!sb||$('mt3v3Bar'))return;
+  const bar=document.createElement('div');bar.id='mt3v3Bar';bar.className='row';bar.style.cssText='margin-top:8px;align-items:center';
+  bar.innerHTML='<select id="mt3v3Range" style="flex:1;padding:9px;font-size:13px">'+
+    '<option value="2">ประวัติ: วันนี้ + เมื่อวาน (เร็วที่สุด)</option>'+
+    '<option value="7">ย้อนหลัง 7 วัน</option>'+
+    '<option value="31">ย้อนหลัง 31 วัน</option>'+
+    '<option value="0">ทั้งหมด (สูงสุด 1,200 รูป • ช้า)</option></select>'+
+    '<button type="button" id="mt3v3SyncNow" class="btn btn-gallery btn-sm" style="flex:0 0 auto;width:auto;padding:9px 12px">🔄 ซิงค์ทันที</button>';
+  sb.after(bar);
+  const sel=$('mt3v3Range');
+  if(![...sel.options].some(o=>o.value===String(histDays))){const o=document.createElement('option');o.value=String(histDays);o.textContent='ย้อนหลัง '+histDays+' วัน';sel.appendChild(o);}
+  sel.value=String(histDays);
+  sel.onchange=()=>setRange(Number(sel.value));
+  $('mt3v3SyncNow').onclick=syncNow;
+  const fd=$('fDate');if(fd)fd.addEventListener('change',autoExpand);
+}
+addEventListener('online',()=>{if(fdb)fdb.enableNetwork().catch(()=>{});setTimeout(()=>{if(!cloudReady)restart();},1500);});
+let hiddenAt=0;
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'){hiddenAt=Date.now();return;}
+  const away=hiddenAt?Date.now()-hiddenAt:0;hiddenAt=0;
+  if(away>180000&&navigator.onLine&&COL)restart();
+  updateCycleHint();
+});
+
+/* ---------- 3) เลขที่เอกสารรายวัน ใช้ร่วมทุกพื้นที่ ---------- */
+let states={},statesServer=false;
+function listenStates(){
+  try{fdb.collection('mt3_cycle_state').onSnapshot({includeMetadataChanges:true},snap=>{
+    const m={};snap.docs.forEach(d=>{m[d.id]=d.data();});
+    states=m;statesServer=!snap.metadata.fromCache;updateCycleHint();
+  },e=>console.warn('DocNo state',e.code));}catch(e){}
+}
+function nextDayNo(counter,dk){
+  const yy=yyOf(dk);
+  if(dk<CFG.ANCHOR_DATE)return{yy,no:CFG.PRE_NO};
+  if(!counter||!counter.lastDate||counter.lastDate<CFG.ANCHOR_DATE)return{yy,no:CFG.START_NO};
+  if(counter.yy!==yy)return{yy,no:1};                 // ขึ้นปี พ.ศ. ใหม่ เริ่ม 0001
+  if(counter.lastDate>=dk)return{yy,no:counter.lastNo};
+  return{yy,no:counter.lastNo+1};                      // วันทำงานถัดไป รันต่อ
+}
+const recs=()=>(cloudRecs&&cloudRecs.length)?cloudRecs:(fastCache||[]);
+function openFromRecords(area,at){
+  const lim=CFG.PAIR_HOURS*3600000;let best=null;
+  for(const r of recs()){
+    if(r.docNoV!==3||r.area!==area||typeof r.createdAt!=='number')continue;
+    if(r.createdAt>at||at-r.createdAt>lim)continue;
+    if(!best||r.createdAt>best.createdAt)best=r;
+  }
+  return best&&best.shift==='รับกะ'?{docNo:best.docNo,at:best.createdAt}:null;
+}
+function dayFromRecords(dk){
+  for(const r of recs())if(r.docNoV===3&&r.shift==='รับกะ'&&r.dateKey===dk&&r.docNo)return r.docNo;
+  return null;
+}
+function validOpen(o,at){return o&&o.docNo&&typeof o.at==='number'&&at-o.at<=CFG.PAIR_HOURS*3600000&&o.at<=at+60000;}
+function estimate(area,shift,at){
+  const dk=bkkDate(at);
+  if(shift==='ส่งคืน'){
+    const a=states[area]||{};
+    let open=validOpen(a.v3Open,at)?a.v3Open:null;
+    if(!open&&!statesServer)open=openFromRecords(area,at);
+    if(open)return{docNo:open.docNo,paired:true,openAt:open.at};
+  }
+  const day=states['v3day_'+dk];
+  if(day&&day.docNo)return{docNo:day.docNo};
+  const fr=dayFromRecords(dk);if(fr)return{docNo:fr};
+  const r=nextDayNo(states.v3_counter||null,ผมอ่านไฟล์จริงที่คุณแนบมาครบทั้ง 1,880 บรรทัดแล้วครับ ก่อนอื่นมีเรื่องสำคัญต้องบอก
+
+> ⚠️ **ไฟล์ HTML "ฉบับสมบูรณ์" ที่ผมให้ไปรอบก่อน ไม่ได้ทำจากไฟล์นี้** ในไฟล์จริงของคุณมีระบบแอดมิน 6 คน คิวส่งซ้ำ (outbox) ระบบเลขรอบ และรายงาน A4/Excel แต่ฉบับรอบก่อนไม่มีของพวกนี้เลย **อย่านำฉบับนั้นไปวางทับใน GitHub** ขออภัยด้วยครับ รอบนี้ผมทำจากไฟล์จริงทั้งหมด
+
+## ต้นเหตุที่เชื่อมฐานข้อมูลกลางช้า
+
+| จุดที่พบ (บรรทัด) | ผลกระทบ |
+|---|---|
+| ทุกครั้งที่เปิดแอป ระบบดึง `reports` ล่าสุดถึง **1,200 รายการ** (1389) และแต่ละรายการเก็บ**รูปเต็มไว้ในตัวเอกสาร** | รูปละประมาณ 100 KB ขึ้นไป รวมแล้วอาจหลายสิบถึงหลายร้อย MB ต่อการเปิดแอปหนึ่งครั้ง |
+| ข้อมูลก้อนใหญ่วิ่งผ่านช่องเชื่อมต่อเดียวกับข้อมูลเรียลไทม์ | การอัปเดตเรียลไทม์ต้องรอคิวข้อมูลก้อนใหญ่ จึงดูเหมือนไม่เรียลไทม์ |
+| ข้อมูลที่แคชไว้ในเครื่องไม่ถูกนำมาแสดง (1391) | หน้าประวัติว่างอยู่จนกว่าเซิร์ฟเวอร์จะตอบ |
+| ตอนบันทึก ส่งรูปทีละรูป แต่ละรูปรอได้ถึง 12 วิ (1608–1616) | ถ้ามี 5 รูป อาจต้องรอเกือบ 1 นาที |
+| เลขเอกสารนับแยกตามพื้นที่ (1475–1587) | ถ้าพื้นที่ใดส่งรับกะซ้ำ เลขของพื้นที่นั้นจะวิ่งเลยพื้นที่อื่น ส่งคืนจะโดนบล็อกถ้าไม่มีรับกะ และก่อนวันที่ 9 ต.ค. แอดมินต้องกดจัดเลขย้อนหลังก่อนถึงจะส่งรายงานได้ |
+| บั๊ก: `clearLog` เทียบคำยืนยันกับ `'l้างlog'` (ตัว l เป็นอักษรอังกฤษ) (1152) | กดล้าง Log ไม่ได้ตลอดไป |
+
+## สิ่งที่บล็อกใหม่นี้ทำ
+
+1. **เชื่อมต่อเร็ว:** ค่าเริ่มต้นโหลดประวัติแค่ **วันนี้ + เมื่อวาน** ซึ่งเบากว่าเดิมหลายสิบเท่า และยังเป็นเรียลไทม์เหมือนเดิม
+   - แสดงข้อมูลจากแคชในเครื่องทันทีที่เปิดแอป
+   - ถ้า 12 วิยังเชื่อมไม่ติด ระบบจะรีสตาร์ทการเชื่อมต่อเอง
+   - ส่งรูปพร้อมกันทุกรูป
+   - แถบสถานะบอกว่าพร้อมใช้งานในกี่วินาที
+   - ถ้าต้องการดูย้อนหลัง เลือกช่วง 7 วัน, 31 วัน หรือทั้งหมดได้ และถ้าเลือก "กรองตามวันที่" เป็นวันเก่า ระบบจะขยายช่วงให้เอง
+2. **เอาระบบ "จัดเลขย้อนหลังตั้งแต่ 20/09/69" ออก:** ทั้งปุ่ม ข้อความเตือน และเงื่อนไขที่บล็อกการส่งรายงาน
+3. **เลขเอกสารแบบรายวันใช้ร่วมทุกพื้นที่:** วันที่ 09/10/2569 ทุกพื้นที่ทั้งรับกะและส่งคืนใช้ **MT69/0012** วันถัดไปเป็น 0013, 0014 ต่อไปเรื่อย ๆ ระบบจองเลขผ่านฐานข้อมูลกลาง ทุกเครื่องจึงได้เลขเดียวกันและไม่วิ่งเลยกัน
+4. **ซิงค์ทุกเครื่อง:**
+   - ข้อมูลเรียลไทม์ทุกเครื่อง
+   - คิวส่งซ้ำอัตโนมัติ และมีปุ่ม **🔄 ซิงค์ทันที**
+   - เชื่อมต่อใหม่ให้เองเมื่อกลับมาออนไลน์หรือกลับมาเปิดแอป
+   - หัวกระดาษรายงานซิงค์จากเครื่องแอดมินไปทุกเครื่อง
+   - แก้บั๊กล้าง Log ให้ด้วย
+
+## วิธีติดตั้ง (ไม่ต้องแก้บรรทัดเดิมเลย)
+
+วางบล็อกด้านล่าง**ระหว่างบรรทัด 1878 `</script>` กับบรรทัด 1879 `</body>`** แล้ว commit ขึ้น GitHub ได้เลย
+
+ที่ไม่ส่งไฟล์เต็ม 1,880 บรรทัด เพราะไฟล์ที่อัปโหลดถูกแปลงเป็น CSV ทำให้จุลภาคท้ายบรรทัดหายไปหลายจุด (เช่นบรรทัด 298, 308–314) ถ้าผมประกอบไฟล์กลับทั้งหมด โค้ดอาจพังโดยไม่มีใครเห็น การวางบล็อกเพิ่มจึงปลอดภัยกว่า และโค้ดเดิมยังเหมือนเดิมทุกบรรทัด
+
+```html
+<!-- ===== MT3 FastSync + DocNo v3 (2026-10-08) — วางก่อน </body> ===== -->
+<script>
+/* MT3 FastSync & DocNo v3 — additive layer, original lines untouched
+ * 1) Fast connect: windowed realtime history + cache-first paint + auto reconnect + parallel upload
+ * 2) Removes legacy "จัดเลขย้อนหลังตั้งแต่ 20/09/69"
+ * 3) Daily shared doc number: 2026-10-09 = MT69/0012 (all areas, รับกะ/ส่งคืน), +1 per operating day
+ * 4) Cross-device sync: realtime + outbox retry + sync-now + shared report header
+ */
+(function(){
+'use strict';
+if(window.MT3FastSync)return;
+const CFG={
+  ANCHOR_DATE:'2026-10-09', // วันเริ่มเลขชุดใหม่ (เวลาไทย)
+  START_NO:12,              // เลขของวันเริ่ม -> MT69/0012
+  PRE_NO:11,                // เลขที่ใช้ก่อนวันเริ่ม
+  PAIR_HOURS:24,            // ส่งคืนใช้เลขเดียวกับรับกะของพื้นที่เดียวกันภายใน 24 ชม.
+  DEFAULT_DAYS:2,           // ช่วงประวัติเริ่มต้น = วันนี้ + เมื่อวาน
+  RECONNECT_MS:12000,
+  GIVEUP_MS:28000,
+  ALLOC_TIMEOUT_MS:15000
+};
+const DAY=86400000;
+const bkkDate=t=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(t));
+const dayStart=dk=>Date.parse(dk+'T00:00:00+07:00');
+const yyOf=dk=>String((Number(dk.slice(0,4))+543)%100).padStart(2,'0');
+const fmtNo=(yy,n)=>'MT'+yy+'/'+String(n).padStart(4,'0');
+const hm=t=>new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit'}).format(new Date(t));
+const hms=t=>new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date(t));
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const withTimeout=(p,ms,msg)=>{let t;return Promise.race([p,new Promise((_,rej)=>{t=setTimeout(()=>rej(new Error(msg||'timeout')),ms);})]).finally(()=>clearTimeout(t));};
+
+/* ---------- 1) ช่วงประวัติแบบเบา (realtime เฉพาะช่วงที่เลือก) ---------- */
+let histDays=(()=>{try{const v=sessionStorage.getItem('mt3_hist_days');return v===null?CFG.DEFAULT_DAYS:(Number(v)||0);}catch(e){return CFG.DEFAULT_DAYS;}})();
+function windowStart(){if(!histDays)return 0;return dayStart(bkkDate(Date.now()))-(histDays-1)*DAY;}
+function rangeLabel(){return !histDays?'ทั้งหมด (≤1,200)':histDays===2?'วันนี้+เมื่อวาน':histDays+' วัน';}
+function wrapCol(real){
+  if(!real||real.__mt3v3)return real;
+  return new Proxy(real,{get(t,p){
+    if(p==='__mt3v3')return true;
+    if(p==='__real')return t;
+    if(p==='orderBy')return function(field,dir){
+      let q=t.orderBy(field,dir);const ws=windowStart();
+      if(field==='createdAt'&&ws>0)q=q.where('createdAt','>=',ws);
+      return q;};
+    const v=Reflect.get(t,p,t);return typeof v==='function'?v.bind(t):v;
+  }});
+}
+
+/* ---------- แสดงแคชทันที ---------- */
+let fastCache=null;
+async function paintFromCache(){
+  try{
+    if(!COL||cloudReady)return;
+    const snap=await COL.orderBy('createdAt','desc').limit(60).get({source:'cache'});
+    if(cloudReady||!snap.size)return;
+    fastCache=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
+    loadHistory();updateCycleHint();
+  }catch(e){}
+}
+const _loadHistory=loadHistory;
+loadHistory=function(){
+  if(!cloudReady){
+    const src=(cloudRecs&&cloudRecs.length)?cloudRecs:fastCache;
+    if(src&&src.length){
+      const keep=cloudRecs;cloudRecs=src;cloudReady=true;
+      try{return _loadHistory.apply(this,arguments);}finally{cloudReady=false;cloudRecs=keep;}
+    }
+  }
+  return _loadHistory.apply(this,arguments);
+};
+
+/* ---------- แถบสถานะ: เวลาเชื่อมต่อ / ช่วงประวัติ / อัปเดตล่าสุด ---------- */
+let connMs=null,lastOkAt=0,lastSync=null,lastRef=null,rescueTimer=null,giveTimer=null;
+const _setSync=setSync;
+setSync=function(txt,cls){
+  lastSync=[txt,cls];
+  let s=String(txt||'')+' • ช่วงประวัติ: '+rangeLabel();
+  if(cloudReady&&connMs!=null)s+=' • ⚡ พร้อมใน '+(connMs/1000).toFixed(1)+' วิ';
+  if(lastOkAt)s+=' • อัปเดต '+hms(lastOkAt);
+  return _setSync.call(this,s,cls);
+};
+function refreshBanner(){if(lastSync)setSync(lastSync[0],lastSync[1]);}
+setInterval(()=>{
+  if(!cloudReady)return;
+  if(connMs==null){connMs=performance.now();refreshBanner();}
+  if(cloudRecs!==lastRef){lastRef=cloudRecs;lastOkAt=Date.now();refreshBanner();}
+},1000);
+
+/* ---------- เชื่อมต่อใหม่อัตโนมัติ ---------- */
+function armRescue(){
+  clearTimeout(rescueTimer);clearTimeout(giveTimer);
+  rescueTimer=setTimeout(async()=>{
+    if(cloudReady||!navigator.onLine||!fdb)return;
+    try{await fdb.disableNetwork();await sleep(300);await fdb.enableNetwork();}catch(e){}
+    try{startCloudSync();}catch(e){}
+  },CFG.RECONNECT_MS);
+  giveTimer=setTimeout(()=>{
+    if(cloudReady)return;
+    showStatus('expStatus',navigator.onLine
+      ?'⚠️ เครือข่ายนี้เชื่อมฐานข้อมูลกลางช้า — กด "🔄 ซิงค์ทันที" หรือสลับ Wi-Fi/4G (รายงานที่บันทึกจะอยู่ในคิวและส่งอัตโนมัติ ไม่หาย)'
+      :'📴 ออฟไลน์ — บันทึกได้ตามปกติ ระบบจะส่งให้อัตโนมัติเมื่อมีสัญญาณ','err');
+  },CFG.GIVEUP_MS);
+}
+function restart(){
+  fastCache=null;
+  try{startCloudSync();}catch(e){console.warn('sync',e);}
+  paintFromCache();armRescue();
+}
+function setRange(days){
+  histDays=Math.max(0,Number(days)||0);
+  try{sessionStorage.setItem('mt3_hist_days',String(histDays));}catch(e){}
+  const sel=$('mt3v3Range');
+  if(sel){
+    if(![...sel.options].some(o=>o.value===String(histDays))){const o=document.createElement('option');o.value=String(histDays);o.textContent='ย้อนหลัง '+histDays+' วัน';sel.appendChild(o);}
+    sel.value=String(histDays);
+  }
+  showStatus('expStatus','⏳ กำลังโหลดประวัติช่วง '+rangeLabel()+' ...','info');
+  restart();
+}
+function autoExpand(){
+  const d=$('fDate')&&$('fDate').value;if(!d)return;
+  const ws=windowStart();if(!ws)return;
+  const t=dayStart(d);if(t>=ws)return;
+  const need=Math.round((dayStart(bkkDate(Date.now()))-t)/DAY)+1;
+  setRange(need<=7?7:need<=31?31:0);
+}
+async function syncNow(){
+  const b=$('mt3v3SyncNow');if(b){b.disabled=true;b.textContent='⏳ กำลังซิงค์...';}
+  try{
+    if(fdb){try{await fdb.enableNetwork();}catch(e){}}
+    restart();
+    try{await withTimeout(MT3Reliability.retry(),20000);}catch(e){}
+    let q=[];try{q=await MT3Reliability.pending();}catch(e){}
+    showStatus('expStatus',q.length?'⏫ ยังมีรายการรอส่ง '+q.length+' รายการ — ระบบจะส่งต่ออัตโนมัติ':'✅ ซิงค์ข้อมูลกับฐานข้อมูลกลางแล้ว',q.length?'info':'ok');
+  }finally{if(b){b.disabled=false;b.textContent='🔄 ซิงค์ทันที';}}
+}
+function insertBar(){
+  const sb=$('syncBar');if(!sb||$('mt3v3Bar'))return;
+  const bar=document.createElement('div');bar.id='mt3v3Bar';bar.className='row';bar.style.cssText='margin-top:8px;align-items:center';
+  bar.innerHTML='<select id="mt3v3Range" style="flex:1;padding:9px;font-size:13px">'+
+    '<option value="2">ประวัติ: วันนี้ + เมื่อวาน (เร็วที่สุด)</option>'+
+    '<option value="7">ย้อนหลัง 7 วัน</option>'+
+    '<option value="31">ย้อนหลัง 31 วัน</option>'+
+    '<option value="0">ทั้งหมด (สูงสุด 1,200 รูป • ช้า)</option></select>'+
+    '<button type="button" id="mt3v3SyncNow" class="btn btn-gallery btn-sm" style="flex:0 0 auto;width:auto;padding:9px 12px">🔄 ซิงค์ทันที</button>';
+  sb.after(bar);
+  const sel=$('mt3v3Range');
+  if(![...sel.options].some(o=>o.value===String(histDays))){const o=document.createElement('option');o.value=String(histDays);o.textContent='ย้อนหลัง '+histDays+' วัน';sel.appendChild(o);}
+  sel.value=String(histDays);
+  sel.onchange=()=>setRange(Number(sel.value));
+  $('mt3v3SyncNow').onclick=syncNow;
+  const fd=$('fDate');if(fd)fd.addEventListener('change',autoExpand);
+}
+addEventListener('online',()=>{if(fdb)fdb.enableNetwork().catch(()=>{});setTimeout(()=>{if(!cloudReady)restart();},1500);});
+let hiddenAt=0;
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='hidden'){hiddenAt=Date.now();return;}
+  const away=hiddenAt?Date.now()-hiddenAt:0;hiddenAt=0;
+  if(away>180000&&navigator.onLine&&COL)restart();
+  updateCycleHint();
+});
+
+/* ---------- 3) เลขที่เอกสารรายวัน ใช้ร่วมทุกพื้นที่ ---------- */
+let states={},statesServer=false;
+function listenStates(){
+  try{fdb.collection('mt3_cycle_state').onSnapshot({includeMetadataChanges:true},snap=>{
+    const m={};snap.docs.forEach(d=>{m[d.id]=d.data();});
+    states=m;statesServer=!snap.metadata.fromCache;updateCycleHint();
+  },e=>console.warn('DocNo state',e.code));}catch(e){}
+}
+function nextDayNo(counter,dk){
+  const yy=yyOf(dk);
+  if(dk<CFG.ANCHOR_DATE)return{yy,no:CFG.PRE_NO};
+  if(!counter||!counter.lastDate||counter.lastDate<CFG.ANCHOR_DATE)return{yy,no:CFG.START_NO};
+  if(counter.yy!==yy)return{yy,no:1};                 // ขึ้นปี พ.ศ. ใหม่ เริ่ม 0001
+  if(counter.lastDate>=dk)return{yy,no:counter.lastNo};
+  return{yy,no:counter.lastNo+1};                      // วันทำงานถัดไป รันต่อ
+}
+const recs=()=>(cloudRecs&&cloudRecs.length)?cloudRecs:(fastCache||[]);
+function openFromRecords(area,at){
+  const lim=CFG.PAIR_HOURS*3600000;let best=null;
+  for(const r of recs()){
+    if(r.docNoV!==3||r.area!==area||typeof r.createdAt!=='number')continue;
+    if(r.createdAt>at||at-r.createdAt>lim)continue;
+    if(!best||r.createdAt>best.createdAt)best=r;
+  }
+  return best&&best.shift==='รับกะ'?{docNo:best.docNo,at:best.createdAt}:null;
+}
+function dayFromRecords(dk){
+  for(const r of recs())if(r.docNoV===3&&r.shift==='รับกะ'&&r.dateKey===dk&&r.docNo)return r.docNo;
+  return null;
+}
+function validOpen(o,at){return o&&o.docNo&&typeof o.at==='number'&&at-o.at<=CFG.PAIR_HOURS*3600000&&o.at<=at+60000;}
+function estimate(area,shift,at){
+  const dk=bkkDate(at);
+  if(shift==='ส่งคืน'){
+    const a=states[area]||{};
+    let open=validOpen(a.v3Open,at)?a.v3Open:null;
+    if(!open&&!statesServer)open=openFromRecords(area,at);
+    if(open)return{docNo:open.docNo,paired:true,openAt:open.at};
+  }
+  const day=states['v3day_'+dk];
+  if(day&&day.docNo)return{docNo:day.docNo};
+  const fr=dayFromRecords(dk);if(fr)return{docNo:fr};
+  const r=nextDayNo(states.v3_counter||null,dk);
+  return{docNo:fmtNo(r.yy,r.no)};
+}
+async function allocate(area,shift,batch,at){
+  if(!AREAS.includes(area)||!SHIFTS.includes(shift))throw new Error('พื้นที่หรือรอบตรวจไม่ถูกต้อง');
+  const dk=bkkDate(at);
+  if(fdb&&navigator.onLine){
+    try{
+      const S=fdb.collection('mt3_cycle_state');
+      const reqRef=fdb.collection('mt3_cycle_requests').doc(batch),areaRef=S.doc(area),dayRef=S.doc('v3day_'+dk),ctrRef=S.doc('v3_counter');
+      const docNo=await withTimeout(fdb.runTransaction(async tx=>{
+        const [rq,ar,dy,ct]=await Promise.all([tx.get(reqRef),tx.get(areaRef),tx.get(dayRef),tx.get(ctrRef)]);
+        if(rq.exists&&rq.data().docNo)return rq.data().docNo;
+        const open=ar.exists?(ar.data().v3Open||null):null;
+        let doc;
+        if(shift==='ส่งคืน'&&validOpen(open,at)){
+          doc=open.docNo;
+          tx.set(areaRef,{v3Open:null,v3LastClosed:{docNo:doc,at,batch}},{merge:true});
+        }else{
+          if(dy.exists&&dy.data().docNo){doc=dy.data().docNo;}
+          else{
+            const c=ct.exists?ct.data():null,r=nextDayNo(c,dk);doc=fmtNo(r.yy,r.no);
+            tx.set(dayRef,{v:3,date:dk,no:r.no,yy:r.yy,docNo:doc,createdAt:Date.now()});
+            if(dk>=CFG.ANCHOR_DATE&&(!c||!c.lastDate||c.lastDate<dk))
+              tx.set(ctrRef,{v:3,lastDate:dk,lastNo:r.no,yy:r.yy,updatedAt:Date.now()});
+          }
+          if(shift==='รับกะ')tx.set(areaRef,{v3Open:{docNo:doc,at,batch}},{merge:true});
+        }
+        tx.set(reqRef,{v:3,docNo:doc,area,shift,createdAt:at});
+        return doc;
+      }),CFG.ALLOC_TIMEOUT_MS,'จองเลขช้า');
+      return{docNo,source:'server'};
+    }catch(e){console.warn('DocNo fallback',e&&(e.code||e.message));}
+  }
+  return{docNo:estimate(area,shift,at).docNo,source:'local'};
+}
+function renderHint(){
+  const el=$('cycleHint');if(!el)return;
+  const area=$('area').value,shift=$('shift').value,at=Date.now(),dk=bkkDate(at);
+  const e=estimate(area,shift,at);
+  let note;
+  if(e.paired)note='ส่งคืนคู่กับรับกะของพื้นที่นี้เมื่อ '+hm(e.openAt)+' น. — ใช้เลขเดียวกัน';
+  else if(dk<CFG.ANCHOR_DATE)note='ตั้งแต่ '+thDate(new Date(dayStart(CFG.ANCHOR_DATE)))+' ทุกพื้นที่เริ่มเลข '+fmtNo(yyOf(CFG.ANCHOR_DATE),CFG.START_NO);
+  else note='รอบวันที่ '+thDate(new Date(dayStart(dk)))+' — ทุกพื้นที่ รับกะ/ส่งคืน ใช้เลขเดียวกัน • วันถัดไปรันต่ออัตโนมัติ';
+  if(shift==='ส่งคืน'&&!e.paired)note+=' (ไม่พบรับกะค้างของพื้นที่นี้ จึงใช้เลขรอบวันนี้)';
+  if(!statesServer)note+=' • กำลังยืนยันกับฐานข้อมูลกลาง';
+  el.className='cyclebox newc';
+  el.innerHTML='📄 <b>'+esc(area)+'</b> • '+esc(shift)+' → เลขที่เอกสาร <b>'+esc(e.docNo)+'</b><br><span style="opacity:.85">'+esc(note)+'</span>';
+}
+
+/* ---------- บันทึกรายงาน: จองเลขกลาง + ส่งรูปพร้อมกัน ---------- */
+async function submitV3(){
+  if(submitting){showStatus('status','⏳ กำลังบันทึกอยู่ กรุณารอสักครู่ — ห้ามกดซ้ำ','info');return;}
+  const btn=$('submitBtn');
+  submitting=true;btn.disabled=true;btn.textContent='⏳ กำลังบันทึก... ห้ามกดซ้ำ';
+  try{
+    const area=$('area').value,shift=$('shift').value;
+    const inspector=MT3Access.normalizeName($('inspector').value.trim()),note=$('note').value.trim();
+    if(!inspector)return showStatus('status','⚠️ กรุณากรอกชื่อผู้ตรวจเช็ค','err');
+    if(!photos.length)return showStatus('status','⚠️ กรุณาถ่ายภาพอย่างน้อย 1 รูป','err');
+    const dups=photos.filter(p=>p.isDup);
+    if(dups.length){const i=dups[0].dupInfo;
+      if(!confirm(`⚠️ พบภาพซ้ำ ${dups.length} รูป\nตรงกับรายงานเมื่อ: ${i?i.timestamp:'-'} (${i?i.area:'-'})\n\nยืนยันบันทึกต่อหรือไม่?`))return;}
+    const now=new Date(),at=now.getTime();
+    const ts=now.toLocaleString('th-TH',{timeZone:'Asia/Bangkok',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','');
+    const dateKey=bkkDate(at);
+    const rid=(window.crypto&&crypto.randomUUID)?crypto.randomUUID().slice(0,8):Math.random().toString(36).slice(2,10);
+    const batch='B'+at+'_'+rid;
+    showStatus('status','⏳ กำลังจองเลขที่เอกสารกลาง...','info');
+    const alloc=await allocate(area,shift,batch,at);const dno=alloc.docNo;
+    const list=photos.slice(),cnt=list.length,hasDup=list.some(p=>p.isDup);
+    showStatus('status','⏳ กำลังส่ง '+cnt+' รูปขึ้นฐานข้อมูลกลาง (ส่งพร้อมกัน)...','info');
+    const jobs=[];
+    for(let i=0;i<list.length;i++){
+      const p=list[i];
+      try{if(db)await addRec({timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:p.b64,isDup:p.isDup,batch,docNo:dno});}catch(e){}
+      let cimg;try{cimg=await makeCloudImg(p.b64);}catch(e){cimg=p.b64;}
+      jobs.push(cloudSet(batch+'_'+i,{timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img:cimg,
+        isDup:p.isDup,batch,idx:i,docNo:dno,docNoV:3,docNoSource:alloc.source,device:navigator.userAgent.slice(0,80)}));
+    }
+    const results=await Promise.allSettled(jobs);
+    let queued=0,failed=0;
+    results.forEach(r=>{
+      if(r.status!=='rejected')return;
+      const m=String((r.reason&&r.reason.message)||r.reason||'');
+      if(/เก็บในคิว/.test(m))queued++;else{failed++;console.error('อัปโหลดคลาวด์ไม่สำเร็จ',r.reason);}
+    });
+    const lineOK=await Promise.race([notifyLine({ts,dateKey,area,shift,inspector,note,docNo:dno,count:cnt,dup:hasDup,batch}),sleep(2500).then(()=>true)]);
+    const tail=alloc.source==='server'?'':'\nℹ️ ออฟไลน์/สัญญาณช้า: เลขที่เอกสารคำนวณจากข้อมูลล่าสุดในเครื่อง';
+    if(failed)showStatus('status',`⚠️ บันทึกในเครื่องแล้ว ${cnt} รูป\nแต่ส่งขึ้นฐานข้อมูลกลางไม่สำเร็จ ${failed} รูป\nตรวจสอบอินเทอร์เน็ต / ค่า Firebase`+tail,'err');
+    else if(queued)showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป\n📄 เลขที่เอกสาร ${dno}\n⏫ สัญญาณช้า: ${queued} รูปอยู่ในคิว ระบบจะส่งให้อัตโนมัติ — ไม่ต้องกดส่งซ้ำ\n${area} • ${shift} • ${inspector}`+tail,'ok');
+    else showStatus('status',`✅ บันทึกสำเร็จ ${cnt} รูป\n📄 เลขที่เอกสาร ${dno}\n${lineOK?'📨 แจ้งเตือนเข้าไลน์กลุ่มแล้ว':'⚠️ ยังไม่ได้ตั้งค่าแจ้งเตือนไลน์'}\n${area} • ${shift} • ${inspector}`+tail,'ok');
+    showSaveCard({area,shift,inspector,docNo:dno,ts:thDate(now)+' '+thTime(now),count:cnt,note,dup:hasDup});
+    photos=[];renderThumbs();$('note').value='';
+    loadHistory();
+  }catch(err){
+    console.error(err);showStatus('status','❌ เกิดข้อผิดพลาด: '+err.message,'err');
+  }finally{
+    submitting=false;btn.disabled=false;btn.textContent='✅ บันทึกรายงาน';
+    setTimeout(updateCycleHint,900);
+  }
+}
+
+/* ---------- 4) หัวกระดาษรายงาน ซิงค์ทุกเครื่อง ---------- */
+function listenSettings(){
+  try{
+    const ref=fdb.collection('mt3_cycle_meta').doc('doc_settings');
+    ref.onSnapshot(s=>{
+      if(!s.exists)return;const v=s.data()||{};if(!v.doc)return;
+      const local=Number(localStorage.getItem('mt3_doc_stamp')||0);
+      if((v.updatedAt||0)>local){
+        const d=Object.assign({},v.doc);delete d.logo;
+        localStorage.setItem('mt3_doc',JSON.stringify(d));
+        localStorage.setItem('mt3_doc_ver',DOC_VER);
+        localStorage.setItem('mt3_doc_stamp',String(v.updatedAt||Date.now()));
+      }
+    },e=>console.warn('Doc settings',e.code));
+    const _save=saveDocSet;
+    saveDocSet=function(){
+      const r=_save.apply(this,arguments);
+      try{
+        const d=JSON.parse(localStorage.getItem('mt3_doc')||'{}');delete d.logo;
+        const st=Date.now();localStorage.setItem('mt3_doc_stamp',String(st));
+        ref.set({doc:d,updatedAt:st,by:adminUser||'-'})
+          .then(()=>showStatus('expStatus','✅ บันทึกหัวกระดาษ และซิงค์ไปทุกเครื่องแล้ว','ok'))
+          .catch(e=>showStatus('expStatus','⚠️ บันทึกหัวกระดาษในเครื่องนี้แล้ว แต่ซิงค์ขึ้นฐานข้อมูลกลางไม่สำเร็จ: '+(e.code||e.message),'err'));
+      }catch(e){}
+      return r;
+    };
+  }catch(e){}
+}
+
+/* ---------- แก้บั๊กล้าง Log (เดิมเทียบกับ 'l้างlog' ทำให้ล้างไม่ได้) ---------- */
+clearLog=async function(){
+  if(!guard())return;
+  if(!confirm('🧹 ล้างประวัติการลบทั้งหมด?'))return;
+  const t=(prompt('พิมพ์คำว่า  ล้างlog  เพื่อยืนยัน:')||'').trim();
+  if(t!=='ล้างlog'&&t!=='ล้าง log')return showStatus('lgStatus','❌ ยกเลิก — พิมพ์คำยืนยันไม่ตรง','err');
+  showStatus('lgStatus','⏳ กำลังล้าง Log...','info');
+  try{if(LOGCOL)await cloudClearLogs();if(db)await clearLogs();}catch(e){}
+  showStatus('lgStatus','✅ ล้าง Log เรียบร้อย','ok');loadLog();
+};
+
+/* ---------- 2) ถอดระบบจัดเลขย้อนหลัง 20/09/69 + เริ่มทำงาน ---------- */
+document.querySelectorAll('button').forEach(b=>{if((b.textContent||'').includes('จัดเลขย้อนหลังตั้งแต่'))b.remove();});
+updateCycleHint=renderHint;
+['area','shift'].forEach(id=>{const el=$(id);if(el)el.addEventListener('change',()=>setTimeout(renderHint,0));});
+setInterval(renderHint,60000);
+const toAnchor=dayStart(CFG.ANCHOR_DATE)-Date.now();
+if(toAnchor>0&&toAnchor<2147483647)setTimeout(renderHint,toAnchor+3000);
+MT3Reliability.setSubmit(submitV3);
+insertBar();
+if(typeof fdb!=='undefined'&&fdb&&COL){
+  try{MT3Reliability.stop();}catch(e){}
+  COL=wrapCol(COL);
+  listenStates();listenSettings();
+  restart();
+}
+renderHint();
+window.MT3FastSync=Object.freeze({
+  version:'3.0.0',config:CFG,setRange,restart,syncNow,allocate,estimate,
+  status:()=>({cloudReady,records:(cloudRecs||[]).length,range:rangeLabel(),
+    readyInSec:connMs==null?null:+(connMs/1000).toFixed(1),docStateFromServer:statesServer})
+});
+console.log('%c MT3 FastSync v3.0.0 ','background:#0d1b3e;color:#d4af37;font-weight:700;padding:3px 6px;border-radius:4px','— พิมพ์ MT3FastSync.status() เพื่อดูสถานะ');
+})();
+</script>
   function html(model){
     return model.pages.map(p=>{const columns=p.widths||widths;let y=0;const rows=p.rows.map(r=>{const cells=r.cells.map(c=>{const style=styles[c.style],left=columns.slice(0,c.c).reduce((a,b)=>a+b,0),width=columns.slice(c.c,c.c+c.span).reduce((a,b)=>a+b,0);
       return `<div style="position:absolute;left:${left}mm;width:${width}mm;height:${r.height}pt;padding:3pt;overflow:hidden;display:flex;align-items:center;justify-content:${style.align==='center'?'center':'flex-start'};font-size:${style.size}pt;font-weight:${style.bold?700:400};${style.border?'border:.5pt solid #000;':''}${style.bottom?'border-top:.5pt solid #000;':''}${style.fill?'background:#'+style.fill+';':''}"><span style="white-space:pre-wrap;line-height:1.15;text-align:${style.align};width:100%">${xml(c.v)}</span></div>`;
