@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>ระบบตรวจเช็คเครื่องมือช่าง Team 3</title>
-<!-- MT3 fast startup: export tools no longer block Firebase or the form. -->
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -632,7 +631,7 @@ async function loadHistory(){
         <span class="docchip">📄 ${r.docNo||'-'}</span><br>
         <b>${r.area}</b><span class="tag ${r.shift==='ส่งคืน'?'rt':'shift'}">${r.shift}</span>${r.isDup?'<span class="tag dup">ภาพซ้ำ</span>':''}<br>
         👤 ${r.inspector}<br>📝 ${(r.note||'-').replace(/\n/g,' / ')}<br>🕐 ${r.timestamp}<br>
-        ${isAdmin?`<a class="dl" href="${r.img}" download="${r.area}_${r.shift}_${String(r.timestamp).replace(/[\/:\s]/g,'-')}.jpg">⬇️ เซฟรูปภาพ</a>`:''}
+        ${isAdmin?`<a class="dl" href="${r.img}" download="${r.area}_${r.shift}_${String(r.timestamp).replace(/[\/:\s]/g,-'')}.jpg">⬇️ เซฟรูปภาพ</a>`:''}
       </div></div>`).join(''):'<div class="empty">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</div>';}
 function thDate(d){const m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543);}
@@ -1018,7 +1017,7 @@ const MT3Access=(()=>{
   $('mt3EmbeddedLogout').onclick=logout;
   $('mt3EmbeddedRetry').onclick=()=>MT3Reliability.retry().catch(e=>alert(e.message));
   $('mt3EmbeddedAdopt').onclick=()=>{if(admin()&&confirm('รับและส่งคิวเดิมในเครื่องนี้ด้วยบัญชีแอดมินปัจจุบัน?'))MT3Reliability.adoptLegacy().catch(e=>alert(e.message));};
-  try{const id=sessionStorage.getItem('mt3_embedded_admin');current=accounts().find(a=>a.id==id)||null;}catch(e){}
+  try{const id=sessionStorage.getItem('mt3_embedded_admin');current=accounts().find(a=>a.id===id)||null;}catch(e){}
   return Object.freeze({ready:()=>true,admin,fullName:()=>current?current.fullName:null,normalizeName:value=>{const key=String(value||'').trim().toLowerCase();const a=accounts().find(x=>x.username.toLowerCase()===key)||MT3_EMBEDDED_ADMINS.find(x=>x.username.toLowerCase()===key);return a?a.fullName:value;},guestUid:()=>guestId,uid:()=>current?'embedded_'+current.id:guestId});
 })();
 /* Reliability Layer (Fixed Connection Status) */
@@ -1159,7 +1158,7 @@ const MT3Cycles=(()=>{
   const AREAS=['MTB-West','MTB-East','SAT-East','SAT-West','Tunnel-West','Tunnel-East'];
   const SHIFTS=['รับกะ','ส่งคืน'];
   const ROLLOUT_AT=Date.parse('2026-10-09T00:00:00+07:00');
-  const START_NO=12; // วันที่ 9 ต.ค. 69 เริ่มที่ MT69/0012
+  const START_NO=12;
   const PRE_NO=11;
   const ANCHOR_DATE='2026-10-09';
   const PAIR_HOURS=24;
@@ -1410,6 +1409,148 @@ const MT3Report=(()=>{
   }
   function html(model){
     return model.pages.map(p=>{const columns=p.widths||widths;let y=0;const rows=p.rows.map(r=>{const cells=r.cells.map(c=>{const style=styles[c.style],left=columns.slice(0,c.c).reduce((a,b)=>a+b,0),width=columns.slice(c.c,c.c+c.span).reduce((a,b)=>a+b,0);
-      return `<div style="position:absolute;left:${left}mm;width:${width}mm;height:${r.height}pt;padding:3pt;overflow:hidden;display:flex;align-items:center;justify-content:${style.align==='center'?'center':'flex-start'};font-size:${style.size}pt;font-weight:${style.bold?700:400};${style.border?'border:.5pt solid #000;':''}${style.bottom?'border-top:.5pt solid #000;':''}${style.fill?'background:#'+style.fill+':':''}"><span style="white-space:pre-wrap;line-height:1.15;text-align:${style.align};width:100%">${xml(c.v)}</span></div>`;
+      return `<div style="position:absolute;left:${left}mm;width:${width}mm;height:${r.height}pt;padding:3pt;overflow:hidden;display:flex;align-items:center;justify-content:${style.align==='center'?'center':'flex-start'};font-size:${style.size}pt;font-weight:${style.bold?700:400};${style.border?'border:.5pt solid #000;':''}${style.bottom?'border-top:.5pt solid #000;':''}${style.fill?'background:#'+style.fill+';':''}"><span style="white-space:pre-wrap;line-height:1.15;text-align:${style.align};width:100%">${xml(c.v)}</span></div>`;
     }).join('');const out=`<div style="position:absolute;left:0;top:${y}pt;width:190mm;height:${r.height}pt">${cells}</div>`;y+=r.height;return out;}).join('');
-      const images=p.images.map(im=>{const top=p.rows.slice(0,im.row).reduce((n,r)=>n+r.height,0)+im.y;return `<img src="${im.data}" style="position:absolute;left:${
+      const images=p.images.map(im=>{const top=p.rows.slice(0,im.row).reduce((n,r)=>n+r.height,0)+im.y;return `<img src="${im.data}" style="position:absolute;left:${im.x}pt;top:${top}pt;width:${im.w}pt;height:${im.h}pt">`;}).join('');
+      return `<section class="mt3-report-sheet" style="position:relative;width:190mm;height:${pageHeight}pt;font-family:${font};font-size:10.5pt;page-break-after:always">${rows}${images}</section>`;
+    }).join('');
+  }
+  function stylesXML(){
+    const fonts=styles.map(s=>`<font><sz val="${s.size}"/><name val="${font}"/>${s.bold?'<b/>':''}<color rgb="FF000000"/></font>`).join('');
+    const xfs=styles.map((s,i)=>`<xf numFmtId="0" fontId="${i}" fillId="${s.fill?2:0}" borderId="${s.border?1:s.bottom?2:0}" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${s.align}" vertical="center" wrapText="1"/></xf>`).join('');
+    return `<?xml version="1.0" encoding="UTF-8"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="${styles.length}">${fonts}</fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFF0F0F0"/><bgColor indexed="64"/></patternFill></fills><borders count="3"><border><left/><right/><top/><bottom/><diagonal/></border><border>${['left','right','top','bottom'].map(x=>`<${x} style="thin"><color rgb="FF000000"/></${x}>`).join('')}<diagonal/></border><border><left/><right/><top style="thin"><color rgb="FF000000"/></top><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="${styles.length}">${xfs}</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  }
+  async function xlsx(model,type='blob'){
+    if(typeof JSZip==='undefined')throw new Error('โหลด JSZip ไม่สำเร็จ');const zip=new JSZip(),types=[],sheets=[],rels=[],names=[];let mediaId=0;
+    zip.file('_rels/.rels','<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+    zip.file('xl/styles.xml',stylesXML());
+    for(let i=0;i<model.pages.length;i++){
+      const p=model.pages[i],columns=p.widths||widths,n=i+1,name='P'+pad(n,2);sheets.push(`<sheet name="${name}" sheetId="${n}" r:id="rId${n}"/>`);rels.push(`<Relationship Id="rId${n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${n}.xml"/>`);
+      names.push(`<definedName name="_xlnm.Print_Area" localSheetId="${i}">'${name}'!$A$1:$H$${p.rows.length}</definedName>`);
+      const merges=[];let sheetData='';p.rows.forEach((r,ri)=>{let cells='';for(const c of r.cells){const address=colLetter(c.c)+(ri+1);if(c.span>1)merges.push(`<mergeCell ref="${address}:${colLetter(c.c+c.span-1)}${ri+1}"/>`);
+        for(let j=0;j<c.span;j++){const a=colLetter(c.c+j)+(ri+1);if(j||c.v===''){cells+=`<c r="${a}" s="${c.style}"/>`;continue;}cells+=typeof c.v==='number'?`<c r="${a}" s="${c.style}"><v>${c.v}</v></c>`:`<c r="${a}" s="${c.style}" t="inlineStr"><is><t xml:space="preserve">${xml(c.v)}</t></is></c>`;}
+      }sheetData+=`<row r="${ri+1}" ht="${r.height}" customHeight="1">${cells}</row>`;});
+      const cols=columns.map((mm,j)=>`<col min="${j+1}" max="${j+1}" width="${((mm*96/25.4-5)/7).toFixed(5)}" customWidth="1"/>`).join('');
+      zip.file(`xl/worksheets/sheet${n}.xml`,`<?xml version="1.0" encoding="UTF-8"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="A1:H${p.rows.length}"/><sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><cols>${cols}</cols><sheetData>${sheetData}</sheetData><mergeCells count="${merges.length}">${merges.join('')}</mergeCells><printOptions horizontalCentered="1"/><pageMargins left="0.3937" right="0.3937" top="0.3937" bottom="0.3937" header="0" footer="0"/><pageSetup paperSize="9" orientation="portrait" fitToWidth="1" fitToHeight="1" horizontalDpi="96" verticalDpi="96"/><drawing r:id="drawing"/></worksheet>`);
+      zip.file(`xl/worksheets/_rels/sheet${n}.xml.rels`,`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="drawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing${n}.xml"/></Relationships>`);
+      const anchors=[],imageRels=[];for(let j=0;j<p.images.length;j++){
+        const im=p.images[j],id=++mediaId,file='image'+id+'.png';zip.file('xl/media/'+file,im.data.split(',')[1],{base64:true});
+        imageRels.push(`<Relationship Id="img${j}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/${file}"/>`);
+        const colStart=columns.slice(0,im.col).reduce((a,b)=>a+b,0)*72/25.4;
+        anchors.push(`<xdr:oneCellAnchor><xdr:from><xdr:col>${im.col}</xdr:col><xdr:colOff>${Math.round((im.x-colStart)*12700)}</xdr:colOff><xdr:row>${im.row}</xdr:row><xdr:rowOff>${Math.round(im.y*12700)}</xdr:rowOff></xdr:from><xdr:ext cx="${Math.round(im.w*12700)}" cy="${Math.round(im.h*12700)}"/><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="${id}" name="รูป ${id}"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="img${j}"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill><xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${Math.round(im.w*12700)}" cy="${Math.round(im.h*12700)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>`);
+      }
+      zip.file(`xl/drawings/drawing${n}.xml`,`<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">${anchors.join('')}</xdr:wsDr>`);
+      zip.file(`xl/drawings/_rels/drawing${n}.xml.rels`,`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${imageRels.join('')}</Relationships>`);
+      types.push(`<Override PartName="/xl/worksheets/sheet${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/drawings/drawing${n}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>`);
+    }
+    rels.push(`<Relationship Id="styles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`);
+    zip.file('xl/_rels/workbook.xml.rels',`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${rels.join('')}</Relationships>`);
+    zip.file('xl/workbook.xml',`<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView activeTab="0"/></bookViews><sheets>${sheets.join('')}</sheets><definedNames>${names.join('')}</definedNames></workbook>`);
+    zip.file('[Content_Types].xml',`<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${types.join('')}</Types>`);
+    return zip.generateAsync({type,compression:'DEFLATE',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  }
+  printSummary=async()=>{
+    if(!guard()||!cache.length)return;const w=window.open('','_blank');if(!w)return alert('กรุณาอนุญาต Pop-up');w.document.write('<p>กำลังเตรียมรายงาน...</p>');
+    try{const model=await prepare();w.document.open();w.document.write(`<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงานตรวจเช็คเครื่องมือ</title><style>@page{size:A4 portrait;margin:10mm}*{box-sizing:border-box}body{margin:0;background:white}.mt3-report-sheet{margin:0 auto}.mt3-report-sheet:last-child{page-break-after:auto}.mt3-print-controls{text-align:center;padding:12px;background:#eee}@media print{.mt3-print-controls{display:none}}</style></head><body><div class="mt3-print-controls"><button onclick="window.print()">พิมพ์ / บันทึก PDF</button><button onclick="window.close()">ปิด</button></div>${html(model)}</body></html>`);w.document.close();showStatus('expStatus','เปิดรายงาน '+model.pages.length+' หน้าแล้ว ใช้ A4 / Scale 100% / ปิดหัวท้ายเบราว์เซอร์','ok');}
+    catch(e){w.document.body.textContent='สร้างรายงานไม่ได้: '+e.message;showStatus('expStatus',e.message,'err');}
+  };
+  exportSummaryExcel=async()=>{
+    if(!guard()||!cache.length)return;showStatus('expStatus','กำลังสร้าง Excel ตามหน้ารายงาน PDF พร้อมรูปภาพ...','info');
+    try{const model=await prepare(),blob=await xlsx(model),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='รายงานสรุป_A4_'+stamp()+'.xlsx';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),10000);showStatus('expStatus','ดาวน์โหลด Excel '+model.pages.length+' หน้า — แต่ละชีตตรงกับหนึ่งหน้า PDF และแก้ไขข้อความได้','ok');}
+    catch(e){showStatus('expStatus','สร้าง Excel ไม่สำเร็จ: '+e.message,'err');}
+  };
+  return Object.freeze({build,html,xlsx,fit,grouped});
+})();
+printSingle=async function(id){
+  if(!guard())return;
+  const all=cloudReady?cloudRecs:(await getAll());
+  const rec=all.find(r=>String(r.id)===String(id));if(!rec)return;
+  const grp=rec.batch?all.filter(r=>r.batch===rec.batch):[rec];
+  const c=docCfg(),logo=LOGO_SRC;
+  const dno=docNo(rec);
+  const cyc=all.filter(r=>r.docNo===dno);
+  const doneKeys=new Set(cyc.map(r=>r.area+'|'+r.shift));
+  const items=(rec.note||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const normal=items.length===0;
+  let rows='';
+  for(let i=0;i<Math.max(items.length,5);i++){
+    const t=items[i]||'';
+    rows+=`<tr><td class="c" style="width:12mm">${t?i+1:''}</td><td>${esc(t)}</td>
+      <td class="c" style="width:30mm">${t?'ตรวจพบ':''}</td><td style="width:38mm"></td></tr>`;}
+  const phHtml=grp.map((r,i)=>`<figure><img src="${r.img}">
+    <figcaption>ภาพที่ ${i+1} — ${esc(r.area)} / ${esc(r.shift)} / ${esc(r.timestamp)}</figcaption></figure>`).join('');
+  const page1=`<div class="sheet">
+    ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P01/02')}
+    <div class="meta"><span>วันที่ออกเอกสาร&nbsp;&nbsp;<b>${thDate(new Date())}</b></span>
+      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
+    <div class="fl"><div class="lb">เรียน</div><div class="vl">ผู้ควบคุมงาน / ผู้ช่วยผู้ควบคุมงาน / หัวหน้าชุดปฏิบัติงาน</div></div>
+    <div class="fl"><div class="lb">พื้นที่รับผิดชอบ</div><div class="vl"><b>${esc(rec.area)}</b></div>
+      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">รอบตรวจเช็ค</div>
+      <div class="vl" style="max-width:40mm"><b>${esc(rec.shift)}</b></div></div>
+    <div class="fl"><div class="lb">ผู้ตรวจเช็ค</div><div class="vl">${esc(MT3Access.normalizeName(rec.inspector))}</div>
+      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">วันเวลาที่ตรวจ</div>
+      <div class="vl" style="max-width:40mm">${esc(rec.timestamp)}</div></div>
+    <div class="fl"><div class="lb">สถานะรอบเอกสาร</div><div class="vl">
+      บันทึกแล้ว ${doneKeys.size} รายการ</div></div>
+    <div style="margin-top:12px;font-weight:700">รายการเครื่องมือที่ตรวจพบความผิดปกติ</div>
+    <table><tr><th>ลำดับ</th><th>รายการ / อาการที่พบ</th><th>สถานะ</th><th>หมายเหตุ</th></tr>${rows}</table>
+    <div class="chk">
+      <div><span class="bx">${normal?'✓':''}</span> ครบถ้วนสมบูรณ์</div>
+      <div><span class="bx">${!normal?'✓':''}</span> พบชำรุด / สูญหาย</div>
+      <div><span class="bx"></span> ส่งซ่อม</div>
+      <div><span class="bx"></span> เบิกทดแทน</div>
+      <div><span class="bx">${grp.some(r=>r.isDup)?'✓':''}</span> ระบบแจ้งเตือนภาพซ้ำ</div>
+    </div>
+    <div class="rm" style="min-height:auto">ภาพถ่ายประกอบการตรวจเช็คทั้งหมด แสดงอยู่ในหน้าที่ 2 ของเอกสารฉบับนี้</div>
+    <div class="sig">
+      <div><div class="ln"></div>ผู้ตรวจเช็ค<br>( ${esc(MT3Access.normalizeName(rec.inspector))} )<br>วันที่ ......../......../........</div>
+      <div><div class="ln"></div>ผู้ตรวจสอบ / หัวหน้าชุด<br>(................................)<br>วันที่ ......../......../........</div>
+      <div><div class="ln"></div>Shift Maintenance Manager<br>(................................)<br>วันที่ ......../......../........</div>
+    </div>${docFoot(c)}</div>`;
+  const page2=`<div class="sheet p2">
+    ${docHead(c,logo,esc(rec.area)+'&nbsp;&nbsp;หน้า&nbsp;P02/02')}
+    <div class="meta"><span>ภาพถ่ายประกอบการตรวจเช็ค&nbsp;&nbsp;<b>(${grp.length} ภาพ)</b></span>
+      <span>เลขที่เอกสาร&nbsp;&nbsp;<b>${dno}</b></span></div>
+    <div class="fl"><div class="lb">พื้นที่ / รอบตรวจ</div><div class="vl"><b>${esc(rec.area)}</b> / <b>${esc(rec.shift)}</b></div>
+      <div class="lb" style="width:26mm;text-align:right;padding-right:5px">ผู้ตรวจเช็ค</div>
+      <div class="vl" style="max-width:40mm">${esc(MT3Access.normalizeName(rec.inspector))}</div></div>
+    <div class="ph">${phHtml||'<div class="rm">ไม่มีภาพประกอบ</div>'}</div>
+    <div style="margin-top:auto"></div>
+    ${docFoot(c)}</div>`;
+  openPrint(page1+page2);showStatus('expStatus','🖨️ เปิดหน้าใบรายงานแล้ว (2 หน้า)','ok');};
+const MT3ExportTools=(()=>{
+  const pending={};
+  const urls={XLSX:'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',JSZip:'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js'};
+  function ensure(name){
+    if(window[name])return Promise.resolve();if(pending[name])return pending[name];
+    pending[name]=new Promise((resolve,reject)=>{
+      const script=document.createElement('script');script.src=urls[name];script.async=true;
+      const timer=setTimeout(()=>fail(),20000);
+      function fail(){clearTimeout(timer);script.remove();delete pending[name];reject(new Error('โหลดเครื่องมือ Export ไม่สำเร็จ กรุณาตรวจอินเทอร์เน็ตและลองใหม่'));}
+      script.onload=()=>{if(!window[name])return fail();clearTimeout(timer);resolve();};script.onerror=fail;document.head.appendChild(script);
+    });return pending[name];
+  }
+  function ready(logs=false){
+    if(navigator.onLine&&(!cloudReady||!MT3Reliability.complete()||(logs&&!MT3Reliability.logsComplete()))){
+      showStatus('expStatus','กำลังโหลดประวัติให้ครบ กรุณารอฐานข้อมูลยืนยันก่อนออกเอกสาร สำรอง หรือแก้ไขข้อมูล','info');return false;
+    }return true;
+  }
+  const guarded=fn=>function(...args){if(!ready())return;return fn.apply(this,args);};
+  printSummary=guarded(printSummary);printSingle=guarded(printSingle);
+  setDocNoFiltered=guarded(setDocNoFiltered);deleteFiltered=guarded(deleteFiltered);deleteAll=guarded(deleteAll);
+  const previousBackup=backupData;backupData=function(...args){if(!ready(MT3Access.admin()))return;return previousBackup.apply(this,args);};
+  const excel=exportExcel,summary=exportSummaryExcel,zip=exportZip,logExcel=exportLogExcel;
+  exportExcel=async function(...args){if(!ready())return;try{await ensure('XLSX');return excel.apply(this,args);}catch(e){showStatus('expStatus',e.message,'err');}};
+  exportSummaryExcel=async function(...args){if(!ready())return;try{await ensure('JSZip');return summary.apply(this,args);}catch(e){showStatus('expStatus',e.message,'err');}};
+  exportZip=async function(...args){if(!ready())return;try{await ensure('JSZip');return zip.apply(this,args);}catch(e){showStatus('expStatus',e.message,'err');}};
+  exportLogExcel=async function(...args){if(!ready(true))return;try{await ensure('XLSX');return logExcel.apply(this,args);}catch(e){showStatus('expStatus',e.message,'err');}};
+  return Object.freeze({ready,ensure});
+})();
+if(initCloud()){ startCloudSync(); }
+else { setSync('🔴 ตั้งค่า Firebase ไม่ถูกต้อง','off'); }
+MT3Cycles.updateHint();
+openDB().then(()=>{if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true);else loadHistory();})
+ .catch(()=>{ if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true); else loadHistory(); });
+</script>
+</body>
+</html>
