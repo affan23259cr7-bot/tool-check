@@ -1394,7 +1394,7 @@ const MT3Access=(()=>{
  * Current queries retain original 1200/600 limits; this is not full-history backup.
  */
 const MT3Reliability = (() => {
-  let queueDB, opening, running=false, renderTimer, retryTimer, subscriptions=[], durableFailure=false, syncError="", syncGeneration=0, reportComplete=false, logComplete=false, connected=false;
+  let queueDB, opening, running=false, renderTimer, retryTimer, subscriptions=[], durableFailure=false, syncError="", syncGeneration=0, reportComplete=false, logComplete=false, connected=false, syncStartedAt=0, probeNote="", lastQueue=[], queueError="", refreshingQueue=false;
   const inflight=new Map();
   const permanent=new Set(['permission-denied','unauthenticated','invalid-argument','resource-exhausted']);
   const configOK=()=>!String(firebaseConfig.apiKey||'').includes('EXAMPLE')&&!!firebaseConfig.apiKey;
@@ -1419,17 +1419,26 @@ const MT3Reliability = (() => {
   const put=o=>tx('readwrite',s=>s.put(o));
   const remove=key=>tx('readwrite',s=>s.delete(key));
   function banner(message,off){setSync(message,off?'off':'');}
-  async function status(){
-    try{const q=await list();const blocked=q.filter(x=>x.blocked).length;
-      if(!configOK())banner('⚠️ Firebase API key ยังเป็นค่าตัวอย่าง • รอส่ง '+q.length+' รายการ',true);
-      else if(!MT3Access.ready())banner('🔒 กรุณาเข้าสู่ระบบและตรวจสิทธิ์บัญชี',true);
-      else if(syncError)banner('🔴 '+syncError,true);
-      else if(q.length)banner('🟠 รอฐานข้อมูลยืนยัน '+q.length+' รายการ'+(blocked?' • ต้องแก้สิทธิ์/การตั้งค่า '+blocked+' รายการ':''),true);
-      else if(!navigator.onLine)banner('🟠 ออฟไลน์ • แสดงข้อมูลในเครื่อง',true);
-      else if(cloudReady)banner('🟢 ฐานข้อมูลกลางยืนยันแล้ว • '+(reportComplete?'ประวัติล่าสุด '+cloudRecs.length+' รายการ':'แสดงล่าสุด '+cloudRecs.length+' รายการ • กำลังโหลดประวัติส่วนที่เหลือ'),false);
-      else if(connected)banner('🟢 เชื่อมต่อฐานข้อมูลกลางแล้ว • กำลังโหลดประวัติ',false);
-      else banner('🟠 กำลังเชื่อมต่อ • ข้อมูลอาจเป็นแคชในเครื่อง',true);
-    }catch(e){banner('🔴 เปิดคิวสำรองไม่ได้ • '+e.message,true);}
+  function paintStatus(){
+    const q=lastQueue,blocked=q.filter(x=>x.blocked).length;
+    if(!configOK())banner('⚠️ Firebase API key ยังเป็นค่าตัวอย่าง • รอส่ง '+q.length+' รายการ',true);
+    else if(!MT3Access.ready())banner('🔒 กรุณาเข้าสู่ระบบและตรวจสิทธิ์บัญชี',true);
+    else if(syncError)banner('🔴 '+syncError,true);
+    else if(!navigator.onLine)banner('🟠 ออฟไลน์ • แสดงข้อมูลในเครื่อง',true);
+    else if(queueError)banner('🔴 เปิดคิวสำรองไม่ได้ • '+queueError,true);
+    else if(blocked)banner('🟠 รอส่ง '+q.length+' รายการ • ต้องแก้สิทธิ์/การตั้งค่า '+blocked+' รายการ',true);
+    else if(cloudReady||connected){
+      const detail=q.length?'รอส่ง '+q.length+' รายการ':cloudReady?(reportComplete?'ประวัติล่าสุด '+cloudRecs.length+' รายการ':'แสดงล่าสุด '+cloudRecs.length+' รายการ • โหลดส่วนที่เหลือต่อ'):'กำลังซิงค์ประวัติ';
+      banner('🟢 ฐานข้อมูลกลางตอบกลับแล้ว • '+detail+' • v2.3',false);
+    }else{
+      const seconds=syncStartedAt?Math.floor((Date.now()-syncStartedAt)/1000):0;
+      banner('🟠 '+(probeNote||'กำลังติดต่อฐานข้อมูลกลาง')+(seconds?' • '+seconds+' วินาที':'')+' • v2.3',true);
+    }
+  }
+  function status(){
+    // Paint real network state immediately; IndexedDB/outbox loading must not delay it.
+    paintStatus();if(refreshingQueue)return;refreshingQueue=true;
+    list().then(q=>{lastQueue=q;queueError='';paintStatus();}).catch(e=>{queueError=e.message;paintStatus();}).finally(()=>{refreshingQueue=false;});
   }
   function schedule(){clearTimeout(retryTimer);retryTimer=setTimeout(()=>flush(),30000);}
   async function send(item){
@@ -1471,13 +1480,39 @@ const MT3Reliability = (() => {
     }finally{clearTimeout(timer);}
   }
   function render(){clearTimeout(renderTimer);renderTimer=setTimeout(()=>{loadHistory();loadLog();updateCycleHint();},180);}
+  function fastConfirmation(alive){
+    let stopped=false,retryTimer=null,controller=null,attempt=0;
+    async function run(){
+      if(stopped||!alive()||!navigator.onLine||connected||cloudReady)return;
+      controller=new AbortController();const current=controller;
+      const timeout=setTimeout(()=>current.abort(),6000);attempt++;
+      try{
+        const endpoint='https://firestore.googleapis.com/v1/projects/'+encodeURIComponent(firebaseConfig.projectId)+'/databases/(default)/documents:runQuery?key='+encodeURIComponent(firebaseConfig.apiKey);
+        const response=await fetch(endpoint,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},signal:current.signal,
+          body:JSON.stringify({structuredQuery:{from:[{collectionId:'reports'}],select:{fields:[{fieldPath:'createdAt'}]},limit:1}})});
+        if(!response.ok){const e=new Error('ตรวจฐานข้อมูลไม่ผ่าน (HTTP '+response.status+')');e.httpStatus=response.status;throw e;}
+        const result=await response.json();
+        if(!Array.isArray(result)||!result.some(row=>row&&typeof row.readTime==='string')||result.some(row=>row.error))throw new Error('คำตอบฐานข้อมูลยังไม่ยืนยันการอ่าน');
+        if(stopped||!alive()||!navigator.onLine)return;
+        connected=true;probeNote='';status();
+      }catch(e){
+        if(stopped||!alive()||connected||cloudReady)return;
+        probeNote=e.name==='AbortError'?'เครือข่ายตอบช้า • กำลังลองใหม่':e.httpStatus===403?'การตรวจฐานข้อมูลถูกปฏิเสธ (403) • ตรวจ Rules / API key':e.httpStatus===429?'ฐานข้อมูลจำกัดคำขอ (429)':e.httpStatus===401?'ฐานข้อมูลต้องการสิทธิ์ (401)':'ยังติดต่อฐานข้อมูลไม่ได้ • ตรวจอินเทอร์เน็ต';
+        status();
+        if(attempt<3&&(!e.httpStatus||e.httpStatus>=500))retryTimer=setTimeout(run,attempt*1500);
+      }finally{clearTimeout(timeout);if(controller===current)controller=null;}
+    }
+    run();return()=>{stopped=true;clearTimeout(retryTimer);if(controller)controller.abort();};
+  }
   function sync(){
     const hadFull=reportComplete,generation=++syncGeneration;
     subscriptions.forEach(fn=>fn());subscriptions=[];
     if(!COL||!MT3Access.ready())return;
-    syncError='';reportComplete=false;logComplete=false;connected=false;
+    syncError='';reportComplete=false;logComplete=false;connected=false;syncStartedAt=Date.now();probeNote='';
     let fullStarted=false,logStarted=false,smallOff=null,fullServer=false;
     const alive=()=>generation===syncGeneration;
+    subscriptions.push(fastConfirmation(alive));
+    const clock=setInterval(()=>{if(alive()&&!cloudReady)status();},1000);subscriptions.push(()=>clearInterval(clock));
     const server=snap=>!snap.metadata.fromCache&&!snap.metadata.hasPendingWrites;
     const failure=(e,isLog=false)=>{if(!alive())return;if(isLog){logReady=false;logComplete=false;}else{cloudReady=false;reportComplete=false;}syncError='ฐานข้อมูล: '+e.code+' • '+e.message;console.error(e);status();};
     const values=snap=>snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
@@ -1500,7 +1535,7 @@ const MT3Reliability = (() => {
     }
     // Connectivity confirmation is tiny; it never waits for the photo history.
     subscriptions.push(fdb.collection('mt3_cycle_meta').doc('main').onSnapshot({includeMetadataChanges:true},snap=>{
-      if(!alive())return;connected=server(snap);status();
+      if(!alive())return;if(server(snap))connected=true;status();
     },e=>{console.warn('Connection confirmation',e.code);}));
     if(hadFull)full();else{
       smallOff=COL.orderBy('createdAt','desc').limit(20).onSnapshot({includeMetadataChanges:true},snap=>{
@@ -1568,7 +1603,7 @@ const MT3Reliability = (() => {
   addEventListener('offline',()=>{cloudReady=false;logReady=false;status();});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flush();});
   open().then(status).catch(e=>banner('🔴 ไม่สามารถเก็บคิวสำรอง: '+e.message,true));
-  return Object.freeze({version:'2.2.0-fast-start',complete:()=>reportComplete,logsComplete:()=>logComplete,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
+  return Object.freeze({version:'2.3.0-small-probe',complete:()=>reportComplete,logsComplete:()=>logComplete,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
     stop:()=>{subscriptions.forEach(fn=>fn());subscriptions=[];syncGeneration++;clearTimeout(renderTimer);clearTimeout(retryTimer);},
     adoptLegacy:async()=>{if(!MT3Access.admin())throw new Error('เฉพาะผู้ดูแล');
       for(const item of await list())if(!item.ownerUid||!String(item.ownerUid).startsWith('embedded_')){item.ownerUid=MT3Access.uid();if(item.collection==='reports'&&!item.data.createdByUid)item.data.createdByUid=MT3Access.uid();item.blocked=false;item.nextAt=0;await put(item);}return flush();},
