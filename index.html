@@ -244,18 +244,6 @@ body.isAdmin .lockmsg{display:none}
   <span class="close">&times;</span><img id="modalImg">
 </div>
 
-<!-- PIN -->
-<div class="dlg" id="pinDlg"><div class="dlg-box">
-  <h3 id="pinTitle">🔐 เข้าสู่ระบบผู้ดูแล</h3><p id="pinDesc">กรอกชื่อและรหัส PIN</p>
-  <div id="nameBox"><label style="margin-top:0">ชื่อผู้ดูแลระบบ</label>
-  <input type="text" id="adminName" placeholder="ชื่อ-นามสกุล (ใช้ใน Log และใบรายงาน)"></div>
-  <label>รหัส PIN</label>
-  <input type="password" id="pinInput" inputmode="numeric" placeholder="รหัส PIN" maxlength="10">
-  <div class="status" id="pinStatus"></div>
-  <div class="row"><button class="btn btn-gallery btn-sm" onclick="closePin()">ยกเลิก</button>
-  <button class="btn btn-camera btn-sm" onclick="confirmPin()">ยืนยัน</button></div>
-</div></div>
-
 <!-- เหตุผลลบ -->
 <div class="dlg" id="rsnDlg"><div class="dlg-box">
   <h3>🗑 ยืนยันการลบข้อมูล</h3><p id="rsnDesc">-</p>
@@ -293,12 +281,12 @@ body.isAdmin .lockmsg{display:none}
 
 <script>
 const $=id=>document.getElementById(id);
-let photos=[],db=null,cache=[],logCache=[],isAdmin=false,pinMode='login',adminUser='-',rsnCallback=null;
+let photos=[],db=null,cache=[],logCache=[],isAdmin=false,adminUser='-',rsnCallback=null;
 let submitting=false;
 
 /* ================== [LOCKED] โลโก้กลาง ================== */
 const LOGO_URL='https://affan23259cr7-bot.github.io/tool-check/logo.png';
-const LOGO_FALLBACK='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTIwIj48cGF0aCBkPSJNNTAgNUw5NSAyMHY1MGMwIDI1LTIwIDQwLTQ1IDQ1QzI1IDExMCA1IDk1IDUgNzBWMjB6IiBmaWxsPSIjMTQzNTZkIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNSIv><dGV4dD49IjUwIiB5PSI1MiIgZm9udC1zaXplPSIzMiIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiNkNGFmMzciIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtZmFtaWx5PSJBcmlhbCI+TVQzPC90ZXh0PjxjaXJjbGUgY3g9IjM4IiBjeT0iNzUiIHI9IjkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2Q0YWYzNyIgc3Ryb2tlLXdpZHRoPSI0Ii8+PHBhdGggZD0iTTU1IDgzbDE1LTE1TTYyIDY2aดินMHYxMCIgc3Ryb2tlPSIjZDRhZjM3IiBzdHJva2Utd2lkdGg9IjQiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==';
+const LOGO_FALLBACK='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTIwIj48cGF0aCBkPSJNNTAgNUw5NSAyMHY1MGMwIDI1LTIwIDQwLTQ1IDQ1QzI1IDExMCA1IDk1IDUgNzBWMjB6IiBmaWxsPSIjMTQzNTZkIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNSIv><dGV4dCB4PSI1MCIgeT0iNTIiIGZvbnQtc2l6ZT0iMzIiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSIjZDRhZjM3IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iQXJpYWwiPk1UMzwvdGV4dD48Y2lyY2xlIGN4PSIzOCIgY3k9Ijc1IiByPSI5IiBmaWxsPSJub25lIiBzdHJva2U9IiNkNGFmMzciIHN0cm9rZS13aWR0aD0iNCIvPjxwYXRoIGQ9Ik01NSA4M2wxNS0xNU02MiA2NmgxMHYxMCIgc3Ryb2tlPSIjZDRhZjM3IiBzdHJva2Utd2lkdGg9IjQiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==';
 let LOGO_SRC=LOGO_URL;
 (function(){
   const el=$('logo');
@@ -322,7 +310,7 @@ async function notifyLine(payload){
   }catch(e){ console.error('LINE notify error',e); return false; }
 }
 
-/* ================== ระบบ User และ Access Control (Embedded Admin) ================== */
+/* ================== ระบบ User และ Access Control (Embedded Admin ล่าสุด) ================== */
 const MT3_EMBEDDED_ADMINS=[
   {id:'u1',fullName:'อัฟฟาน มามะ',username:'Affan.m',password:'Affan2026@BHS'},
   {id:'u2',fullName:'ยุทธชัย มานะ',username:'Yuttichai.m',password:'Yuttichai2026@BHS'}
@@ -400,7 +388,7 @@ const MT3Access=(()=>{
   return Object.freeze({ready:()=>true,admin,fullName:()=>current?current.fullName:null,normalizeName:value=>{const key=String(value||'').trim().toLowerCase();const a=accounts().find(x=>x.username.toLowerCase()===key)||MT3_EMBEDDED_ADMINS.find(x=>x.username.toLowerCase()===key);return a?a.fullName:value;},guestUid:()=>guestId,uid:()=>current?'embedded_'+current.id:guestId});
 })();
 
-/* ================== Firebase Firestore & Reliability Layer ================== */
+/* ================== Firebase Firestore & Reliability Layer v2.2.3 ล่าสุด ================== */
 const firebaseConfig = {
   apiKey: "AIzaSyC6sZiPgKhUYEPJnIsAZ32FbvGHOsQGR0U",
   authDomain: "mt3-tool-team3.firebaseapp.com",
@@ -587,7 +575,6 @@ function saveDocSet(){
   showStatus('expStatus','✅ บันทึกหัวกระดาษเรียบร้อย','ok');}
 
 /* ================== สิทธิ์ Admin ================== */
-let guard=()=>true;
 function setAdmin(v,name){
   isAdmin=v;document.body.classList.toggle('isAdmin',v);
   $('lockBtn').textContent=v?'👑':'🔒';$('lockBtn').classList.toggle('on',v);
@@ -988,7 +975,6 @@ function openPrint(html){
   w.document.close();setTimeout(()=>{try{w.focus();}catch(e){}},400);}
 
 async function printSingle(id){
-  if(!guard())return;
   const all=cloudReady?cloudRecs:(await getAll());
   const rec=all.find(r=>String(r.id)===String(id));if(!rec)return;
   const grp=rec.batch?all.filter(r=>r.batch===rec.batch):[rec];
