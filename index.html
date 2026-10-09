@@ -1575,5 +1575,45 @@ MT3Cycles.updateHint();
 openDB().then(()=>{if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true);else loadHistory();})
  .catch(()=>{ if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true); else loadHistory(); });
 </script>
+ <!-- ===== MT3 Date Fix for Oct 4-5 — วางระหว่าง </script> กับ </body> ===== -->
+<script>
+(function(){
+'use strict';
+const targetDates = ['2026-10-04', '2026-10-05'];
+const p2 = n => String(n).padStart(2, '0');
+
+function fixDate(r) {
+  if (!r || !r.timestamp) return r;
+  const m = String(r.timestamp).match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\D+(\d{1,2}):(\d{2}))?/);
+  if (!m) return r;
+  let y = +m.pop(); // year
+  // ถ้าเป็นรูปแบบ พ.ศ. ให้แปลงเป็น ค.ศ.
+  if (y > 2400) y -= 543;
+  const isoDate = y + '-' + p2(m[2]) + '-' + p2(m[1]);
+  
+  // ถ้าตรงกับวันที่ 4 หรือ 5 ตุลาคม 2026 ให้บังคับล็อก dateKey ให้ตรงเป๊ะ
+  if (isoDate === '2026-10-04' || isoDate === '2026-10-05') {
+    if (r.dateKey !== isoDate) {
+      return Object.assign({}, r, { dateKey: isoDate });
+    }
+  }
+  return r;
+}
+
+// ดักจับฟังก์ชันโหลดประวัติ เพื่อปรับแก้ข้อมูลวันที่ให้ถูกต้องก่อนแสดงผล
+const _loadHistory = loadHistory;
+loadHistory = function() {
+  if (cloudReady && cloudRecs) {
+    cloudRecs = cloudRecs.map(fixDate);
+  }
+  return _loadHistory.apply(this, arguments);
+};
+
+// สั่งโหลดประวัติซ้ำทันทีหลังสคริปต์ทำงาน
+setTimeout(() => {
+  if (typeof loadHistory === 'function') loadHistory();
+}, 500);
+})();
+</script>
 </body>
 </html>
