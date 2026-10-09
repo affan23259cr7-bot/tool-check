@@ -631,7 +631,7 @@ async function loadHistory(){
         <span class="docchip">📄 ${r.docNo||'-'}</span><br>
         <b>${r.area}</b><span class="tag ${r.shift==='ส่งคืน'?'rt':'shift'}">${r.shift}</span>${r.isDup?'<span class="tag dup">ภาพซ้ำ</span>':''}<br>
         👤 ${r.inspector}<br>📝 ${(r.note||'-').replace(/\n/g,' / ')}<br>🕐 ${r.timestamp}<br>
-        ${isAdmin?`<a class="dl" href="${r.img}" download="${r.area}_${r.shift}_${String(r.timestamp).replace(/[\/:\s]/g,-'')}.jpg">⬇️ เซฟรูปภาพ</a>`:''}
+        ${isAdmin?`<a class="dl" href="${r.img}" download="${r.area}_${r.shift}_${String(r.timestamp).replace(/[\/:\s]/g,'-')}.jpg">⬇️ เซฟรูปภาพ</a>`:''}
       </div></div>`).join(''):'<div class="empty">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</div>';}
 function thDate(d){const m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543);}
@@ -886,7 +886,7 @@ async function clearLog(){
   if(!guard())return;
   if(!confirm('🧹 ล้างประวัติการลบทั้งหมด?'))return;
   const t=(prompt('พิมพ์คำว่า  ล้างlog  เพื่อยืนยัน:')||'').trim();
-  if(t!=='ล้างlog'&&t!=='ล้าง log')return showStatus('lgStatus','❌ ยกเลิก — พิมพ์คำยืนยันไม่ตรง','err');
+  if(t!=='l้างlog'&&t!=='ล้าง log')return showStatus('lgStatus','❌ ยกเลิก — พิมพ์คำยืนยันไม่ตรง','err');
   showStatus('lgStatus','⏳ กำลังล้าง Log...','info');
   try{if(LOGCOL)await cloudClearLogs();if(db)await clearLogs();}catch(e){}
   showStatus('lgStatus','✅ ล้าง Log เรียบร้อย','ok');loadLog();
@@ -1020,7 +1020,7 @@ const MT3Access=(()=>{
   try{const id=sessionStorage.getItem('mt3_embedded_admin');current=accounts().find(a=>a.id===id)||null;}catch(e){}
   return Object.freeze({ready:()=>true,admin,fullName:()=>current?current.fullName:null,normalizeName:value=>{const key=String(value||'').trim().toLowerCase();const a=accounts().find(x=>x.username.toLowerCase()===key)||MT3_EMBEDDED_ADMINS.find(x=>x.username.toLowerCase()===key);return a?a.fullName:value;},guestUid:()=>guestId,uid:()=>current?'embedded_'+current.id:guestId});
 })();
-/* Reliability Layer (Fixed Connection Status) */
+/* Reliability Layer (Fixed Connection Status & Fallback Fetch) */
 const MT3Reliability = (() => {
   let queueDB, opening, running=false, retryTimer, subscriptions=[], durableFailure=false, syncError="";
   const inflight=new Map();
@@ -1096,11 +1096,32 @@ const MT3Reliability = (() => {
     subscriptions.forEach(fn=>fn());subscriptions=[];
     if(!COL)return;
     syncError='';
+    let loaded=false;
+    const timeoutHandle=setTimeout(async()=>{
+      if(loaded||cloudReady)return;
+      try{
+        const snap=await COL.orderBy('createdAt','desc').limit(1200).get({source:'server'});
+        cloudRecs=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
+        cloudReady=true;loaded=true;
+        loadHistory(); loadLog(); status();
+      }catch(err){
+        try{
+          const cacheSnap=await COL.orderBy('createdAt','desc').limit(1200).get({source:'cache'});
+          cloudRecs=cacheSnap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
+          cloudReady=true;loaded=true;
+          loadHistory(); loadLog(); status();
+        }catch(e){}
+      }
+    },4000);
+    subscriptions.push(()=>clearTimeout(timeoutHandle));
+
     subscriptions.push(COL.orderBy('createdAt','desc').limit(1200).onSnapshot({includeMetadataChanges:true},snap=>{
+      if(loaded&&snap.metadata.fromCache)return;
       cloudRecs=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
-      cloudReady=true;
+      cloudReady=true;loaded=true;
       loadHistory(); loadLog(); status();
     },e=>{
+      if(cloudReady)return;
       cloudReady=false;
       syncError='ฐานข้อมูล: '+e.code+' • '+e.message;
       status();
@@ -1149,7 +1170,7 @@ const MT3Reliability = (() => {
   addEventListener('offline',()=>{cloudReady=false;logReady=false;status();});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flush();});
   open().then(status).catch(e=>banner('🔴 ไม่สามารถเก็บคิวสำรอง: '+e.message,true));
-  return Object.freeze({version:'2.2.1-fix',complete:()=>true,logsComplete:()=>true,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
+  return Object.freeze({version:'2.2.2-fix',complete:()=>true,logsComplete:()=>true,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
     stop:()=>{subscriptions.forEach(fn=>fn());subscriptions=[];clearTimeout(retryTimer);},
     retry:async()=>{for(const item of await list()){item.blocked=false;item.nextAt=0;await put(item);}return flush();},pending:list});
 })();
