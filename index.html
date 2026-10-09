@@ -319,7 +319,9 @@ function initCloud(){
     firebase.initializeApp(firebaseConfig);
     fdb=firebase.firestore();
     fdb.settings({experimentalAutoDetectLongPolling:true,experimentalLongPollingOptions:{timeoutSeconds:10}});
-    fdb.enableMultiTabPersistence().catch(e=>console.warn('Firestore cache unavailable; using memory cache',e.code));
+    try{
+      fdb.enablePersistence({synchronizeTabs:true}).catch(e=>console.warn('Persistence error:',e.code));
+    }catch(e){}
     COL=fdb.collection('reports'); LOGCOL=fdb.collection('dellog');
     return true;
   }catch(e){ console.error('Firebase init error',e); return false; }
@@ -886,7 +888,7 @@ async function clearLog(){
   if(!guard())return;
   if(!confirm('🧹 ล้างประวัติการลบทั้งหมด?'))return;
   const t=(prompt('พิมพ์คำว่า  ล้างlog  เพื่อยืนยัน:')||'').trim();
-  if(t!=='l้างlog'&&t!=='ล้าง log')return showStatus('lgStatus','❌ ยกเลิก — พิมพ์คำยืนยันไม่ตรง','err');
+  if(t!=='ล้างlog'&&t!=='ล้าง log')return showStatus('lgStatus','❌ ยกเลิก — พิมพ์คำยืนยันไม่ตรง','err');
   showStatus('lgStatus','⏳ กำลังล้าง Log...','info');
   try{if(LOGCOL)await cloudClearLogs();if(db)await clearLogs();}catch(e){}
   showStatus('lgStatus','✅ ล้าง Log เรียบร้อย','ok');loadLog();
@@ -1170,7 +1172,7 @@ const MT3Reliability = (() => {
   addEventListener('offline',()=>{cloudReady=false;logReady=false;status();});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flush();});
   open().then(status).catch(e=>banner('🔴 ไม่สามารถเก็บคิวสำรอง: '+e.message,true));
-  return Object.freeze({version:'2.2.2-fix',complete:()=>true,logsComplete:()=>true,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
+  return Object.freeze({version:'2.2.3-fix',complete:()=>true,logsComplete:()=>true,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
     stop:()=>{subscriptions.forEach(fn=>fn());subscriptions=[];clearTimeout(retryTimer);},
     retry:async()=>{for(const item of await list()){item.blocked=false;item.nextAt=0;await put(item);}return flush();},pending:list});
 })();
