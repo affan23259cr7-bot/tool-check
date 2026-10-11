@@ -329,7 +329,6 @@ function initCloud(){
 function setSync(txt,cls){const b=$('syncBar');if(!b)return;b.className='syncbar '+(cls||'');b.textContent=txt;}
 function startCloudSync(){
   if(!COL)return;
-  // ดึงข้อมูลทั้งหมดจากฐานข้อมูลกลางแบบไม่จำกัดจำนวน (ถอด limit ออกแล้ว)
   COL.orderBy('createdAt','desc').onSnapshot({includeMetadataChanges:false},snap=>{
       cloudRecs=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
       cloudReady=true;
@@ -997,7 +996,7 @@ const MT3Access=(()=>{
   $('mt3EmbeddedLogout').onclick=logout;
   $('mt3EmbeddedRetry').onclick=()=>MT3Reliability.retry().catch(e=>alert(e.message));
   $('mt3EmbeddedAdopt').onclick=()=>{if(admin()&&confirm('รับและส่งคิวเดิมในเครื่องนี้ด้วยบัญชีแอดมินปัจจุบัน?'))MT3Reliability.adoptLegacy().catch(e=>alert(e.message));};
-  try{const id=sessionStorage.getItem('mt3_embedded_admin');current=accounts().find(a=>a.id==id)||null;}catch(e){}
+  try{const id=sessionStorage.getItem('mt3_embedded_admin');current=accounts().find(a=>a.id===id)||null;}catch(e){}
   return Object.freeze({ready:()=>true,admin,fullName:()=>current?current.fullName:null,normalizeName:value=>{const key=String(value||'').trim().toLowerCase();const a=accounts().find(x=>x.username.toLowerCase()===key)||MT3_EMBEDDED_ADMINS.find(x=>x.username.toLowerCase()===key);return a?a.fullName:value;},guestUid:()=>guestId,uid:()=>current?'embedded_'+current.id:guestId});
 })();
 /* Reliability Layer */
@@ -1074,7 +1073,7 @@ const MT3Reliability = (() => {
   }
   const oldInit=initCloud;
   initCloud=function(){if(!configOK()){status();return false;}return oldInit();};
-  startCloudSync=sync;
+  startCloudSync=startCloudSync;
   cloudSet=(id,o)=>write('reports',String(id),o);
   cloudAdd=async o=>{if(!COL)throw new Error('ยังไม่ได้ตั้งค่า Firebase');const ref=COL.doc();await write('reports',ref.id,o);return ref;};
   cloudAddLog=async o=>{if(!LOGCOL)throw new Error('ยังไม่ได้ตั้งค่า Firebase');const ref=LOGCOL.doc();await write('dellog',ref.id,o);return ref;};
@@ -1107,7 +1106,7 @@ const MT3Reliability = (() => {
   addEventListener('offline',()=>{cloudReady=false;logReady=false;status();});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flush();});
   open().then(status).catch(e=>banner('🔴 ไม่สามารถเก็บคิวสำรอง: '+e.message,true));
-  return Object.freeze({version:'2.2.5-all',complete:()=>true,logsComplete:()=>true,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
+  return Object.freeze({version:'2.2.6-all',complete:()=>true,logsComplete:()=>true,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
     stop:()=>{subscriptions.forEach(fn=>fn());subscriptions=[];clearTimeout(retryTimer);},
     retry:async()=>{for(const item of await list()){item.blocked=false;item.nextAt=0;await put(item);}return flush();},pending:list});
 })();
