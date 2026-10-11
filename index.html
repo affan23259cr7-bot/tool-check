@@ -329,15 +329,16 @@ function initCloud(){
 function setSync(txt,cls){const b=$('syncBar');if(!b)return;b.className='syncbar '+(cls||'');b.textContent=txt;}
 function startCloudSync(){
   if(!COL)return;
-  COL.orderBy('createdAt','desc').limit(1200).onSnapshot({includeMetadataChanges:false},snap=>{
+  // ดึงข้อมูลทั้งหมดจากฐานข้อมูลกลางแบบไม่จำกัดจำนวน (ถอด limit ออกแล้ว)
+  COL.orderBy('createdAt','desc').onSnapshot({includeMetadataChanges:false},snap=>{
       cloudRecs=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
       cloudReady=true;
-      setSync('🟢 เชื่อมต่อฐานข้อมูลกลางแล้ว — ซิงค์อัตโนมัติทุกเครื่อง ('+cloudRecs.length+' รายการ)','');
+      setSync('🟢 เชื่อมต่อฐานข้อมูลกลางแล้ว (ครบทุกรายการ) — ('+cloudRecs.length+' รายการ)','');
       loadHistory(); updateCycleHint();
     },err=>{ cloudReady=false;
       setSync('🔴 เชื่อมต่อฐานข้อมูลกลางไม่ได้: '+err.message,'off');
       console.error(err); });
-  LOGCOL.orderBy('createdAt','desc').limit(600).onSnapshot({includeMetadataChanges:false},snap=>{
+  LOGCOL.orderBy('createdAt','desc').onSnapshot({includeMetadataChanges:false},snap=>{
       cloudLogs=snap.docs.map(d=>Object.assign({id:d.id},d.data()));
       logReady=true;
       loadLog();
@@ -493,7 +494,7 @@ async function makeCloudImg(b64){
 function ham(a,b){let d=0;for(let i=0;i<a.length;i++)if(a[i]!==b[i])d++;return d;}
 async function findDup(hash){
   if(!hash)return null;
-  const all=cloudReady?cloudRecs:(db?await getAll():[]);
+  const all=cloudReady?mergedRecs():(db?await getAll():[]);
   for(const r of all){if(r.hash&&r.hash.length===hash.length&&ham(hash,r.hash)<=5)return r;}
   for(const p of photos){if(p.hash&&p.hash.length===hash.length&&ham(hash,p.hash)<=5)return{timestamp:'ในชุดที่กำลังส่งนี้',area:'-'};}
   return null;}
@@ -536,6 +537,7 @@ function showHistImg(i){$('modalImg').src=cache[i].img;$('modal').classList.add(
 function showLogImg(i){const t=logCache[i].thumb;if(t){$('modalImg').src=t;$('modal').classList.add('show');}}
 /* ================== บันทึกรายงาน ================== */
 let saveClipText='';
+const pad=(n,l)=>String(n).padStart(l||2,'0');
 function thTime(d){return pad(d.getHours(),2)+':'+pad(d.getMinutes(),2);}
 function showSaveCard(o){
   saveClipText=
@@ -610,9 +612,10 @@ function showStatus(id,msg,type){const e=$(id);if(!e)return;e.className='status 
 /* ================== ประวัติ ================== */
 async function loadHistory(){
   let all;
-  if(cloudReady){ all=cloudRecs.slice(); }
+  if(cloudReady){ all=mergedRecs(); }
   else if(db){ try{ all=(await getAll()).reverse(); }catch(e){ all=[]; } }
   else { all=[]; }
+  all.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   $('stTotal').innerText=all.length;
   const today=new Date().toISOString().slice(0,10);
   $('stToday').innerText=all.filter(r=>r.dateKey===today).length;
@@ -696,52 +699,6 @@ function openPrint(html){
   <button onclick="window.print()">🖨️ พิมพ์ / บันทึก PDF</button>
   <button onclick="window.close()">ปิด</button></div>${html}</body></html>`);
   w.document.close();setTimeout(()=>{try{w.focus();}catch(e){}},400);}
-function groupByBatch(){
-  const rawGrouped = [];
-  const batches = [...new Set(cache.map(r => r.batch))];
-  batches.forEach(b => {
-    const items = cache.filter(r => r.batch === b);
-    if (!items.length) return;
-    const timeStr = items[0].timestamp;
-    const uniqueNotes = [...new Set(items.map(x => x.note).filter(Boolean))];
-    rawGrouped.push({
-      batch: b,
-      timestamp: timeStr,
-      sortTime: parseThTimestamp(timeStr),
-      dateKey: items[0].dateKey,
-      docNo: items[0].docNo,
-      area: items[0].area,
-      shift: items[0].shift,
-      inspector: items[0].inspector,
-      note: uniqueNotes.join(' / '),
-      isDup: items.some(r => r.isDup),
-      count: items.length,
-    });
-  });
-  rawGrouped.sort((a, b) => b.sortTime - a.sortTime);
-  const merged = [];
-  rawGrouped.forEach(curr => {
-    const found = merged.find(m => 
-      m.area === curr.area && 
-      m.shift === curr.shift && 
-      Math.abs(m.sortTime - curr.sortTime) <= 10 * 60 * 1000
-    );
-    if (found) {
-      if (curr.note && curr.note !== '-' && !found.note.includes(curr.note)) {
-        found.note = found.note ? found.note + ' / ' + curr.note : curr.note;
-      }
-      if (curr.isDup) found.isDup = true;
-      found.count += curr.count;
-      if (curr.sortTime < found.sortTime) {
-        found.sortTime = curr.sortTime;
-        found.timestamp = curr.timestamp;
-      }
-    } else {
-      merged.push(curr);
-    }
-  });
-  return merged;
-}
 function parseThTimestamp(str) {
   try {
     const parts = str.split(' ');
@@ -752,6 +709,27 @@ function parseThTimestamp(str) {
   } catch (e) {
     return Date.now();
   }
+}
+function groupByBatch(){
+  const by=new Map();
+  (Array.isArray(cache)?cache:[]).forEach(r=>{const k=r.batch||('ID_'+r.id);if(!by.has(k))by.set(k,[]);by.get(k).push(r);});
+  const raw=[];
+  by.forEach((items,b)=>{
+    const f=items[0];
+    const notes=[...new Set(items.map(x=>x.note).filter(Boolean))];
+    raw.push({batch:b,timestamp:f.timestamp,sortTime:parseThTimestamp(f.timestamp),dateKey:f.dateKey,
+      docNo:f.docNo,area:f.area,shift:f.shift,inspector:f.inspector,
+      note:notes.join(' / '),isDup:items.some(x=>x.isDup),count:items.length});
+  });
+  raw.sort((a,b)=>b.sortTime-a.sortTime);
+  const merged=[];
+  raw.forEach(c=>{
+    const f=merged.find(m=>m.area===c.area&&m.shift===c.shift&&Math.abs(m.sortTime-c.sortTime)<=600000);
+    if(f){if(c.note&&!f.note.includes(c.note))f.note=f.note?f.note+' / '+c.note:c.note;
+      if(c.isDup)f.isDup=true;f.count+=c.count;if(c.sortTime<f.sortTime){f.sortTime=c.sortTime;f.timestamp=c.timestamp;}}
+    else merged.push(c);
+  });
+  return merged;
 }
 function docNo(rec){ return (rec&&rec.docNo)?rec.docNo:'-'; }
 function docRangeLabel(list){
@@ -808,7 +786,7 @@ async function setDocNoFiltered(){
 async function removeDupRecords(){
   if(!guard())return;
   if(!cloudReady)return showStatus('expStatus','⚠️ ยังไม่ได้เชื่อมฐานข้อมูลกลาง','err');
-  const sorted=cloudRecs.slice().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
+  const sorted=mergedRecs().sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
   const seen={},dups=[];
   sorted.forEach(r=>{
     const k=[r.area,r.shift,r.inspector,r.timestamp,r.hash||'',(r.note||'')].join('|');
@@ -824,7 +802,7 @@ async function removeDupRecords(){
 }
 async function deleteOne(id){
   if(!guard())return;
-  const rec=cloudRecs.find(r=>String(r.id)===String(id));if(!rec)return;
+  const rec=mergedRecs().find(r=>String(r.id)===String(id));if(!rec)return;
   openRsn(`ลบรายการ: ${rec.docNo||'-'} • ${rec.area} • ${rec.shift} • ${rec.inspector}`,async reason=>{
     showStatus('expStatus','⏳ กำลังลบ...','info');
     await writeLog('ลบรายการเดี่ยว',[rec],reason);
@@ -848,7 +826,7 @@ async function deleteFiltered(){
 }
 async function deleteAll(){
   if(!guard())return;
-  const all=cloudReady?cloudRecs.slice():[];
+  const all=cloudReady?mergedRecs():[];
   if(!all.length)return showStatus('expStatus','⚠️ ไม่มีข้อมูลในระบบ','err');
   openRsn(`ล้างข้อมูลทั้งหมด ${all.length} รายการ`,async reason=>{
     const t=prompt('พิมพ์คำว่า  ลบทั้งหมด  เพื่อยืนยัน:');
@@ -917,7 +895,7 @@ async function exportZip(){
 }
 async function backupData(){
   if(!guard())return;
-  const data={reports:cloudRecs.slice(),dellog:cloudLogs.slice(),doc:docCfg(),docseq:_seq()};
+  const data={reports:mergedRecs(),dellog:cloudLogs.slice(),doc:docCfg(),docseq:_seq()};
   const blob=new Blob([JSON.stringify(data)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download='MT3_Backup_'+stamp()+'.json';a.click();
@@ -1019,10 +997,10 @@ const MT3Access=(()=>{
   $('mt3EmbeddedLogout').onclick=logout;
   $('mt3EmbeddedRetry').onclick=()=>MT3Reliability.retry().catch(e=>alert(e.message));
   $('mt3EmbeddedAdopt').onclick=()=>{if(admin()&&confirm('รับและส่งคิวเดิมในเครื่องนี้ด้วยบัญชีแอดมินปัจจุบัน?'))MT3Reliability.adoptLegacy().catch(e=>alert(e.message));};
-  try{const id=sessionStorage.getItem('mt3_embedded_admin');current=accounts().find(a=>a.id===id)||null;}catch(e){}
+  try{const id=sessionStorage.getItem('mt3_embedded_admin');current=accounts().find(a=>a.id==id)||null;}catch(e){}
   return Object.freeze({ready:()=>true,admin,fullName:()=>current?current.fullName:null,normalizeName:value=>{const key=String(value||'').trim().toLowerCase();const a=accounts().find(x=>x.username.toLowerCase()===key)||MT3_EMBEDDED_ADMINS.find(x=>x.username.toLowerCase()===key);return a?a.fullName:value;},guestUid:()=>guestId,uid:()=>current?'embedded_'+current.id:guestId});
 })();
-/* Reliability Layer (Fixed Connection Status & Fallback Fetch) */
+/* Reliability Layer */
 const MT3Reliability = (() => {
   let queueDB, opening, running=false, retryTimer, subscriptions=[], durableFailure=false, syncError="";
   const inflight=new Map();
@@ -1056,7 +1034,7 @@ const MT3Reliability = (() => {
       else if(syncError)banner('🔴 '+syncError,true);
       else if(q.length)banner('🟠 รอฐานข้อมูลยืนยัน '+q.length+' รายการ',true);
       else if(!navigator.onLine)banner('🟠 ออฟไลน์ • แสดงข้อมูลในเครื่อง',true);
-      else if(cloudReady)banner('🟢 เชื่อมต่อฐานข้อมูลกลางแล้ว ('+cloudRecs.length+' รายการ)',false);
+      else if(cloudReady)banner('🟢 เชื่อมต่อฐานข้อมูลกลางแล้ว ('+mergedRecs().length+' รายการ)',false);
       else banner('🟢 กำลังเชื่อมต่อฐานข้อมูลกลาง...',false);
     }catch(e){banner('🔴 เปิดคิวสำรองไม่ได้ • '+e.message,true);}
   }
@@ -1094,49 +1072,6 @@ const MT3Reliability = (() => {
       await Promise.race([send(item),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('เก็บในคิวแล้ว รอฐานข้อมูลยืนยัน')),12000);})]);
     }finally{clearTimeout(timer);}
   }
-  function sync(){
-    subscriptions.forEach(fn=>fn());subscriptions=[];
-    if(!COL)return;
-    syncError='';
-    let loaded=false;
-    const timeoutHandle=setTimeout(async()=>{
-      if(loaded||cloudReady)return;
-      try{
-        const snap=await COL.orderBy('createdAt','desc').limit(1200).get({source:'server'});
-        cloudRecs=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
-        cloudReady=true;loaded=true;
-        loadHistory(); loadLog(); status();
-      }catch(err){
-        try{
-          const cacheSnap=await COL.orderBy('createdAt','desc').limit(1200).get({source:'cache'});
-          cloudRecs=cacheSnap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
-          cloudReady=true;loaded=true;
-          loadHistory(); loadLog(); status();
-        }catch(e){}
-      }
-    },4000);
-    subscriptions.push(()=>clearTimeout(timeoutHandle));
-
-    subscriptions.push(COL.orderBy('createdAt','desc').limit(1200).onSnapshot({includeMetadataChanges:true},snap=>{
-      if(loaded&&snap.metadata.fromCache)return;
-      cloudRecs=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
-      cloudReady=true;loaded=true;
-      loadHistory(); loadLog(); status();
-    },e=>{
-      if(cloudReady)return;
-      cloudReady=false;
-      syncError='ฐานข้อมูล: '+e.code+' • '+e.message;
-      status();
-    }));
-    if(LOGCOL){
-      subscriptions.push(LOGCOL.orderBy('createdAt','desc').limit(600).onSnapshot({includeMetadataChanges:true},snap=>{
-        cloudLogs=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
-        logReady=true;
-        loadLog();
-      },e=>console.warn('Log sync error',e.code)));
-    }
-    flush();status();
-  }
   const oldInit=initCloud;
   initCloud=function(){if(!configOK()){status();return false;}return oldInit();};
   startCloudSync=sync;
@@ -1172,7 +1107,7 @@ const MT3Reliability = (() => {
   addEventListener('offline',()=>{cloudReady=false;logReady=false;status();});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flush();});
   open().then(status).catch(e=>banner('🔴 ไม่สามารถเก็บคิวสำรอง: '+e.message,true));
-  return Object.freeze({version:'2.2.3-fix',complete:()=>true,logsComplete:()=>true,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
+  return Object.freeze({version:'2.2.5-all',complete:()=>true,logsComplete:()=>true,setSubmit:fn=>{originalSubmit=fn;},busy:()=>inflight.size>0,
     stop:()=>{subscriptions.forEach(fn=>fn());subscriptions=[];clearTimeout(retryTimer);},
     retry:async()=>{for(const item of await list()){item.blocked=false;item.nextAt=0;await put(item);}return flush();},pending:list});
 })();
@@ -1207,7 +1142,7 @@ const MT3Cycles=(()=>{
     if(counter.lastDate>=dk)return{yy,no:counter.lastNo};
     return{yy,no:counter.lastNo+1};
   }
-  const recs=()=>(cloudRecs&&cloudRecs.length)?cloudRecs:(cache||[]);
+  const recs=()=>(mergedRecs()&&mergedRecs().length)?mergedRecs():(cache||[]);
   function openFromRecords(area,at){
     const lim=PAIR_HOURS*3600000;let best=null;
     for(const r of recs()){
@@ -1367,7 +1302,6 @@ const MT3Report=(()=>{
   function grouped(records){
     return MT3Cycles.groups?MT3Cycles.groups(records):records;
   }
-  groupByBatch=()=>groupByBatch();
   const previousExportExcel=exportExcel;exportExcel=()=>{const original=cache;try{cache=cache.map(r=>Object.assign({},r,{inspector:MT3Access.normalizeName(r.inspector)}));return previousExportExcel();}finally{cache=original;}};
   function build(records,c,author,filters,logo){
     const g=groupByBatch(),range=docRangeLabel(g),pages=[],physical=[];
@@ -1379,9 +1313,9 @@ const MT3Report=(()=>{
       }
     }
     const portions=[];let portion=[],height=0;
-    for(const r of physical){if(portion.length&&(portion.length>=18||height+r.height>390)){portions.push(portion);portion=[];height=0;}portion.push(r);height+=r.height;}
+    for(let i=0;i<physical.length;i++){const r=physical[i];if(portion.length&&(portion.length>=18||height+r.height>390)){portions.push(portion);portion=[];height=0;}portion.push(r);height+=r.height;}
     if(portion.length)portions.push(portion);
-    const photoChunks=[];for(const area of [...new Set(records.map(r=>r.area))]){const list=records.filter(r=>r.area===area);for(let i=0;i<list.length;i+=6)photoChunks.push({area,items:list.slice(i,i+6),offset:i,total:list.length,part:Math.floor(i/6)+1,parts:Math.ceil(list.length/6)});}
+    const photoChunks=[];for(let i=0;i<records.length;i++){const area=records[i].area;if(!photoChunks.some(x=>x.area===area)){const list=records.filter(r=>r.area===area);for(let j=0;j<list.length;j+=6)photoChunks.push({area,items:list.slice(j,j+6),offset:j,total:list.length,part:Math.floor(j/6)+1,parts:Math.ceil(list.length/6)});}}
     const total=portions.length+photoChunks.length;
     portions.forEach((part,index)=>{
       const p={rows:[],images:[],docRange:range};header(p,c,c.title,'วันที่ออกเอกสาร '+thDate(new Date()),logo);
@@ -1399,7 +1333,7 @@ const MT3Report=(()=>{
         row(p,16,[cell(0,3,'วันที่ ......../......../........',8),cell(3,3,'วันที่ ......../......../........',8),cell(6,2,'วันที่ ......../......../........',8)]);
       }finish(p,c);pages.push(p);
     });
-    for(const chunk of photoChunks){const p={rows:[],images:[],docRange:range,widths:Array(8).fill(23.75)};header(p,c,c.title,'ภาพถ่ายประกอบการตรวจเช็ค',logo);
+    for(let i=0;i<photoChunks.length;i++){const chunk=photoChunks[i];const p={rows:[],images:[],docRange:range,widths:Array(8).fill(23.75)};header(p,c,c.title,'ภาพถ่ายประกอบการตรวจเช็ค',logo);
       row(p,24,[cell(0,8,`พื้นที่: ${chunk.area} — รวม ${chunk.total} ภาพ (แผ่นที่ ${chunk.part}/${chunk.parts})`,2)]);row(p,6);
       for(let pair=0;pair<3;pair++){
         const rIndex=row(p,160,[cell(0,4,'',6),cell(4,4,'',6)]),captions=[];
@@ -1427,7 +1361,7 @@ const MT3Report=(()=>{
   async function prepare(){
     const records=cache.map(r=>Object.assign({},r)),author=MT3Access.fullName()||MT3Access.normalizeName(adminUser);
     const logo=await imageAsset(LOGO_SRC),model=build(records,docCfg(),author,{area:$('fArea').value,shift:$('fShift').value,date:$('fDate').value},logo);
-    const memo=new Map();for(const p of model.pages)for(const im of p.images){if(im.record){const src=im.record.img;if(!memo.has(src))memo.set(src,await imageAsset(src));Object.assign(im,memo.get(src));delete im.record;}Object.assign(im,fit(im,p.widths||widths));}
+    const memo=new Map();for(let i=0;i<model.pages.length;i++){const p=model.pages[i];for(let j=0;j<p.images.length;j++){const im=p.images[j];if(im.record){const src=im.record.img;if(!memo.has(src))memo.set(src,await imageAsset(src));Object.assign(im,memo.get(src));delete im.record;}Object.assign(im,fit(im,p.widths||widths));}}
     return model;
   }
   function html(model){
@@ -1450,7 +1384,7 @@ const MT3Report=(()=>{
     for(let i=0;i<model.pages.length;i++){
       const p=model.pages[i],columns=p.widths||widths,n=i+1,name='P'+pad(n,2);sheets.push(`<sheet name="${name}" sheetId="${n}" r:id="rId${n}"/>`);rels.push(`<Relationship Id="rId${n}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${n}.xml"/>`);
       names.push(`<definedName name="_xlnm.Print_Area" localSheetId="${i}">'${name}'!$A$1:$H$${p.rows.length}</definedName>`);
-      const merges=[];let sheetData='';p.rows.forEach((r,ri)=>{let cells='';for(const c of r.cells){const address=colLetter(c.c)+(ri+1);if(c.span>1)merges.push(`<mergeCell ref="${address}:${colLetter(c.c+c.span-1)}${ri+1}"/>`);
+      const merges=[];let sheetData='';p.rows.forEach((r,ri)=>{let cells='';for(let cIdx=0;cIdx<r.cells.length;cIdx++){const c=r.cells[cIdx];const address=colLetter(c.c)+(ri+1);if(c.span>1)merges.push(`<mergeCell ref="${address}:${colLetter(c.c+c.span-1)}${ri+1}"/>`);
         for(let j=0;j<c.span;j++){const a=colLetter(c.c+j)+(ri+1);if(j||c.v===''){cells+=`<c r="${a}" s="${c.style}"/>`;continue;}cells+=typeof c.v==='number'?`<c r="${a}" s="${c.style}"><v>${c.v}</v></c>`:`<c r="${a}" s="${c.style}" t="inlineStr"><is><t xml:space="preserve">${xml(c.v)}</t></is></c>`;}
       }sheetData+=`<row r="${ri+1}" ht="${r.height}" customHeight="1">${cells}</row>`;});
       const cols=columns.map((mm,j)=>`<col min="${j+1}" max="${j+1}" width="${((mm*96/25.4-5)/7).toFixed(5)}" customWidth="1"/>`).join('');
@@ -1486,7 +1420,7 @@ const MT3Report=(()=>{
 })();
 printSingle=async function(id){
   if(!guard())return;
-  const all=cloudReady?cloudRecs:(await getAll());
+  const all=mergedRecs();
   const rec=all.find(r=>String(r.id)===String(id));if(!rec)return;
   const grp=rec.batch?all.filter(r=>r.batch===rec.batch):[rec];
   const c=docCfg(),logo=LOGO_SRC;
@@ -1574,6 +1508,329 @@ else { setSync('🔴 ตั้งค่า Firebase ไม่ถูกต้อ�
 MT3Cycles.updateHint();
 openDB().then(()=>{if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true);else loadHistory();})
  .catch(()=>{ if(sessionStorage.getItem('mt3_admin')==='1')setAdmin(true); else loadHistory(); });
+</script>
+
+<!-- ===== MT3 Fix Pack v3 & Form Linker ===== -->
+<script>
+(function(){
+'use strict';
+if(window.MT3FixV3)return;
+
+const H7=7*3600000;
+const p2=n=>String(n).padStart(2,'0');
+const bkk=t=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(t));
+function tsInfo(s){
+  const m=String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\D+(\d{1,2}):(\d{2}))?/);if(!m)return null;
+  let y=+m[3];if(y>2400)y-=543;const date=y+'-'+p2(m[2])+'-'+p2(m[1]);
+  return {date,hour:m[4]!=null?+m[4]:null};
+}
+function realDate(r){const t=tsInfo(r&&r.timestamp);if(t)return t.date;if(r&&typeof r.createdAt==='number')return bkk(r.createdAt);return (r&&r.dateKey)||'';}
+const addDays=(dk,n)=>bkk(Date.parse(dk+'T12:00:00+07:00')+n*86400000);
+const thPrefix=dk=>{const a=dk.split('-');return a[2]+'/'+a[1]+'/'+(+a[0]+543);};
+const thDate=d=>{const m=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];return d.getDate()+' '+m[d.getMonth()]+' '+(d.getFullYear()+543);};
+const thLong=dk=>thDate(new Date(Date.parse(dk+'T12:00:00+07:00')));
+const thSlash=dk=>{const a=dk.split('-');return a[2]+'/'+a[1]+'/'+(+a[0]+543);};
+const say=(m,t)=>showStatus('expStatus',m,t||'info');
+function parseDates(s){
+  const out=new Set();
+  for(const tok of String(s||'').split(/[\s,;]+/).filter(Boolean)){
+    let m;
+    if((m=tok.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))){out.add(m[1]+'-'+p2(m[2])+'-'+p2(m[3]));continue;}
+    if((m=tok.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/))){let y=+m[3];if(y<100)y+=2500;if(y>2400)y-=543;out.add(y+'-'+p2(m[2])+'-'+p2(m[1]));continue;}
+    throw new Error('รูปแบบวันที่ไม่ถูกต้อง: '+tok+' (ตัวอย่าง 04/10/69)');
+  }
+  return [...out];
+}
+
+/* 1) ดึงข้อมูลรายวันตรงจากฐานข้อมูลกลาง */
+const extra=new Map(),fetched=new Map();
+window.mergedRecs=function(){const m=new Map();(cloudRecs||[]).forEach(r=>m.set(String(r.id),r));extra.forEach((r,id)=>{if(!m.has(id))m.set(id,r);});return [...m.values()];};
+function deepFetch(dk,force){
+  if(!COL)return Promise.resolve({byDateKey:0,byTime:0,byCreated:0,err:['ยังไม่เชื่อมฐานข้อมูล']});
+  if(fetched.has(dk)&&!force)return fetched.get(dk);
+  const p=(async()=>{
+    const res={byDateKey:0,byTime:0,byCreated:0,err:[]},pre=thPrefix(dk),s=Date.parse(dk+'T00:00:00+07:00');
+    const qs=[['byDateKey',()=>COL.where('dateKey','==',dk).get()],
+      ['byTime',()=>COL.where('timestamp','>=',pre).where('timestamp','<',pre+'\uf8ff').get()],
+      ['byCreated',()=>COL.where('createdAt','>=',s).where('createdAt','<',s+86400000).get()]];
+    for(const [k,q] of qs){
+      try{const snap=await q();res[k]=snap.size;snap.forEach(d=>extra.set(d.id,Object.assign({},d.data(),{id:d.id})));}
+      catch(e){res.err.push(k+': '+(e.code||e.message));}
+    }
+    return res;
+  })();
+  fetched.set(dk,p);
+  p.then(()=>{if(cloudReady)loadHistory();});
+  return p;
+}
+const _loadHistory=loadHistory;
+loadHistory=function(){
+  if(cloudReady){
+    let all=mergedRecs().map(r=>{const d=realDate(r);return d&&d!==r.dateKey?Object.assign({},r,{dateKey:d}):r;});
+    all.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    cloudRecs=all;
+    const fd=$('fDate')&&$('fDate').value;
+    if(fd&&!fetched.has(fd))deepFetch(fd);
+  }
+  return _loadHistory.apply(this,arguments);
+};
+
+/* 1b) ปลดล็อกคิวค้างส่ง */
+async function resendOutbox(){
+  let d;
+  try{
+    d=await new Promise((res,rej)=>{const r=indexedDB.open('mt3_reliable_outbox',1);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});
+    const items=await new Promise((res,rej)=>{const q=d.transaction('pending','readonly').objectStore('pending').getAll();q.onsuccess=()=>res(q.result||[]);q.onerror=()=>rej(q.error);});
+    for(const it of items){
+      it.blocked=false;it.nextAt=0;
+      await new Promise((res,rej)=>{const t=d.transaction('pending','readwrite');t.objectStore('pending').put(it);t.oncomplete=res;t.onerror=t.onabort=()=>rej(t.error);});
+    }
+    d.close();
+    if(!items.length)return {n:0,left:0};
+    await MT3Reliability.retry();
+    const left=(await MT3Reliability.pending()).filter(i=>i.collection==='reports').length;
+    return {n:items.length,left};
+  }catch(e){try{if(d)d.close();}catch(_){}return {n:0,left:-1};}
+}
+
+/* 1c) กู้ประวัติวันที่ 04-05/10 */
+async function diagnose(){
+  if(!cloudReady)return say('⏳ รอให้เชื่อมต่อฐานข้อมูลกลางก่อน แล้วกดอีกครั้ง');
+  const ans=prompt('ระบุวันที่ที่ประวัติหาย (วว/ดด/ปป พ.ศ. คั่นด้วย ,)','04/10/69, 05/10/69');if(ans===null)return;
+  let dates;try{dates=parseDates(ans);}catch(e){return say('❌ '+e.message,'err');}
+  if(!dates.length)return;
+  say('⏳ กำลังค้นในฐานข้อมูลกลางโดยตรง...');
+  let ob=[];try{ob=(await MT3Reliability.pending()).filter(i=>i.collection==='reports');}catch(e){}
+  let local=[];try{if(db)local=await getAll();}catch(e){}
+  const delSig=new Set();(cloudLogs||[]).forEach(l=>(l.detail||[]).forEach(x=>delSig.add([x.timestamp||'',x.area||'',x.shift||''].join('|'))));
+  const lines=[],missing=[];let qTotal=0;
+  for(const dk of dates){
+    const q=await deepFetch(dk,true),all=mergedRecs(),ids=new Set(all.map(r=>String(r.id)));
+    const hashKeys=new Set(all.filter(r=>r.hash).map(r=>(r.batch||'')+'|'+r.hash));
+    const inCloud=all.filter(r=>realDate(r)===dk).length;
+    const qd=ob.filter(i=>realDate(i.data||{})===dk);qTotal+=qd.length;
+    const groups={};
+    local.filter(r=>r&&r.img&&realDate(r)===dk).sort((a,b)=>(a.id||0)-(b.id||0))
+      .forEach(r=>{const b=r.batch||('L'+r.id);(groups[b]=groups[b]||[]).push(r);});
+    let lm=0;
+    Object.keys(groups).forEach(b=>groups[b].forEach((r,i)=>{
+      const id=(b+'_'+i).replace(/\//g,'-');
+      if(ids.has(id)||(r.hash&&hashKeys.has(b+'|'+r.hash))||delSig.has([r.timestamp||'',r.area||'',r.shift||''].join('|')))return;
+      missing.push({id,idx:i,batch:b,rec:r,date:dk});lm++;
+    }));
+    lines.push('📅 '+thLong(dk)+'\n• ฐานข้อมูลกลาง: '+inCloud+' รูป\n• คิวค้างส่งในเครื่องนี้: '+qd.length+' รูป\n• สำรองในเครื่องนี้: '+lm+' รูป');
+  }
+  say(lines.join('\n\n'));
+  const done=[];
+  if(qTotal&&confirm(lines.join('\n\n')+'\n\n⏫ ส่งคิวค้างขึ้นฐานข้อมูลกลางตอนนี้?')){
+    const r=await resendOutbox();done.push('คิวค้าง: สั่งส่ง '+r.n+' รายการ • เหลือในคิว '+r.left);
+  }
+  if(missing.length&&confirm('📱 พบ '+missing.length+' รูปในเครื่องนี้ที่ยังไม่อยู่ในฐานข้อมูลกลาง\nอัปโหลดกลับเลยไหม?')){
+    let ok=0;
+    for(let i=0;i<missing.length;i++){
+      const x=missing[i],r=x.rec;say('⏫ กำลังอัปโหลด '+(i+1)+'/'+missing.length+' ...');
+      let img=r.img;try{img=await makeCloudImg(r.img);}catch(e){}
+      try{await cloudSet(x.id,{timestamp:r.timestamp||'',dateKey:x.date,area:r.area,shift:r.shift,inspector:r.inspector||'-',
+        note:r.note||'',hash:r.hash||'',img,isDup:!!r.isDup,batch:x.batch,idx:x.idx,docNo:r.docNo||'-',
+        createdAt:Date.now(),restored:'local-device',restoredAt:Date.now()});ok++;}catch(e){}
+    }
+    done.push('จากเครื่องนี้: สำเร็จ '+ok+' รูป');
+  }
+  dates.forEach(dk=>deepFetch(dk,true));
+  if(done.length)say('✅ ดำเนินการเสร็จ\n'+done.join('\n'),'ok');
+}
+
+/* 3) แบบฟอร์มรายการเบิกตรวจนับเครื่องมือประจำวัน */
+const TEMPLATE_URL='tool-form.xlsx';
+const BOX={'SAT-East':'LET-OM-04','Tunnel-East':'LET-OM-05','MTB-East':'LET-OM-06','SAT-West':'LET-OM-07','Tunnel-West':'LET-OM-08','MTB-West':'LET-OM-09'};
+const SIZES={block:['1.1.',[8,10,13,16,17,18,19,22,24]],wrench:['1.2.',[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,22,24,26]],
+  rat:['1.3.',[17,19]],ball:['1.4.',[1.5,2,2.5,3,4,5,6,8,10]],torx:['1.5.',[10,15,20,25,27,30,40,45,50]]};
+const DMG=/ชำรุด|ชารุด|เสียหาย|เสีย|หัก|พัง|แตก/,MIS=/ไมมี|ไมพบ|ไมเจอ|สูญหาย|หาย|ขาด|ไมครบ/;
+const DMG_G=new RegExp(DMG.source,'g'),MIS_G=new RegExp(MIS.source,'g'),OKW=/ปกติ|ครบถวน|เรียบรอย|ไมมีปัญหา/;
+const norm=s=>String(s||'').toLowerCase().replace(/[\u0E47-\u0E4E]/g,'').replace(/[\s"'“”″‘’`´()\[\]{}]/g,'')
+  .replace(/kingtony/g,'').replace(/no\.?(?=t?\d)/g,'').replace(/เบอร|ขนาด|นิว|mm/g,'').replace(/ลอค/g,'ลอก');
+function sizeOf(n,torx){const s=n.replace(/\d+\/\d+/g,'');const m=(torx&&s.match(/t(\d+)/))||s.match(/(\d+(?:\.\d+)?)/);return m?parseFloat(m[1]):null;}
+function pick(g,n){const [pre,arr]=SIZES[g],i=arr.indexOf(sizeOf(n,g==='torx'));return i<0?null:pre+(i+1);}
+function classify(n){
+  if(/ขอตอ|ขอออน/.test(n)){if(/ออน/.test(n))return '1.8.3';if(/ยาว/.test(n))return '1.8.1';if(/สัน/.test(n))return '1.8.2';return null;}
+  if(/ดามฟรี|ฟรีหัวไข|กอกแกก/.test(n))return '1.7.1';
+  if(/คีม/.test(n)){if(/ลอก/.test(n))return sizeOf(n)>=10?'1.6.1':'1.9.5';if(/ตัด/.test(n))return '1.9.1';if(/ถาง/.test(n))return '1.9.2';if(/หุบ/.test(n))return '1.9.3';if(/จิงจก|ปากจิง/.test(n))return '1.9.4';return null;}
+  if(/ไขควง/.test(n)){if(/เชค|วัดไฟ|ลองไฟ|เทสไฟ/.test(n))return '1.10.3';if(/ฉนวน|หุม|1000/.test(n))return '1.10.4';if(/แบน/.test(n))return '1.10.1';if(/แฉก/.test(n))return '1.10.2';return null;}
+  if(/ตลับ|เมตร/.test(n))return '1.11.1';if(/คอน/.test(n))return '1.12.1';if(/ระดับ/.test(n))return '1.13.1';if(/กรรไกร/.test(n))return '1.14.1';
+  if(/ดาว|torx/.test(n)||/t\d+/.test(n))return pick('torx',n);if(/บอล|หกเหลียม/.test(n))return pick('ball',n);
+  if(/หางหนู/.test(n))return pick('rat',n);if(/บลอก/.test(n))return pick('block',n);if(/ประแจ|แหวน|ปากตาย/.test(n))return pick('wrench',n);
+  return null;
+}
+function parseNote(note){
+  const items=[],other=[];let section=null;
+  String(note||'').split(/\r?\n|\s\/\s|;/).forEach(raw=>{
+    const line=raw.replace(/^[\s\-–•*·]+/,'').replace(/^\d{1,2}\s*[.)]\s*(?=\D)/,'').trim();if(!line)return;
+    const n=norm(line);if(OKW.test(n))return;
+    const st=DMG.test(n)?'dmg':MIS.test(n)?'mis':null;
+    const base=n.replace(DMG_G,'').replace(MIS_G,''),code=classify(base),status=st||section||'mis';
+    if(!/[ก-๙a-z]/.test(base)){if(st)section=st;return;}
+    (code?items:other).push({code,status,text:line});
+  });
+  return {items,other};
+}
+function slotOf(r){
+  const t=tsInfo(r.timestamp),d=realDate(r);
+  const h=t&&t.hour!=null?t.hour:12;
+  if(r.shift==='รับกะ'){if(h>=5&&h<17)return {date:d,k:'F'};return {date:h<5?addDays(d,-1):d,k:'H'};}
+  return h<13?{date:addDays(d,-1),k:'I'}:{date:d,k:'G'};
+}
+const NS='http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+const colNum=ref=>{let n=0;for(const ch of String(ref).replace(/\d+/g,''))n=n*26+ch.charCodeAt(0)-64;return n;};
+function cellText(c,ss){
+  const t=c.getAttribute('t'),v=c.getElementsByTagNameNS(NS,'v')[0];
+  if(t==='s')return v?(ss[+v.textContent]||''):'';
+  if(t==='inlineStr')return [...c.getElementsByTagNameNS(NS,'t')].map(x=>x.textContent).join('');
+  return v?v.textContent:'';
+}
+function setCell(ctx,ref,text){
+  const {doc,rows}=ctx,rn=ref.replace(/\D+/g,''),col=ref.replace(/\d+/g,'');
+  let row=rows.get(rn);
+  if(!row){row=doc.createElementNS(NS,'row');row.setAttribute('r',rn);const sd=doc.getElementsByTagNameNS(NS,'sheetData')[0];
+    let after=null;for(const r of sd.children){if(+r.getAttribute('r')>+rn){after=r;break;}}sd.insertBefore(row,after);rows.set(rn,row);}
+  let c=null,next=null;
+  for(const x of row.children){const r=x.getAttribute('r');if(!r)continue;if(r===ref){c=x;break;}if(colNum(r)>colNum(ref)){next=x;break;}}
+  if(!c){
+    c=doc.createElementNS(NS,'c');c.setAttribute('r',ref);
+    for(let k=+rn-1;k>0;k--){const rr=rows.get(String(k));const sc=rr&&[...rr.children].find(x=>x.getAttribute('r')===col+k&&x.getAttribute('s'));if(sc){c.setAttribute('s',sc.getAttribute('s'));break;}}
+    row.insertBefore(c,next);row.removeAttribute('spans');
+  }
+  while(c.firstChild)c.removeChild(c.firstChild);
+  c.setAttribute('t','inlineStr');
+  const is=doc.createElementNS(NS,'is'),t=doc.createElementNS(NS,'t');
+  t.setAttributeNS('http://www.w3.org/XML/1998/namespace','xml:space','preserve');t.textContent=text;is.appendChild(t);c.appendChild(is);
+}
+async function sheetPath(zip){
+  try{
+    const wb=await zip.file('xl/workbook.xml').async('string'),rid=(wb.match(/<sheet\b[^>]*r:id="([^"]+)"/)||[])[1];
+    const rels=await zip.file('xl/_rels/workbook.xml.rels').async('string');
+    const tag=(rels.match(new RegExp('<Relationship\\b[^>]*Id="'+rid+'"[^>]*>'))||[''])[0];
+    let t=(tag.match(/Target="([^"]+)"/)||[])[1];
+    if(t){t=t.replace(/^\//,'');if(!t.startsWith('xl/'))t='xl/'+t;if(zip.file(t))return t;}
+  }catch(e){}
+  return Object.keys(zip.files).find(n=>/^xl\/worksheets\/sheet\d+\.xml$/.test(n));
+}
+let tplBuf=null;
+async function loadTemplate(){
+  if(tplBuf)return tplBuf;
+  try{const r=await fetch(TEMPLATE_URL+'?v='+Date.now(),{cache:'no-store'});if(r.ok){tplBuf=await r.arrayBuffer();return tplBuf;}}catch(e){}
+  throw new Error('ไม่พบไฟล์ '+TEMPLATE_URL+' บน GitHub — อัปโหลดไฟล์แบบฟอร์ม หรือกด "📎 เลือกไฟล์แบบฟอร์มเอง"');
+}
+async function fillForm(buf,dk,area,recs){
+  const zip=await JSZip.loadAsync(buf),path=await sheetPath(zip);
+  let ss=[];const sf=zip.file('xl/sharedStrings.xml');
+  if(sf){const sd=new DOMParser().parseFromString(await sf.async('string'),'application/xml');
+    ss=[...sd.getElementsByTagNameNS(NS,'si')].map(si=>[...si.getElementsByTagNameNS(NS,'t')].map(t=>t.textContent).join(''));}
+  const doc=new DOMParser().parseFromString(await zip.file(path).async('string'),'application/xml');
+  const rows=new Map();[...doc.getElementsByTagNameNS(NS,'row')].forEach(r=>rows.set(r.getAttribute('r'),r));
+  const ctx={doc,rows},cells=[];
+  [...doc.getElementsByTagNameNS(NS,'c')].forEach(c=>{const r=c.getAttribute('r');if(r)cells.push({ref:r,col:r.replace(/\d+/g,''),row:+r.replace(/\D+/g,''),text:cellText(c,ss).trim()});});
+  const codeRows=new Map();let otherRow=null,dateRef=null,boxRef=null,remarkCol=null;
+  cells.forEach(x=>{
+    if(/^\d+\.\d+\.\d+$/.test(x.text))codeRows.set(x.text,x.row);
+    else if(/^อื่น/.test(x.text))otherRow=x.row;
+    if(!dateRef&&/^วันที่/.test(x.text))dateRef=x.ref;
+    if(!boxRef&&/LET-OM-\d+/i.test(x.text))boxRef=x.ref;
+    if(!remarkCol&&x.text==='หมายเหตุ')remarkCol=x.col;
+  });
+  if(!codeRows.size)throw new Error('ไม่พบรายการเครื่องมือในไฟล์แบบฟอร์ม');
+  const hdr=cells.filter(x=>x.text==='รับ'||x.text==='คืน').sort((a,b)=>a.row-b.row||colNum(a.col)-colNum(b.col));
+  const hc=hdr.length?hdr.filter(x=>x.row===hdr[0].row).map(x=>x.col):[];
+  const COL4=hc.length>=4?{F:hc[0],G:hc[1],H:hc[2],I:hc[3]}:{F:'F',G:'G',H:'H',I:'I'};
+  remarkCol=remarkCol||'J';
+  const sig={};
+  cells.filter(x=>/\(กะ(เช้า|ดึก)\)/.test(x.text)).forEach(x=>{
+    const lab=cells.find(y=>y.row===x.row&&/รับมอบ|ส่งคืน/.test(y.text));if(!lab)return;
+    sig[(/รับมอบ/.test(lab.text)?'in':'out')+(/เช้า/.test(x.text)?'M':'N')]=x;
+  });
+  const SL={F:{lab:'เช้า-รับ',sig:'inM'},G:{lab:'เช้า-คืน',sig:'outM'},H:{lab:'ดึก-รับ',sig:'inN'},I:{lab:'ดึก-คืน',sig:'outN'}};
+  const slot={};
+  recs.filter(r=>r.area===area).forEach(r=>{
+    const s=slotOf(r);if(s.date!==dk)return;
+    const o=slot[s.k]=slot[s.k]||{notes:new Map(),names:new Set()};
+    o.notes.set(r.batch||r.id,r.note||'');o.names.add(MT3Access.normalizeName(r.inspector||'-'));
+  });
+  const rank={dmg:1,mis:2},others=new Set();let nMis=0,nDmg=0;
+  Object.keys(slot).forEach(k=>{const o=slot[k];o.st=new Map();
+    o.notes.forEach(n=>{const p=parseNote(n);
+      p.items.forEach(it=>{const cur=o.st.get(it.code);if(!cur||rank[it.status]>rank[cur])o.st.set(it.code,it.status);});
+      p.other.forEach(it=>others.add(it.text+' ('+SL[k].lab+(it.status==='dmg'?' • ชำรุด':' • หาย/ไม่มี')+')'));});
+  });
+  codeRows.forEach((rn,code)=>{
+    const mis=[],dmg=[];
+    ['F','G','H','I'].forEach(k=>{const o=slot[k];if(!o)return;const st=o.st.get(code);
+      setCell(ctx,COL4[k]+rn,st==='mis'?'✗':st==='dmg'?'ชำรุด':'✓');
+      if(st==='mis'){mis.push(SL[k].lab);nMis++;}if(st==='dmg'){dmg.push(SL[k].lab);nDmg++;}});
+    const rm=[];if(mis.length)rm.push('หาย/ไม่มี: '+mis.join(', '));if(dmg.length)rm.push('ชำรุด: '+dmg.join(', '));
+    if(rm.length)setCell(ctx,remarkCol+rn,rm.join(' • '));
+  });
+  if(others.size&&otherRow)setCell(ctx,remarkCol+otherRow,[...others].join(' / '));
+  if(dateRef)setCell(ctx,dateRef,'วันที่ '+thLong(dk));
+  if(boxRef)setCell(ctx,boxRef,BOX[area]+' ('+area+')');
+  Object.keys(slot).forEach(k=>{const s=sig[SL[k].sig];if(s)setCell(ctx,s.ref,[...slot[k].names].join(', ')+' '+s.text);});
+  let xml=new XMLSerializer().serializeToString(doc);
+  if(!/^<\?xml/.test(xml))xml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+xml;
+  zip.file(path,xml);
+  const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',mimeType:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+  const have=Object.keys(slot).map(k=>SL[k].lab);
+  return {blob,name:'แบบฟอร์มตรวจนับ_'+BOX[area]+'_'+area+'_'+dk+'.xlsx',
+    summary:BOX[area]+' '+area+': '+(have.length?'มีข้อมูล '+have.join(', ')+' • หาย '+nMis+' • ชำรุด '+nDmg+(others.size?' • จับคู่ไม่ได้ '+others.size:'')+'รูป':'ไม่มีรายงานของวันนี้')};
+}
+function download(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),15000);}
+let formBusy=false;
+async function makeToolForms(){
+  if(!guard()||formBusy)return;
+  const dk=$('fDate').value;if(!dk)return say('⚠️ เลือก "กรองตามวันที่" ก่อน แล้วกดอีกครั้ง','err');
+  const sel=$('fArea').value,areas=sel==='ทั้งหมด'?Object.keys(BOX):[sel];
+  formBusy=true;
+  try{
+    say('⏳ กำลังเตรียมแบบฟอร์ม '+thLong(dk)+' ...');
+    await MT3ExportTools.ensure('JSZip');
+    await Promise.all([deepFetch(dk),deepFetch(addDays(dk,1))]);
+    const tpl=await loadTemplate(),recs=mergedRecs(),files=[];
+    for(const a of areas)files.push(await fillForm(tpl,dk,a,recs));
+    if(files.length===1)download(files[0].blob,files[0].name);
+    else{const z=new JSZip();files.forEach(f=>z.file(f.name,f.blob));download(await z.generateAsync({type:'blob'}),'แบบฟอร์มตรวจนับ_ทุกพื้นที่_'+dk+'.zip');}
+    say('✅ สร้างแบบฟอร์มแล้ว\n'+files.map(f=>f.summary).join('\n'),'ok');
+  }catch(e){console.error(e);say('❌ สร้างแบบฟอร์มไม่สำเร็จ: '+e.message,'err');}
+  finally{formBusy=false;}
+}
+
+/* UI */
+function insertUI(){
+  const list=$('list');
+  if(list&&!$('mt3FixBox')){
+    const box=document.createElement('div');box.id='mt3FixBox';box.className='notice';
+    box.innerHTML='<b>🛟 ประวัติที่หาย (04–05/10)</b><br><span id="mt3FixInfo">ค้นรายงานตรงจากฐานข้อมูลกลาง + คิวค้างส่ง + ข้อมูลสำรองในเครื่องนี้</span>'+
+      '<button type="button" id="mt3FixBtn" class="btn btn-gallery btn-sm" style="margin-top:8px">🔎 ตรวจสอบ & กู้ประวัติที่หาย</button>';
+    list.parentNode.insertBefore(box,list);$('mt3FixBtn').onclick=diagnose;
+  }
+  const anchor=document.querySelector('button[onclick="exportSummaryExcel()"]');
+  if(anchor&&!$('mt3FormBox')){
+    const div=document.createElement('div');div.id='mt3FormBox';div.className='adminOnly';
+    div.innerHTML='<button type="button" class="btn btn-xls" id="mt3FormBtn" style="background:#0b5394">📋 แบบฟอร์มเบิกตรวจนับเครื่องมือประจำวัน (Excel)</button>'+
+      '<label class="btn btn-gallery btn-sm" style="margin-top:6px">📎 เลือกไฟล์แบบฟอร์มเอง (เช่น tool-form.xlsx)'+
+      '<input type="file" id="mt3TplInput" class="fileinput" accept=".xlsx"></label>';
+    anchor.parentNode.after(div);
+    $('mt3FormBtn').onclick=makeToolForms;
+    $('mt3TplInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;tplBuf=await f.arrayBuffer();e.target.value='';say('✅ โหลดไฟล์แบบฟอร์มแล้ว — กดปุ่มสร้างแบบฟอร์มได้เลย','ok');};
+  }
+}
+insertUI();
+const waitReady=setInterval(async()=>{
+  if(!cloudReady)return;clearInterval(waitReady);loadHistory();
+  let p=[];try{p=(await MT3Reliability.pending()).filter(i=>i.collection==='reports');}catch(e){}
+  if(!p.length)return;
+  const info=$('mt3FixInfo');if(info){info.innerHTML='⚠️ เครื่องนี้มีรายงานค้างส่ง <b>'+p.length+'</b> รูป — กำลังส่งขึ้นฐานข้อมูลกลางอัตโนมัติ...';$('mt3FixBox').style.borderColor='#ef6c00';}
+  const r=await resendOutbox();
+  if(info)info.innerHTML=r.left>0?'⚠️ ยังส่งไม่สำเร็จ <b>'+r.left+'</b> รูป — ตรวจอินเทอร์เน็ต แล้วกดปุ่มด้านล่าง':'✅ ส่งรายงานที่ค้างในเครื่องนี้ขึ้นฐานข้อมูลกลางแล้ว '+r.n+' รายการ';
+},1500);
+window.MT3FixV3=Object.freeze({diagnose,deepFetch,makeToolForms});
+})();
 </script>
 </body>
 </html>
