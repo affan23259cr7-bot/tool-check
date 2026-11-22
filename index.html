@@ -146,7 +146,9 @@ body.isAdmin .lockmsg{display:none}
   <div class="thumbs" id="thumbs"></div>
   <button class="btn btn-submit" id="submitBtn" onclick="submitReport()">✅ บันทึกรายงาน</button>
   <div class="hint" style="text-align:center">⚠️ กดเพียงครั้งเดียว แล้วรอจนระบบแจ้งผล — ห้ามกดซ้ำ</div>
-  <div class="status" id="status"></div>
+  <div class="status" id="status" role="status"></div>
+  <div id="pendingReportBox" class="notice" hidden><span id="pendingReportCount" aria-live="polite"></span>
+    <button id="retryPendingReports" type="button" class="btn btn-gallery btn-sm" style="margin-top:8px">ลองส่งรายงานค้างอีกครั้ง</button></div>
   <!-- กล่องผลบันทึก + คัดลอกข้อความ -->
   <div class="savecard" id="saveCard">
     <h3>✓ บันทึกรายงานเรียบร้อย</h3>
@@ -303,18 +305,12 @@ function expired(record) {
   return end !== null && end <= Date.now();
 }
 async function cleanLocalReports() {
-  if (!db) return;
-  await new Promise((resolve,reject) => {
-    const tx = db.transaction('reports','readwrite');
-    const req = tx.objectStore('reports').openCursor();
-    req.onsuccess = () => {
-      const cursor = req.result;
-      if (!cursor) return;
-      if (expired(cursor.value)) cursor.delete();
+  await historyDB.run('reports','readwrite',store=>{
+    const req=store.openCursor();
+    req.onsuccess=()=>{const cursor=req.result;if(!cursor)return;
+      if(expired(cursor.value))cursor.delete();
       cursor.continue();
     };
-    tx.oncomplete = resolve;
-    tx.onerror = tx.onabort = () => reject(tx.error);
   });
 }
 let retentionBusy = false, lastSweep = 0;
@@ -446,18 +442,15 @@ function startCloudSync(){
       loadLog();
     },err=>console.error(err));
 }
-async function readLocalWindow(day){
-  return new Promise((resolve,reject)=>{
-    const out=[],req=db.transaction('reports').objectStore('reports').openCursor(null,'prev');
-    req.onsuccess=()=>{const c=req.result;if(!c)return resolve(out);
-      if(!expired(c.value)&&(!day||day===c.value.dateKey))out.push(c.value);c.continue();};
-    req.onerror=()=>reject(req.error);
+function readLocalWindow(day){
+  return historyDB.run('reports','readonly',(store,done)=>{
+    const rows=[],req=store.openCursor(null,'prev');
+    req.onsuccess=()=>{const cursor=req.result;if(!cursor){done(rows);return;}
+      if(!expired(cursor.value)&&(!day||day===cursor.value.dateKey))rows.push(cursor.value);
+      cursor.continue();};
   });
 }
-function localReportPut(row){
-  return new Promise((resolve,reject)=>{const tx=db.transaction('reports','readwrite');
-    tx.objectStore('reports').put(row);tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(tx.error);});
-}
+function localReportPut(row){return historyDB.request('reports','readwrite',s=>s.put(row));}
 function cloudSet(id,o){ return COL.doc(id).set(Object.assign({createdAt:Date.now()},o)); }
 function cloudAdd(o){ return COL.add(Object.assign({createdAt:Date.now()},o)); }
 function cloudDel(id){ return COL.doc(id).delete(); }
@@ -544,19 +537,77 @@ function confirmReason(){let r=$('rsnSelect').value;
   if(r==='other'){r=$('rsnOther').value.trim();if(!r)return showStatus('rsnStatus','⚠️ กรุณาระบุเหตุผล','err');}
   const cb=rsnCallback;closeRsn();if(cb)Promise.resolve(cb(r)).catch(e=>showStatus('expStatus','ดำเนินการไม่สำเร็จ: '+e.message,'err'));}
 /* ================== IndexedDB (สำรองในเครื่อง) ================== */
-function openDB(){return new Promise((res,rej)=>{
-  const r=indexedDB.open('mt3_tool_db',2);
-  r.onupgradeneeded=e=>{const d=e.target.result;
-    if(!d.objectStoreNames.contains('reports'))d.createObjectStore('reports',{keyPath:'id',autoIncrement:true});
-    if(!d.objectStoreNames.contains('dellog'))d.createObjectStore('dellog',{keyPath:'id',autoIncrement:true});};
-  r.onsuccess=e=>{db=e.target.result;res()};r.onerror=rej;});}
-function addRec(o){return new Promise(r=>{const t=db.transaction('reports','readwrite');t.objectStore('reports').add(o);t.oncomplete=r;});}
-function getAll(){return new Promise(r=>{const q=db.transaction('reports','readonly').objectStore('reports').getAll();q.onsuccess=()=>r(q.result);});}
-function delRec(id){return new Promise(r=>{const t=db.transaction('reports','readwrite');t.objectStore('reports').delete(id);t.oncomplete=r;});}
-function clearAllRec(){return new Promise(r=>{const t=db.transaction('reports','readwrite');t.objectStore('reports').clear();t.oncomplete=r;});}
-function addLog(o){return new Promise(r=>{const t=db.transaction('dellog','readwrite');t.objectStore('dellog').add(o);t.oncomplete=r;});}
-function getLogs(){return new Promise(r=>{const q=db.transaction('dellog','readonly').objectStore('dellog').getAll();q.onsuccess=()=>r(q.result);});}
-function clearLogs(){return new Promise(r=>{const t=db.transaction('dellog','readwrite');t.objectStore('dellog').clear();t.oncomplete=r;});}
+// Keep each database handle only while it is usable. A resumed tab may still hold
+// a closed handle even if the browser never delivered its close event.
+function managedDatabase(name, version, upgrade) {
+  let connection = null;
+  let opening = null;
+  function release(handle) {
+    if (connection === handle) connection = null;
+    handle.close();
+  }
+  function open() {
+    if (connection) return Promise.resolve(connection);
+    if (opening) return opening;
+    opening = new Promise((resolve, reject) => {
+      const request = indexedDB.open(name, version);
+      let blocked = false;
+      request.onupgradeneeded = () => upgrade(request.result);
+      request.onerror = () => reject(request.error);
+      request.onblocked = () => {
+        blocked = true;
+        reject(new Error('กรุณาปิดแท็บอื่นของระบบนี้ แล้วลองอีกครั้ง'));
+      };
+      request.onsuccess = () => {
+        const handle = request.result;
+        if (blocked) { handle.close(); return; }
+        handle.onversionchange = () => release(handle);
+        handle.onclose = () => { if (connection === handle) connection = null; };
+        connection = handle;
+        resolve(handle);
+      };
+    }).finally(() => { opening = null; });
+    return opening;
+  }
+  async function run(store, mode, work) {
+    for (let attempt = 0; ; attempt++) {
+      const handle = await open();
+      try {
+        return await new Promise((resolve, reject) => {
+          const transaction = handle.transaction(store, mode);
+          let value, workError;
+          transaction.oncomplete = () => resolve(value);
+          transaction.onabort = () => reject(workError || transaction.error || new DOMException('Transaction aborted','AbortError'));
+          try { work(transaction.objectStore(store), result => { value = result; }); }
+          catch (error) { workError = error; transaction.abort(); }
+        });
+      } catch (error) {
+        if (attempt || !(['InvalidStateError','AbortError'].includes(error.name) || /connection.*clos/i.test(error.message))) throw error;
+        release(handle);
+      }
+    }
+  }
+  function request(store, mode, operation) {
+    return run(store, mode, (objectStore, done) => {
+      const req = operation(objectStore);
+      if (req) req.onsuccess = () => done(req.result);
+    });
+  }
+  return {open, run, request};
+}
+const historyDB=managedDatabase('mt3_tool_db',2,handle=>{
+  for(const name of ['reports','dellog']){
+    if(!handle.objectStoreNames.contains(name))handle.createObjectStore(name,{keyPath:'id',autoIncrement:true});
+  }
+});
+async function openDB(){db=await historyDB.open();}
+const addRec=o=>historyDB.request('reports','readwrite',s=>s.add(o));
+const getAll=()=>historyDB.request('reports','readonly',s=>s.getAll());
+const delRec=id=>historyDB.request('reports','readwrite',s=>s.delete(id));
+const clearAllRec=()=>historyDB.request('reports','readwrite',s=>s.clear());
+const addLog=o=>historyDB.request('dellog','readwrite',s=>s.add(o));
+const getLogs=()=>historyDB.request('dellog','readonly',s=>s.getAll());
+const clearLogs=()=>historyDB.request('dellog','readwrite',s=>s.clear());
 async function wipeLocal(){
   if(!guard())return;
   if(!confirm('🧹 ล้างข้อมูลแคชในเครื่องนี้ทั้งหมด?\n\n(ไม่กระทบข้อมูลบนฐานข้อมูลกลาง)'))return;
@@ -1119,33 +1170,21 @@ const MT3Access=(()=>{
 })();
 /* Reliability Layer */
 const MT3Reliability = (() => {
-  let queueDB, opening, running=false, retryTimer, subscriptions=[], durableFailure=false, syncError="";
+  let running=false, retryTimer, subscriptions=[], durableFailure=false, syncError="";
   const inflight=new Map();
   const permanent=new Set(['permission-denied','unauthenticated','invalid-argument','resource-exhausted']);
   const configOK=()=>!String(firebaseConfig.apiKey||'').includes('EXAMPLE')&&!!firebaseConfig.apiKey;
-  function open(){
-    if(opening)return opening;
-    opening=new Promise((resolve,reject)=>{
-      const r=indexedDB.open('mt3_reliable_outbox',1);
-      r.onupgradeneeded=()=>r.result.createObjectStore('pending',{keyPath:'key'});
-      r.onerror=()=>reject(r.error);
-      r.onblocked=()=>reject(new Error('กรุณาปิดแท็บเก่าแล้วลองใหม่'));
-      r.onsuccess=()=>{queueDB=r.result;queueDB.onversionchange=()=>queueDB.close();resolve(queueDB);};
-    }).catch(e=>{opening=null;throw e;});return opening;
-  }
-  async function tx(mode,work){
-    const d=await open();return new Promise((resolve,reject)=>{
-      const t=d.transaction('pending',mode);let result;
-      try{const r=work(t.objectStore('pending'));if(r)r.onsuccess=()=>{result=r.result;};}catch(e){reject(e);return;}
-      t.oncomplete=()=>resolve(result);t.onerror=t.onabort=()=>reject(t.error||new Error('บันทึกคิวไม่สำเร็จ'));
-    });
-  }
+  const queue=managedDatabase('mt3_reliable_outbox',1,handle=>handle.createObjectStore('pending',{keyPath:'key'}));
+  const tx=(mode,work)=>queue.request('pending',mode,work);
   const list=()=>tx('readonly',s=>s.getAll());
   const put=o=>tx('readwrite',s=>s.put(o));
   const remove=key=>tx('readwrite',s=>s.delete(key));
   function banner(message,off){setSync(message,off?'off':'');}
   async function status(){
-    try{const total=await tx('readonly',s=>s.count());
+    try{const reportCount=await tx('readonly',s=>s.count(IDBKeyRange.bound('reports/','reports/\uffff')));
+      $('pendingReportBox').hidden=reportCount===0;
+      $('pendingReportCount').textContent='ภาพที่รอฐานข้อมูลกลางยืนยัน '+reportCount+' ภาพ';
+      const total=await tx('readonly',s=>s.count());
       if(!configOK())banner('⚠️ Firebase API key ยังเป็นค่าตัวอย่าง • รอส่ง '+total+' รายการ',true);
       else if(!MT3Access.ready())banner('🔒 กรุณาเข้าสู่ระบบและตรวจสิทธิ์บัญชี',true);
       else if(syncError)banner('🔴 '+syncError,true);
@@ -1206,29 +1245,26 @@ const MT3Reliability = (() => {
     if(inflight.has('reports/'+id))throw new Error('รายการกำลังส่ง กรุณารอฐานข้อมูลยืนยันก่อนลบ');
     await oldDelete(id);window.MT3FixV3?.forget(id);await remove('reports/'+id);
   };
-  function local(store,mode,action){return new Promise((resolve,reject)=>{
-    if(!db)return reject(new Error('ฐานข้อมูลในเครื่องยังไม่พร้อม'));
-    let t,result;try{t=db.transaction(store,mode);const r=action(t.objectStore(store));r.onsuccess=()=>result=r.result;}
-    catch(e){reject(e);return;}
-    t.oncomplete=()=>resolve(result);t.onerror=t.onabort=()=>reject(t.error||new Error('ฐานข้อมูลในเครื่องผิดพลาด'));
-  });}
-  addRec=o=>local('reports','readwrite',s=>s.add(o));
-  getAll=()=>local('reports','readonly',s=>s.getAll());
-  delRec=id=>local('reports','readwrite',s=>s.delete(id));
-  clearAllRec=()=>local('reports','readwrite',s=>s.clear());
-  addLog=o=>local('dellog','readwrite',s=>s.add(o));
-  getLogs=()=>local('dellog','readonly',s=>s.getAll());
-  clearLogs=()=>local('dellog','readwrite',s=>s.clear());
   addEventListener('online',()=>{status();flush();});
+  addEventListener('pageshow',event=>{if(event.persisted)flush();});
   addEventListener('offline',()=>{cloudReady=false;logReady=false;status();});
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')flush();});
-  open().then(status).catch(e=>banner('🔴 ไม่สามารถเก็บคิวสำรอง: '+e.message,true));
+  queue.open().then(status).catch(e=>banner('🔴 ไม่สามารถเก็บคิวสำรอง: '+e.message,true));
   return Object.freeze({async stage(rows){
       const items=rows.map(data=>{const id=data.batch+'_'+data.idx;return {id,key:'reports/'+id,collection:'reports',data,ownerUid:MT3Access.uid(),attempts:0,nextAt:0};});
       await tx('readwrite',store=>{for(const item of items)store.put(item);});
-      schedule();return items;
-    },send,resume:flush,version:'4',complete:()=>serverSeen,logsComplete:()=>logReady,failed:()=>durableFailure,busy:()=>inflight.size>0,
+      status();schedule();return items;
+    },send,resume:flush,version:'4.1',complete:()=>serverSeen,logsComplete:()=>logReady,failed:()=>durableFailure,busy:()=>inflight.size>0,
     stop:()=>{subscriptions.forEach(fn=>fn());subscriptions=[];clearTimeout(retryTimer);},
+    retryReports:async()=>{
+      const n=await queue.run('pending','readwrite',(store,done)=>{
+        let count=0;
+        const req=store.openCursor(IDBKeyRange.bound('reports/','reports/\uffff'));
+        req.onsuccess=()=>{const cursor=req.result;if(!cursor){done(count);return;}
+          const item=cursor.value;item.blocked=false;item.nextAt=0;cursor.update(item);count++;cursor.continue();};
+      });
+      await flush();return n;
+    },
     retry:async()=>{for(const item of await list()){item.blocked=false;item.nextAt=0;await put(item);}return flush();},pending:list});
 })();
 /* MT3 Cycle Numbers & Shared Daily Series (Starting 09/10/2026 -> MT69/0012) */
@@ -1365,17 +1401,21 @@ async function mt3SubmitCycle(){
     showStatus('status','กำลังเตรียมภาพและบันทึกคิวในเครื่อง','info');
     const rows=[];
     for(const [idx,p] of captured.entries()){
+      btn.textContent='เตรียมภาพ '+(idx+1)+' / '+captured.length;
       const img=await makeCloudImg(p.b64);
       if(!img || img.length>950000)throw new Error('รูปที่ '+(idx+1)+' ใหญ่เกินไป กรุณาถ่ายใหม่');
       rows.push({timestamp:ts,dateKey,area,shift,inspector,note,hash:p.hash,img,isDup:p.isDup,
         batch,idx,inspectedAt:at,createdAt:at,docNo:'รอยืนยัน',pendingNumber:true,docNoV:3});
     }
-    const items=await MT3Reliability.stage(rows);
+    let items;
+    try{items=await MT3Reliability.stage(rows);}
+    catch(e){showStatus('status','ยังไม่ได้บันทึก • รูปทั้ง '+rows.length+' ภาพและหมายเหตุยังอยู่ในหน้านี้ กรุณาเปิดแท็บค้างไว้แล้วกดบันทึกอีกครั้ง\n'+e.message,'err');return;}
+
     for(const row of rows)if(db)try{await localReportPut({...row,id:row.batch+'_'+row.idx});}catch(e){console.warn(e);}
     photos=[];renderThumbs();$('note').value='';
     let timer;
     try{
-      const upload=async()=>{for(const item of items)await MT3Reliability.send(item);};
+      const upload=async()=>{for(const [index,item] of items.entries()){btn.textContent='ส่งภาพ '+(index+1)+' / '+items.length;await MT3Reliability.send(item);}};
       await Promise.race([upload(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('timeout')),15000);})]);
     }catch(e){
       showStatus('status','บันทึกชุดภาพในเครื่องแล้ว '+rows.length+' ภาพ • รอฐานข้อมูลกลางยืนยัน ระบบจะส่งคิวซ้ำเมื่อเปิดเว็บและออนไลน์','info');return;
@@ -1715,22 +1755,17 @@ async function deepFetch(dk,force){
 }
 /* 1b) ปลดล็อกคิวค้างส่ง */
 async function resendOutbox(){
-  let d;
-  try{
-    d=await new Promise((res,rej)=>{const r=indexedDB.open('mt3_reliable_outbox',1);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});
-    const items=await new Promise((res,rej)=>{const q=d.transaction('pending','readonly').objectStore('pending').getAll();q.onsuccess=()=>res(q.result||[]);q.onerror=()=>rej(q.error);});
-    for(const it of items){
-      it.blocked=false;it.nextAt=0;
-      await new Promise((res,rej)=>{const t=d.transaction('pending','readwrite');t.objectStore('pending').put(it);t.oncomplete=res;t.onerror=t.onabort=()=>rej(t.error);});
-    }
-    d.close();
-    if(!items.length)return {n:0,left:0};
-    await MT3Reliability.retry();
-    const left=(await MT3Reliability.pending()).filter(i=>i.collection==='reports').length;
-    return {n:items.length,left};
-  }catch(e){try{if(d)d.close();}catch(_){}return {n:0,left:-1};}
+  const n=await MT3Reliability.retryReports();
+  const left=(await MT3Reliability.pending()).filter(i=>i.collection==='reports').length;
+  return {n,left};
 }
-
+$('retryPendingReports').onclick=async function(){
+  this.disabled=true;
+  try{const {left}=await resendOutbox();
+    showStatus('status',left?'ยังรอยืนยัน '+left+' ภาพ • เปิดเว็บค้างไว้และตรวจการเชื่อมต่อ':'ฐานข้อมูลยืนยันคิวรายงานแล้ว','info');
+  }catch(e){showStatus('status','ส่งคิวไม่ได้: '+e.message,'err');}
+  finally{this.disabled=false;}
+};
 /* 1c) กู้ประวัติวันที่ 04-05/10 */
 async function diagnose(){
   if(!guard())return;
@@ -1960,14 +1995,6 @@ function insertUI(){
   }
 }
 insertUI();
-const waitReady=setInterval(async()=>{
-  if(!cloudReady)return;clearInterval(waitReady);loadHistory();
-  let p=[];try{p=(await MT3Reliability.pending()).filter(i=>i.collection==='reports');}catch(e){}
-  if(!p.length)return;
-  const info=$('mt3FixInfo');if(info){info.innerHTML='⚠️ เครื่องนี้มีรายงานค้างส่ง <b>'+p.length+'</b> รูป — กำลังส่งขึ้นฐานข้อมูลกลางอัตโนมัติ...';$('mt3FixBox').style.borderColor='#ef6c00';}
-  const r=await resendOutbox();
-  if(info)info.innerHTML=r.left>0?'⚠️ ยังส่งไม่สำเร็จ <b>'+r.left+'</b> รูป — ตรวจอินเทอร์เน็ต แล้วกดปุ่มด้านล่าง':'✅ ส่งรายงานที่ค้างในเครื่องนี้ขึ้นฐานข้อมูลกลางแล้ว '+r.n+' รายการ';
-},1500);
 window.MT3FixV3=Object.freeze({diagnose,deepFetch,makeToolForms,forget:id=>extra.delete(String(id)),clearExtra:()=>extra.clear()});
 })();
 $('fDate').value=bangkokDay();
