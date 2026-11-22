@@ -8,6 +8,223 @@
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<!-- MT3 Patch v4: วางบล็อกนี้ใน <head> ต่อจากบรรทัด firebase-firestore-compat.js -->
+<script>
+(function(){
+  /* 0) ทำทันทีก่อนโค้ดหลักเริ่ม: ปิด persistence ของ Firestore (IndexedDB บน iPhone หลุดบ่อย)
+        และเปิดออกนอกแอปอัตโนมัติ */
+  try{firebase.firestore.Firestore.prototype.enablePersistence=function(){return Promise.resolve();};}catch(e){}
+  var ua=navigator.userAgent,qs=location.search;
+  if(/\bLine\//i.test(ua)){
+    if(!/[?&]openExternalBrowser=1/.test(qs)){location.replace(location.pathname+(qs?qs+'&':'?')+'openExternalBrowser=1'+location.hash);return;}
+  }else if(/FBAN|FBAV|FB_IAB|Instagram|MicroMessenger|Messenger|TikTok|Snapchat/i.test(ua)){
+    if(/Android/i.test(ua)){location.href='intent://'+location.host+location.pathname+qs+location.hash+'#Intent;scheme=https;package=com.android.chrome;end';return;}
+    window.__mt3InApp=true;
+  }
+  document.addEventListener('DOMContentLoaded',run);
+
+  function run(){
+    const tmo=ms=>new Promise((_,j)=>setTimeout(()=>j(new Error('timeout')),ms));
+
+    /* 1) มินิมอล */
+    const st=document.createElement('style');
+    st.textContent=`
+:root{--ink:#1a1a1a;--mut:#8a8a8a;--line:#e6e6e6}
+body{background:#fafafa;color:var(--ink)}
+.header{background:#fff;color:var(--ink);box-shadow:none;border-bottom:1px solid var(--line)}
+.header img{height:36px;width:36px;background:none}
+.header h1{font-size:15px;font-weight:600}
+.header small{color:var(--mut);opacity:1}
+.lockbtn{background:#f1f1f1;color:var(--ink);border-radius:8px}
+.lockbtn.on{background:var(--ink);color:#fff}
+.tab-btn{background:#fff;color:var(--mut);font-weight:500}
+.tab-btn.active{background:#fff;color:var(--ink);border-bottom:2px solid var(--ink)}
+label{color:#555;font-weight:500;font-size:12.5px}
+select,input[type=text],input[type=date],input[type=password],textarea{border:1px solid var(--line);border-radius:8px}
+select:focus,input:focus,textarea:focus{border-color:var(--ink)}
+.btn{border-radius:8px;font-weight:600}
+.btn-camera,.btn-submit{background:var(--ink);color:#fff}
+.btn-gallery,.btn-export,.btn-zip,.btn-print,.btn-xls,.btn-fix,.btn-warn{background:#fff!important;color:var(--ink)!important;border:1px solid var(--line)!important}
+.btn-danger{border:1px solid #e3b9b9;color:#b3261e}
+.btn-del{background:#b3261e}
+.card,.logcard,.stat div{box-shadow:none;border:1px solid var(--line);border-radius:10px}
+.logcard{border-left:3px solid #b3261e}
+.docchip,.tag,.tag.shift,.tag.rt{background:#f1f1f1;color:#444}
+.tag.dup{background:#b3261e;color:#fff}
+.cyclebox,.cyclebox.newc,.notice,.adminbar,.syncbar,.syncbar.off,.syncbar.wait,.savecard,.dangerzone{background:#fff;border:1px solid var(--line);color:#444}
+.adminbar button{background:var(--ink);color:#fff}
+.savecard h3,.dangerzone h4{color:var(--ink)}
+.savecard pre{background:#fafafa;border-color:var(--line)}
+.status.ok{background:#f2f7f2;color:#2d5f33}.status.info{background:#f4f4f4;color:#444}.status.err{background:#fcf1f0;color:#b3261e}
+.thumb-wrap img{border:1px solid var(--line)}
+.lockmsg{border:1px dashed var(--line)}`;
+    document.head.appendChild(st);
+
+    /* 2) IndexedDB พังได้ ต้องไม่ขวางการส่งรายงาน */
+    ['run','request'].forEach(k=>{
+      const f=historyDB[k];
+      historyDB[k]=async(...a)=>{try{return await Promise.race([f(...a),tmo(4000)]);}
+        catch(e){console.warn('IndexedDB:',e&&e.message);return a[1]==='readonly'?[]:undefined;}};
+    });
+    const _setSync=setSync;
+    setSync=(t,c)=>{
+      if(/คิวสำรอง/.test(t||'')){const ok=cloudReady&&serverSeen;t=ok?'🟢 เชื่อมต่อฐานข้อมูลกลางแล้ว':'⏳ กำลังเชื่อมต่อฐานข้อมูลกลาง...';c=ok?'':'wait';}
+      _setSync(t,c);
+    };
+
+    /* 3) กล้องสดในหน้าเว็บ (ใช้ได้ทั้ง Android/iPhone, ไม่สลับแอป) — ถ้าเปิดไม่ได้ ใช้กล้องของเครื่องแทน */
+    const cam=document.createElement('div');
+    cam.style.cssText='position:fixed;inset:0;z-index:300;background:#000;display:none;flex-direction:column';
+    const bs='border:none;border-radius:20px;background:rgba(255,255,255,.16);color:#fff;font-weight:600;font-size:15px;padding:10px 18px;min-width:84px';
+    cam.innerHTML='<video playsinline muted autoplay style="flex:1;min-height:0;width:100%;object-fit:cover;transition:opacity .08s"></video>'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 22px calc(16px + env(safe-area-inset-bottom,0px));background:#000">'+
+      '<button type="button" id="mt3CamX" style="'+bs+'">ปิด</button>'+
+      '<button type="button" id="mt3CamShot" aria-label="ถ่ายภาพ" style="width:70px;height:70px;border-radius:50%;border:4px solid #fff;background:#fff;box-shadow:inset 0 0 0 4px #000"></button>'+
+      '<button type="button" id="mt3CamOk" style="'+bs+'">เสร็จ (0)</button></div>';
+    document.body.appendChild(cam);
+    const vid=cam.querySelector('video');
+    let stream=null,shooting=false,camBroken=false;
+    const count=()=>{$('mt3CamOk').textContent='เสร็จ ('+photos.length+')';};
+    function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}vid.srcObject=null;cam.style.display='none';}
+    async function openCam(){
+      try{
+        stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080}},audio:false});
+        vid.srcObject=stream;await vid.play().catch(()=>{});cam.style.display='flex';count();return true;
+      }catch(e){stopCam();return false;}
+    }
+    async function shoot(){
+      if(shooting||!vid.videoWidth)return;shooting=true;
+      vid.style.opacity=.3;setTimeout(()=>vid.style.opacity=1,90);
+      try{
+        const c=document.createElement('canvas');c.width=vid.videoWidth;c.height=vid.videoHeight;
+        c.getContext('2d').drawImage(vid,0,0);
+        const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9));
+        if(blob){$('saveCard').classList.remove('show');await handleFiles([new File([blob],'cam.jpg',{type:'image/jpeg'})]);}
+      }finally{shooting=false;count();}
+    }
+    $('mt3CamShot').onclick=shoot;$('mt3CamX').onclick=stopCam;$('mt3CamOk').onclick=stopCam;
+    const camBtn=document.querySelector('label[for="camInput"]');
+    camBtn.addEventListener('click',async e=>{
+      if(submitting){e.preventDefault();return;}
+      if(camBroken||!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia))return;
+      e.preventDefault();
+      if(!await openCam()){camBroken=true;showStatus('status','เปิดกล้องในหน้านี้ไม่ได้ (ตรวจสอบสิทธิ์กล้องของเบราว์เซอร์) — กดปุ่มถ่ายรูปอีกครั้งเพื่อใช้กล้องของเครื่อง','info');}
+    });
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&cam.style.display==='flex'){stopCam();openCam();}});
+
+    /* 4) แอดมินเลือกภาพจากคลังได้ ผู้ใช้ทั่วไปใช้กล้องเท่านั้น */
+    const hint=$('camInput').nextElementSibling;
+    if(hint)hint.textContent='ถ่ายได้หลายรูปต่อเนื่อง ระบบตรวจภาพซ้ำอัตโนมัติ • ผู้ใช้ทั่วไปใช้ได้เฉพาะกล้อง';
+    const gal=document.createElement('div');gal.className='adminOnly';
+    gal.innerHTML='<label class="btn btn-gallery btn-sm mb" for="galInput">🖼️ เลือกภาพจากคลัง (แอดมิน)</label><input type="file" id="galInput" class="fileinput" accept="image/*" multiple>';
+    $('camInput').insertAdjacentElement('afterend',gal);
+    $('galInput').addEventListener('change',async e=>{
+      const files=[...e.target.files].filter(f=>/^image\//.test(f.type));e.target.value='';
+      if(!isAdmin||!files.length)return;
+      $('saveCard').classList.remove('show');
+      await handleFiles(files);
+    });
+
+    /* 5) ปุ่มไปหน้าประวัติ + แบนเนอร์เมื่อยังอยู่ในแอปแชท */
+    $('copyBtn').insertAdjacentHTML('afterend','<button class="cpbtn" id="goHist" type="button">ดูในประวัติ</button>');
+    $('goHist').onclick=()=>document.querySelector('[data-tab="history"]').click();
+    if(window.__mt3InApp||/\bLine\//i.test(ua)){
+      const b=document.createElement('div');
+      b.style.cssText='background:#fffbea;border-bottom:1px solid #eee;padding:10px 14px;font-size:12.5px;color:#5c4a00;line-height:1.7';
+      b.innerHTML='กรุณาเปิดด้วย Safari หรือ Chrome เพื่อให้กล้องและการบันทึกทำงานเสถียร <button type="button" style="margin-left:6px;border:1px solid #d9c98a;background:#fff;border-radius:6px;padding:3px 10px">คัดลอกลิงก์</button>';
+      document.body.insertBefore(b,document.body.firstChild);
+      b.querySelector('button').onclick=async function(){
+        const u=location.href.replace(/([?&])openExternalBrowser=1&?/,'$1').replace(/[?&]$/,'');
+        try{await navigator.clipboard.writeText(u);this.textContent='คัดลอกแล้ว';}catch(e){prompt('คัดลอกลิงก์นี้ไปเปิดใน Safari/Chrome',u);}
+      };
+    }
+
+    /* 6) ส่งรายงาน: จองเลขครั้งเดียว ส่งภาพพร้อมกัน ไม่ผูกกับ IndexedDB */
+    const memQ=new Map();let draining=false;
+    async function sendItem(it){
+      try{await Promise.race([MT3Reliability.send(it),tmo(15000)]);return true;}
+      catch(e){if(e&&e.message==='timeout')return false;}
+      try{
+        const p={...it.data};
+        if(p.pendingNumber)p.docNo=await MT3Cycles.allocate(p.area,p.shift,p.batch,p.inspectedAt,true);
+        delete p.pendingNumber;
+        const ex=expiryMs(p);if(ex)p.expiresAt=firebase.firestore.Timestamp.fromMillis(ex);
+        await Promise.race([fdb.collection('reports').doc(it.id).set(p),tmo(15000)]);
+        return true;
+      }catch(e){return false;}
+    }
+    async function drain(){
+      for(const it of [...memQ.values()])if(await sendItem(it))memQ.delete(it.id);
+      loadHistory();
+    }
+    setInterval(()=>{if(memQ.size&&navigator.onLine&&!draining){draining=true;drain().finally(()=>{draining=false;});}},20000);
+    addEventListener('online',()=>{if(memQ.size&&!draining){draining=true;drain().finally(()=>{draining=false;});}});
+    addEventListener('beforeunload',e=>{if(memQ.size){e.preventDefault();e.returnValue='';}});
+
+    mt3SubmitCycle=async function(){
+      if(submitting){showStatus('status','⏳ กำลังบันทึกอยู่ กรุณารอสักครู่ ห้ามกดซ้ำ','info');return;}
+      const btn=$('submitBtn');
+      const lock=v=>{['area','shift','inspector','note','camInput','galInput'].forEach(id=>$(id).disabled=v);
+        camBtn.style.pointerEvents=v?'none':'';camBtn.style.opacity=v?.5:1;};
+      submitting=true;btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...';
+      try{
+        const area=$('area').value,shift=$('shift').value,note=$('note').value.trim();
+        const inspector=MT3Access.normalizeName($('inspector').value.trim());
+        if(!inspector)return showStatus('status','⚠️ กรุณากรอกชื่อผู้ตรวจเช็ค','err');
+        if(!photos.length)return showStatus('status','⚠️ กรุณาถ่ายภาพอย่างน้อย 1 รูป','err');
+        const dups=photos.filter(p=>p.isDup);
+        if(dups.length){const i=dups[0].dupInfo;
+          if(!confirm('⚠️ พบภาพซ้ำ '+dups.length+' รูป\nตรงกับรายงานเมื่อ: '+(i?i.timestamp:'-')+' ('+(i?i.area:'-')+')\n\nยืนยันบันทึกต่อหรือไม่?'))return;}
+        const now=new Date(),at=now.getTime(),dateKey=bangkokDay(at);
+        const ts=now.toLocaleString('th-TH',{timeZone:'Asia/Bangkok',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).replace(',','');
+        const batch='B'+at+'_'+(crypto.randomUUID?crypto.randomUUID().slice(0,8):Math.random().toString(36).slice(2,10));
+        $('saveCard').classList.remove('show');lock(true);
+        const captured=photos.slice(),imgs=[];
+        for(let i=0;i<captured.length;i++){
+          btn.textContent='เตรียมภาพ '+(i+1)+' / '+captured.length;
+          const img=await makeCloudImg(captured[i].b64);
+          if(!img||img.length>950000)throw new Error('รูปที่ '+(i+1)+' ใหญ่เกินไป กรุณาถ่ายใหม่');
+          imgs.push(img);
+        }
+        btn.textContent='⏳ กำลังส่ง...';
+        let docNo='';
+        try{docNo=await Promise.race([MT3Cycles.allocate(area,shift,batch,at,true),tmo(8000)]);}catch(e){}
+        const rows=imgs.map((img,idx)=>({timestamp:ts,dateKey,area,shift,inspector,note,hash:captured[idx].hash,img,isDup:captured[idx].isDup,
+          batch,idx,inspectedAt:at,createdAt:at,docNo:docNo||'รอยืนยัน',pendingNumber:!docNo,docNoV:3}));
+        let items;
+        try{items=await Promise.race([MT3Reliability.stage(rows),tmo(4000)]);}
+        catch(e){items=rows.map(d=>({id:d.batch+'_'+d.idx,key:'reports/'+d.batch+'_'+d.idx,collection:'reports',data:d,ownerUid:MT3Access.uid(),attempts:0,nextAt:0}));}
+        items.forEach(it=>memQ.set(it.id,it));
+        if(db)rows.forEach(r=>{localReportPut({...r,id:r.batch+'_'+r.idx}).catch(()=>{});});
+        photos=photos.filter(p=>!captured.includes(p));renderThumbs();$('note').value='';
+        if($('fDate').value&&$('fDate').value!==dateKey){$('fDate').value=dateKey;changeHistoryDate();}
+        const res=await Promise.all(items.map(it=>sendItem(it).then(ok=>{if(ok)memQ.delete(it.id);return ok;})));
+        loadHistory();
+        const left=res.filter(x=>!x).length;
+        if(left){showStatus('status','รับรายงานไว้แล้ว '+rows.length+' ภาพ • ส่งไม่สำเร็จ '+left+' ภาพ ระบบจะส่งซ้ำอัตโนมัติ กรุณาเปิดหน้านี้ค้างไว้','info');return;}
+        const dno=docNo||items[0].data.docNo,hasDup=rows.some(r=>r.isDup);
+        showStatus('status','บันทึกแล้ว '+rows.length+' ภาพ • '+dno,'ok');
+        showSaveCard({area,shift,inspector,docNo:dno,ts,count:rows.length,note,dup:hasDup});
+        notifyLine({ts,dateKey,area,shift,inspector,note,docNo:dno,count:rows.length,dup:hasDup,batch})
+          .then(ok=>{if(!ok)showStatus('status','บันทึกแล้ว • แจ้ง LINE ไม่สำเร็จ','info');});
+      }catch(err){
+        console.error(err);showStatus('status','❌ เกิดข้อผิดพลาด: '+err.message,'err');
+      }finally{
+        lock(false);submitting=false;btn.disabled=false;btn.textContent='✅ บันทึกรายงาน';
+        setTimeout(updateCycleHint,900);
+      }
+    };
+
+    /* 7) กลับมาเปิดหน้าเว็บ (เช่นหลังสลับแอป) ต่อฐานข้อมูลกลางใหม่ทันที */
+    document.addEventListener('visibilitychange',()=>{
+      if(document.visibilityState!=='visible')return;
+      try{fdb&&fdb.enableNetwork().catch(()=>{});}catch(e){}
+      MT3Reliability.resume();
+      if(!cloudReady||!serverSeen)startCloudSync();
+    });
+  }
+})();
+</script>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{font-family:-apple-system,'Segoe UI',Roboto,'Noto Sans Thai',sans-serif;background:#eef1f6;margin:0;color:#1a1a1a}
