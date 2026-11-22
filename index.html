@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<!-- MT3 Patch v4: วางบล็อกนี้ใน <head> ต่อจากบรรทัด firebase-firestore-compat.js -->
+<!-- MT3 Patch v4 -->
 <script>
 (function(){
   /* 0) ทำทันทีก่อนโค้ดหลักเริ่ม: ปิด persistence ของ Firestore (IndexedDB บน iPhone หลุดบ่อย)
@@ -35,24 +35,39 @@ body{background:#fafafa;color:var(--ink)}
 .header img{height:36px;width:36px;background:none}
 .header h1{font-size:15px;font-weight:600}
 .header small{color:var(--mut);opacity:1}
-.lockbtn{background:#f1f1f1;color:var(--ink);border-radius:8px}
-.lockbtn.on{background:var(--ink);color:#fff}
+.lockbtn{width:auto;height:34px;padding:0 12px;font-size:12.5px;font-weight:500;background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:8px}
+.lockbtn.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 .tab-btn{background:#fff;color:var(--mut);font-weight:500}
 .tab-btn.active{background:#fff;color:var(--ink);border-bottom:2px solid var(--ink)}
 label{color:#555;font-weight:500;font-size:12.5px}
 select,input[type=text],input[type=date],input[type=password],textarea{border:1px solid var(--line);border-radius:8px}
 select:focus,input:focus,textarea:focus{border-color:var(--ink)}
-.btn{border-radius:8px;font-weight:600}
-.btn-camera,.btn-submit{background:var(--ink);color:#fff}
+.btn{border-radius:8px;font-weight:500;font-size:14px;box-shadow:none}
+.btn:active{transform:none;opacity:.7}
+.btn-camera{background:#fff;color:var(--ink);border:1px solid var(--ink)}
+.btn-submit{background:var(--ink);color:#fff;font-size:14.5px;padding:14px}
 .btn-gallery,.btn-export,.btn-zip,.btn-print,.btn-xls,.btn-fix,.btn-warn{background:#fff!important;color:var(--ink)!important;border:1px solid var(--line)!important}
-.btn-danger{border:1px solid #e3b9b9;color:#b3261e}
-.btn-del{background:#b3261e}
+.btn-danger,.btn-del{background:#fff!important;color:#b3261e!important;border:1px solid #e3b9b9!important}
+.cbtns{gap:4px}
+.cbtn{width:auto;height:auto;padding:5px 9px;font-size:11.5px;font-weight:500;border-radius:6px;background:#fff;color:#444;border:1px solid var(--line)}
+.cbtn.dl2{color:#b3261e;border-color:#e3b9b9}
+.card-info{padding-right:64px}
+.dl{border:1px solid var(--line);color:var(--ink);font-weight:500;border-radius:6px}
+.tab-btn{font-size:13.5px}
+.savecard .cpbtn{font-weight:500;font-size:14px;background:#fff;border:1px solid var(--line);border-radius:8px}
 .card,.logcard,.stat div{box-shadow:none;border:1px solid var(--line);border-radius:10px}
 .logcard{border-left:3px solid #b3261e}
-.docchip,.tag,.tag.shift,.tag.rt{background:#f1f1f1;color:#444}
+.docchip,.tag{background:#f1f1f1;color:#444}
+.tag{font-size:11px;padding:2px 8px}
+.tag.shift{background:#e6effc;color:#1a5fb4}
+.tag.rt{background:#fdeedd;color:#b45309}
+.card:has(.tag.shift){border-left:3px solid #1a5fb4}
+.card:has(.tag.rt){border-left:3px solid #d97706}
+.card:has(.tag.shift) .docchip{background:#e6effc;color:#1a5fb4}
+.card:has(.tag.rt) .docchip{background:#fdeedd;color:#b45309}
 .tag.dup{background:#b3261e;color:#fff}
 .cyclebox,.cyclebox.newc,.notice,.adminbar,.syncbar,.syncbar.off,.syncbar.wait,.savecard,.dangerzone{background:#fff;border:1px solid var(--line);color:#444}
-.adminbar button{background:var(--ink);color:#fff}
+.adminbar button{background:#fff;color:var(--ink);border:1px solid var(--line);border-radius:6px;font-weight:500}
 .savecard h3,.dangerzone h4{color:var(--ink)}
 .savecard pre{background:#fafafa;border-color:var(--line)}
 .status.ok{background:#f2f7f2;color:#2d5f33}.status.info{background:#f4f4f4;color:#444}.status.err{background:#fcf1f0;color:#b3261e}
@@ -71,6 +86,19 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
       if(/คิวสำรอง/.test(t||'')){const ok=cloudReady&&serverSeen;t=ok?'🟢 เชื่อมต่อฐานข้อมูลกลางแล้ว':'⏳ กำลังเชื่อมต่อฐานข้อมูลกลาง...';c=ok?'':'wait';}
       _setSync(t,c);
     };
+
+    /* 2.5) ปุ่มไม่มีอิโมจิ (ตัดอัตโนมัติ รวมข้อความที่โค้ดเดิมตั้งภายหลัง) */
+    const EMO=/[\p{Extended_Pictographic}\uFE0F\u200D\u20E3]/gu,BTN='button,label.btn,.tab-btn,a.dl';
+    const fb=el=>el.id==='lockBtn'?(isAdmin?'ออก':'แอดมิน'):el.classList.contains('pr')?'พิมพ์':el.classList.contains('ed')?'แก้ไข':el.classList.contains('dl2')?'ลบ':(el.title||'');
+    function clean(root){
+      root.querySelectorAll(BTN).forEach(el=>{
+        const w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);let n;
+        while((n=w.nextNode())){const t=n.nodeValue,u=t.replace(EMO,'').replace(/^\s+/,'');if(u!==t)n.nodeValue=u;}
+        if(!el.textContent.trim()&&!el.querySelector('input,img,svg'))el.textContent=fb(el);
+      });
+    }
+    clean(document.body);
+    new MutationObserver(()=>clean(document.body)).observe(document.body,{childList:true,subtree:true,characterData:true});
 
     /* 3) กล้องสดในหน้าเว็บ (ใช้ได้ทั้ง Android/iPhone, ไม่สลับแอป) — ถ้าเปิดไม่ได้ ใช้กล้องของเครื่องแทน */
     const cam=document.createElement('div');
@@ -116,7 +144,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
     const hint=$('camInput').nextElementSibling;
     if(hint)hint.textContent='ถ่ายได้หลายรูปต่อเนื่อง ระบบตรวจภาพซ้ำอัตโนมัติ • ผู้ใช้ทั่วไปใช้ได้เฉพาะกล้อง';
     const gal=document.createElement('div');gal.className='adminOnly';
-    gal.innerHTML='<label class="btn btn-gallery btn-sm mb" for="galInput">🖼️ เลือกภาพจากคลัง (แอดมิน)</label><input type="file" id="galInput" class="fileinput" accept="image/*" multiple>';
+    gal.innerHTML='<label class="btn btn-gallery btn-sm mb" for="galInput">เลือกภาพจากคลัง (แอดมิน)</label><input type="file" id="galInput" class="fileinput" accept="image/*" multiple>';
     $('camInput').insertAdjacentElement('afterend',gal);
     $('galInput').addEventListener('change',async e=>{
       const files=[...e.target.files].filter(f=>/^image\//.test(f.type));e.target.value='';
@@ -166,7 +194,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
       const btn=$('submitBtn');
       const lock=v=>{['area','shift','inspector','note','camInput','galInput'].forEach(id=>$(id).disabled=v);
         camBtn.style.pointerEvents=v?'none':'';camBtn.style.opacity=v?.5:1;};
-      submitting=true;btn.disabled=true;btn.textContent='⏳ กำลังบันทึก...';
+      submitting=true;btn.disabled=true;btn.textContent='กำลังบันทึก...';
       try{
         const area=$('area').value,shift=$('shift').value,note=$('note').value.trim();
         const inspector=MT3Access.normalizeName($('inspector').value.trim());
@@ -186,7 +214,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
           if(!img||img.length>950000)throw new Error('รูปที่ '+(i+1)+' ใหญ่เกินไป กรุณาถ่ายใหม่');
           imgs.push(img);
         }
-        btn.textContent='⏳ กำลังส่ง...';
+        btn.textContent='กำลังส่ง...';
         let docNo='';
         try{docNo=await Promise.race([MT3Cycles.allocate(area,shift,batch,at,true),tmo(8000)]);}catch(e){}
         const rows=imgs.map((img,idx)=>({timestamp:ts,dateKey,area,shift,inspector,note,hash:captured[idx].hash,img,isDup:captured[idx].isDup,
@@ -210,7 +238,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
       }catch(err){
         console.error(err);showStatus('status','❌ เกิดข้อผิดพลาด: '+err.message,'err');
       }finally{
-        lock(false);submitting=false;btn.disabled=false;btn.textContent='✅ บันทึกรายงาน';
+        lock(false);submitting=false;btn.disabled=false;btn.textContent='บันทึกรายงาน';
         setTimeout(updateCycleHint,900);
       }
     };
