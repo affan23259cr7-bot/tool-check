@@ -196,7 +196,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
         camBtn.style.pointerEvents=v?'none':'';camBtn.style.opacity=v?.5:1;};
       submitting=true;btn.disabled=true;btn.textContent='กำลังบันทึก...';
       try{
-        const area=$('area').value,shift=$('shift').value,note=$('note').value.trim();
+        const area=$('area').value,shift=$('shift').value,noteRaw=$('note').value.trim(),note=window.MT3NoteFix?window.MT3NoteFix(noteRaw):noteRaw;
         const inspector=MT3Access.normalizeName($('inspector').value.trim());
         if(!inspector)return showStatus('status','⚠️ กรุณากรอกชื่อผู้ตรวจเช็ค','err');
         if(!photos.length)return showStatus('status','⚠️ กรุณาถ่ายภาพอย่างน้อย 1 รูป','err');
@@ -217,14 +217,14 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
         btn.textContent='กำลังส่ง...';
         let docNo='';
         try{docNo=await Promise.race([MT3Cycles.allocate(area,shift,batch,at,true),tmo(8000)]);}catch(e){}
-        const rows=imgs.map((img,idx)=>({timestamp:ts,dateKey,area,shift,inspector,note,hash:captured[idx].hash,img,isDup:captured[idx].isDup,
+        const rows=imgs.map((img,idx)=>({timestamp:ts,dateKey,area,shift,inspector,note,noteRaw,hash:captured[idx].hash,img,isDup:captured[idx].isDup,
           batch,idx,inspectedAt:at,createdAt:at,docNo:docNo||'รอยืนยัน',pendingNumber:!docNo,docNoV:3}));
         let items;
         try{items=await Promise.race([MT3Reliability.stage(rows),tmo(4000)]);}
         catch(e){items=rows.map(d=>({id:d.batch+'_'+d.idx,key:'reports/'+d.batch+'_'+d.idx,collection:'reports',data:d,ownerUid:MT3Access.uid(),attempts:0,nextAt:0}));}
         items.forEach(it=>memQ.set(it.id,it));
         if(db)rows.forEach(r=>{localReportPut({...r,id:r.batch+'_'+r.idx}).catch(()=>{});});
-        photos=photos.filter(p=>!captured.includes(p));renderThumbs();$('note').value='';
+        photos=photos.filter(p=>!captured.includes(p));renderThumbs();$('note').value='';$('note').dispatchEvent(new Event('input'));
         if($('fDate').value&&$('fDate').value!==dateKey){$('fDate').value=dateKey;changeHistoryDate();}
         const res=await Promise.all(items.map(it=>sendItem(it).then(ok=>{if(ok)memQ.delete(it.id);return ok;})));
         loadHistory();
@@ -326,6 +326,57 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
     const resolve=v=>{const t=v.replace(/\s/g,'').toLowerCase();if(!t||done(v))return v;const m=ROSTER.filter(r=>r.key.includes(t));return m.length===1?m[0].fmt:v;};
     const _sub=mt3SubmitCycle;
     mt3SubmitCycle=function(){inp.value=resolve(inp.value);return _sub.apply(this,arguments);};
+
+    /*NOTE-START*/
+    /* แปลงข้อความที่ช่างพิมพ์ให้ตรงชื่อรายการในแบบฟอร์มตรวจนับ (ใช้ตัวจับคู่เดียวกับตัวสร้างแบบฟอร์ม) */
+const SIZES={block:['1.1.',[8,10,13,16,17,18,19,22,24]],wrench:['1.2.',[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,22,24,26]],
+  rat:['1.3.',[17,19]],ball:['1.4.',[1.5,2,2.5,3,4,5,6,8,10]],torx:['1.5.',[10,15,20,25,27,30,40,45,50]]};
+const DMG=/ชำรุด|ชารุด|เสียหาย|เสีย|หัก|พัง|แตก/,MIS=/ไมมี|ไมพบ|ไมเจอ|สูญหาย|หาย|ขาด|ไมครบ/;
+const DMG_G=new RegExp(DMG.source,'g'),MIS_G=new RegExp(MIS.source,'g'),OKW=/ปกติ|ครบถวน|เรียบรอย|ไมมีปัญหา/;
+const norm=s=>String(s||'').toLowerCase().replace(/[\u0E47-\u0E4E]/g,'').replace(/[\s"'“”″‘’`´()\[\]{}]/g,'')
+  .replace(/kingtony/g,'').replace(/no\.?(?=t?\d)/g,'#').replace(/เบอร|ขนาด|นิว|mm/g,'').replace(/ลอค/g,'ลอก');
+function sizeOf(n,torx){const s=n.replace(/\d+\/\d+/g,'');const m=(torx&&s.match(/t(\d+)/))||s.match(/(\d+(?:\.\d+)?)/);return m?parseFloat(m[1]):null;}
+function pick(g,n){const [pre,arr]=SIZES[g],i=arr.indexOf(sizeOf(n,g==='torx'));return i<0?null:pre+(i+1);}
+function classify(n){
+  if(/ขอตอ|ขอออน/.test(n)){if(/ออน/.test(n))return '1.8.3';if(/ยาว/.test(n))return '1.8.1';if(/สัน/.test(n))return '1.8.2';return null;}
+  if(/ดามฟรี|ฟรีหัวไข|กอกแกก/.test(n))return '1.7.1';
+  if(/คีม/.test(n)){if(/ลอก/.test(n))return sizeOf(n)>=10?'1.6.1':'1.9.5';if(/ตัด/.test(n))return '1.9.1';if(/ถาง/.test(n))return '1.9.2';if(/หุบ/.test(n))return '1.9.3';if(/จิงจก|ปากจิง/.test(n))return '1.9.4';return null;}
+  if(/ไขควง/.test(n)){if(/เชค|วัดไฟ|ลองไฟ|เทสไฟ/.test(n))return '1.10.3';if(/ฉนวน|หุม|1000/.test(n))return '1.10.4';if(/แบน/.test(n))return '1.10.1';if(/แฉก/.test(n))return '1.10.2';return null;}
+  if(/ตลับ|เมตร/.test(n))return '1.11.1';if(/คอน/.test(n))return '1.12.1';if(/ระดับ/.test(n))return '1.13.1';if(/กรรไกร/.test(n))return '1.14.1';
+  if(/ดาว|torx/.test(n)||/t\d+/.test(n))return pick('torx',n);if(/บอล|หกเหลียม/.test(n))return pick('ball',n);
+  if(/หางหนู/.test(n))return pick('rat',n);if(/บลอก/.test(n))return pick('block',n);if(/ประแจ|แหวน|ปากตาย/.test(n))return pick('wrench',n);
+  return null;
+}
+    const FORM={};
+    const FS={block:[8,10,13,16,17,18,19,22,24],wrench:[6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,22,24,26],rat:[17,19],ball:[1.5,2,2.5,3,4,5,6,8,10],torx:[10,15,20,25,27,30,40,45,50]};
+    FS.block.forEach((n,i)=>FORM['1.1.'+(i+1)]='ลูกบล๊อก KINGTONY ขนาด 1/2 No.'+n);
+    FS.wrench.forEach((n,i)=>FORM['1.2.'+(i+1)]='ประแจแหวนข้าง ปากตาย KINGTONY No.'+n);
+    FS.rat.forEach((n,i)=>FORM['1.3.'+(i+1)]='ประแจหางหนู KINGTONY No.'+n);
+    FS.ball.forEach((n,i)=>FORM['1.4.'+(i+1)]='ประแจหกเหลี่ยมหัวบอล KINGTONY No.'+n);
+    FS.torx.forEach((n,i)=>FORM['1.5.'+(i+1)]='ประแจหกเหลี่ยมหัวดาว KINGTONY No.T'+n);
+    Object.assign(FORM,{'1.6.1':'คีมล๊อคใหญ่ 10"','1.7.1':'ด้ามฟรีหัวไข่ KINGTONY 4769-10F 1/2"','1.8.1':'ข้อต่อบล๊อกยาว 1/2"','1.8.2':'ข้อต่อบล๊อกสั้น 1/2"','1.8.3':'ข้อต่อ ข้ออ่อนบล๊อก 1/2"',
+      '1.9.1':'คีมตัด 6"','1.9.2':'คีมถ่าง 7"','1.9.3':'คีมหุบ 7"','1.9.4':'คีมปากจิ้งจก 7"','1.9.5':'คีมล็อกเล็ก',
+      '1.10.1':'ไขควงชุดแบน (กลาง)','1.10.2':'ไขควงแฉก (กลาง)','1.10.3':'ไขควงเช็คไฟ','1.10.4':'ไขควงหุ้มฉนวนไฟฟ้า 1000 V 13 ชิ้น/Set',
+      '1.11.1':'ตลับเมตร 5 m','1.12.1':'ค้อนยูริเทนไร้แรงสะท้อน 1 ปินส์ (ดำ-ส้ม)','1.13.1':'ระดับน้ำ APEX 12"','1.14.1':'กรรไกรตัด ขนาด 12"'});
+    const SD=/ชำรุด|ชารุด|เสียหาย|เสีย|หัก|พัง|แตก/,SM=/ไม่มี|ไม่พบ|ไม่เจอ|สูญหาย|หาย|ขาด|ไม่ครบ/,SALL=new RegExp(SD.source+'|'+SM.source,'g');
+    function toForm(note){
+      return String(note||'').split(/\r?\n|;/)
+        .flatMap(l=>l.trim().replace(/(ชำรุด|ชารุด|ไม่มี|ไม่พบ|ไม่เจอ|สูญหาย|หาย|ขาด)[ \t]+(?=\S)/g,'$1\n').split('\n'))
+        .map(s=>s.trim()).filter(Boolean).map(seg=>{
+          const d=SD.test(seg),m=SM.test(seg);
+          if(/ไม่มีปัญหา/.test(seg)||(!d&&!m))return seg;
+          const base=seg.replace(SALL,'').trim().replace(/ครีม/g,'คีม').replace(/ล([็๊]?)อต/g,'ล$1อก');
+          let code=null;
+          if(/คีมล[็๊]?อ[กค]/.test(base))code=/ใหญ่/.test(base)?'1.6.1':/เล็ก/.test(base)?'1.9.5':null;
+          if(!code&&base)code=classify(norm(base));
+          return code&&FORM[code]?FORM[code]+' '+(d?'ชำรุด':'ไม่มี'):seg;
+        }).join('\n');
+    }
+    /*NOTE-END*/
+    window.MT3NoteFix=toForm;
+    const prev=document.createElement('div');prev.className='hint';prev.style.whiteSpace='pre-line';
+    $('note').after(prev);
+    $('note').addEventListener('input',()=>{const t=$('note').value.trim(),c=toForm(t);prev.textContent=t&&c!==t?'จะบันทึกเป็น:\n'+c:'';});
 
     /* 2) ดึงข้อมูลแบบเบาจากฐานข้อมูลกลาง (ไม่ดึงรูป) */
     const REST='https://firestore.googleapis.com/v1/projects/'+firebaseConfig.projectId+'/databases/(default)/documents:runQuery?key='+firebaseConfig.apiKey;
@@ -2244,7 +2295,7 @@ const SIZES={block:['1.1.',[8,10,13,16,17,18,19,22,24]],wrench:['1.2.',[6,7,8,9,
 const DMG=/ชำรุด|ชารุด|เสียหาย|เสีย|หัก|พัง|แตก/,MIS=/ไมมี|ไมพบ|ไมเจอ|สูญหาย|หาย|ขาด|ไมครบ/;
 const DMG_G=new RegExp(DMG.source,'g'),MIS_G=new RegExp(MIS.source,'g'),OKW=/ปกติ|ครบถวน|เรียบรอย|ไมมีปัญหา/;
 const norm=s=>String(s||'').toLowerCase().replace(/[\u0E47-\u0E4E]/g,'').replace(/[\s"'“”″‘’`´()\[\]{}]/g,'')
-  .replace(/kingtony/g,'').replace(/no\.?(?=t?\d)/g,'').replace(/เบอร|ขนาด|นิว|mm/g,'').replace(/ลอค/g,'ลอก');
+  .replace(/kingtony/g,'').replace(/no\.?(?=t?\d)/g,'#').replace(/เบอร|ขนาด|นิว|mm/g,'').replace(/ลอค/g,'ลอก');
 function sizeOf(n,torx){const s=n.replace(/\d+\/\d+/g,'');const m=(torx&&s.match(/t(\d+)/))||s.match(/(\d+(?:\.\d+)?)/);return m?parseFloat(m[1]):null;}
 function pick(g,n){const [pre,arr]=SIZES[g],i=arr.indexOf(sizeOf(n,g==='torx'));return i<0?null:pre+(i+1);}
 function classify(n){
