@@ -233,6 +233,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
         const dno=docNo||items[0].data.docNo,hasDup=rows.some(r=>r.isDup);
         showStatus('status','บันทึกแล้ว '+rows.length+' ภาพ • '+dno,'ok');
         showSaveCard({area,shift,inspector,docNo:dno,ts,count:rows.length,note,dup:hasDup});
+        document.dispatchEvent(new CustomEvent('mt3saved',{detail:{batch,area,shift,inspector,note,dateKey,docNo:dno,count:rows.length,at}}));
         notifyLine({ts,dateKey,area,shift,inspector,note,docNo:dno,count:rows.length,dup:hasDup,batch})
           .then(ok=>{if(!ok)showStatus('status','บันทึกแล้ว • แจ้ง LINE ไม่สำเร็จ','info');});
       }catch(err){
@@ -250,6 +251,182 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
       MT3Reliability.resume();
       if(!cloudReady||!serverSeen)startCloudSync();
     });
+  }
+})();
+</script>
+<!-- MT3 Patch v5 -->
+<script>
+(function(){
+  document.addEventListener('DOMContentLoaded',run);
+  function run(){
+    const POS={CM:'Corrective Maintenance',MM:'Shift Maintenance Manager',SA:'Shift Administration',MS:'Mechanical Supervisor',ES:'Electrical Supervisor',NA:'Network Administrator',SS:'Server System Administrator',MT:'Mechanical Technician',ET:'Electrical Technician',EM:'Electrical/Mechanical Technician',MC:'Material Control'};
+    /* รหัส|ชื่อ-สกุล|ชื่อเล่น|ตำแหน่ง  (รหัส 7 หลักบางรายการคัดตามไฟล์ PDF ต้นฉบับ ควรตรวจสอบ) */
+    const ROSTER=`06203446|เวียง กันนิเทศ||CM
+06203448|ณัฐพล โพธิกสิกร||CM
+06203449|พันธ์สิทธิ์ แสนสุภา||CM
+06203453|ชัชวาลย์ เนาว์แก้ว||CM
+06203758|จักรวาล ใจสุดา|โอ๊ต|MM
+06203876|มาริษา มาซิว|ปูน|SA
+06203610|อัฟฟาน มามะ|ฟาน|MS
+06203573|ยุทธิชัย โม้แก่น|นิว|MS
+06203963|นวทัศน์ พุ่มพุทรา|อ๋อง|MS
+06203971|สุธีทัต อริยธรรมสกุล|แฮม|ES
+06203906|อภิสิทธิ์ ขวาไชย|แมน|NA
+06203916|เจษฎา จองแค|ต้น|SS
+06203376|สัมฤทธิ์ พิทักษ์พูน|เจ|MT
+06203530|สิทธิโชค พรมเดื่อ|ไมค์|MT
+06204016|บดินทร์ ชนะภัย|เติ้ล|MT
+06203838|อรรถสิทธิ์ ศรแก้ว|หมู|MT
+06203613|วีระภัฏ นิลเกตุ|เมนทรอส|MT
+06203869|ณัฐพงษ์ พันธุ์ดี|ดรีม|MT
+06203910|จิราวุฒิ คูณขุนทด|อิง|MT
+06203484|นัฐพร ธรรมาน้อย|นัฐ|MT
+06203895|อัครพงษ์ หมวกสังข์|บอล|MT
+06203811|อนุวัฒน์ น้อยอามาตย์|ทีม|MT
+06203794|อนุวัฒน์ สมน้อย|ปิ๊ก|MT
+0620340|เสฎฐวุฒิ ใบตระกูล|นิค|MT
+06203853|ณัฐวุธ ยานนท์|ต้น|MT
+06203855|จักรกฤษ พิเคราะห์งาม|บาส|MT
+06204058|ณัฐพงค์ เสือปรางค์|นุ๊ก|MT
+06204078|จีรศักดิ์ ฉั่วศรีวงษ์|ปอนด์|MT
+06204090|คงคา มงคลบุรี|มาร์ค|MT
+06204092|ไพรินทร์ พึ่งเมือง|ฟิล์ม|MT
+06203658|ธราดล คงนุกูล|โซด|ET
+06203606|จักรกฤษณ์ วันทะนา|ต้อง|ET
+06203745|ธัมมศิษฎ์ เปียน้อย|เจ๋ง|ET
+06203701|ดำรงฤทธิ์ ลำเภา|เชฐ|ET
+06203836|โอ ชยกิจราณิชย์|โอ|ET
+06203870|วิทยา นนธิบุตร|บอส|ET
+06203839|วิจิตรศิลป์ นินหล้า|เนี๊ยบ|ET
+06203723|เขษมศักดิ์ คามตะศิลา|วาย|ET
+06203900|วุฒิพงษ์ ทาทอง|บาส|ET
+0624021|ธนภัทร ขอบใจ|อั้ม|ET
+06204039|ทัศน์ไท ช้างเขียว|เจมส์|ET
+0624060|ว่าที่ ร.ต.ธรรมศักดิ์ เสะยามา|ดล|ET
+06204064|นธี ใจคุ้มเก่า|แจ๋ว|EM
+0624091|สุธีร์ บัวลม|เต๋า|EM
+06203517|ชนัญชิดา บุญมี|นก|MC`.split('\n').map(s=>{const [c,n,k,p]=s.split('|');
+      return {c,n,k,p:POS[p],key:(c+n+k).replace(/\s/g,'').toLowerCase(),fmt:c+' '+n+' • '+POS[p]};});
+
+    /* 1) พิมพ์ชื่อ/ชื่อเล่น/รหัส -> เลือกแล้วเติม "รหัส ชื่อ-สกุล • ตำแหน่ง" */
+    const inp=$('inspector'),box=document.createElement('div');
+    box.style.cssText='display:none;border:1px solid #e6e6e6;border-radius:8px;background:#fff;margin-top:4px;max-height:240px;overflow:auto';
+    inp.after(box);
+    const done=v=>/^\d{6,8}\s/.test(v);
+    function show(){
+      const t=inp.value.replace(/\s/g,'').toLowerCase();
+      if(!t||done(inp.value)){box.style.display='none';return;}
+      const m=ROSTER.filter(r=>r.key.includes(t)).slice(0,6);
+      box.innerHTML=m.map(r=>'<div data-i="'+ROSTER.indexOf(r)+'" style="padding:10px 12px;font-size:13.5px;border-bottom:1px solid #f0f0f0"><b>'+esc(r.n)+'</b>'+(r.k?' ('+esc(r.k)+')':'')+'<br><span style="color:#8a8a8a;font-size:12px">'+esc(r.c)+' • '+esc(r.p)+'</span></div>').join('');
+      box.style.display=m.length?'block':'none';
+    }
+    inp.addEventListener('input',show);
+    box.addEventListener('pointerdown',e=>{const d=e.target.closest('[data-i]');if(!d)return;e.preventDefault();inp.value=ROSTER[d.dataset.i].fmt;box.style.display='none';});
+    inp.addEventListener('blur',()=>setTimeout(()=>{box.style.display='none';},150));
+    const resolve=v=>{const t=v.replace(/\s/g,'').toLowerCase();if(!t||done(v))return v;const m=ROSTER.filter(r=>r.key.includes(t));return m.length===1?m[0].fmt:v;};
+    const _sub=mt3SubmitCycle;
+    mt3SubmitCycle=function(){inp.value=resolve(inp.value);return _sub.apply(this,arguments);};
+
+    /* 2) ดึงข้อมูลแบบเบาจากฐานข้อมูลกลาง (ไม่ดึงรูป) */
+    const REST='https://firestore.googleapis.com/v1/projects/'+firebaseConfig.projectId+'/databases/(default)/documents:runQuery?key='+firebaseConfig.apiKey;
+    async function light(t0,fields,limit){
+      const c=new AbortController(),tm=setTimeout(()=>c.abort(),12000);
+      try{
+        const r=await fetch(REST,{method:'POST',signal:c.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({structuredQuery:{
+          from:[{collectionId:'reports'}],
+          where:{fieldFilter:{field:{fieldPath:'createdAt'},op:'GREATER_THAN_OR_EQUAL',value:{integerValue:String(Math.floor(t0))}}},
+          select:{fields:fields.map(f=>({fieldPath:f}))},limit}})});
+        if(!r.ok)throw new Error('HTTP '+r.status);
+        return (await r.json()).filter(x=>x.document).map(x=>{
+          const o={_id:x.document.name};
+          for(const k in x.document.fields){const v=x.document.fields[k];o[k]=v.stringValue!==undefined?v.stringValue:v.integerValue!==undefined?Number(v.integerValue):v.doubleValue;}
+          return o;});
+      }finally{clearTimeout(tm);}
+    }
+
+    /* 3) สถานะการส่งของแต่ละพื้นที่ (ทุกคนเห็นเมื่อเข้าระบบ) */
+    const ANCHOR='2026-11-24'; /* วันแรกของกะเช้า 4 วัน — รอบ 12 วัน: เช้า4 หยุด2 ดึก4 หยุด2 */
+    const DAY=864e5,HR=36e5,AREAS=[...$('area').options].map(o=>o.value);
+    const mid=d=>Date.parse(d+'T00:00:00+07:00');
+    const kind=d=>{const n=Math.round((Date.parse(d+'T00:00:00Z')-Date.parse(ANCHOR+'T00:00:00Z'))/DAY),m=((n%12)+12)%12;return m<4?'day':(m>=6&&m<10)?'night':'off';};
+    const WIN={day:[['กะเช้า','รับกะ',9.5,10,0],['กะเช้า','ส่งคืน',20.5,21,0]],night:[['กะดึก','รับกะ',21.5,22,0],['กะดึก','ส่งคืน',8.5,9,1]]};
+    function windows(now){
+      const out=[];
+      for(let i=-2;i<=14;i++){const S=bangkokDay(now+i*DAY),k=kind(S);if(k==='off')continue;
+        for(const [sn,rd,sh,dh,off] of WIN[k])out.push({sn,rd,start:mid(S)+off*DAY+sh*HR,due:mid(S)+off*DAY+dh*HR});}
+      return out.sort((a,b)=>a.start-b.start);
+    }
+    const hm=t=>new Date(t).toLocaleTimeString('th-TH',{timeZone:'Asia/Bangkok',hour:'2-digit',minute:'2-digit'});
+    const dm=t=>new Date(t).toLocaleDateString('th-TH',{timeZone:'Asia/Bangkok',day:'numeric',month:'short'});
+    const panel=document.createElement('div');
+    panel.style.cssText='border:1px solid #e6e6e6;border-radius:10px;background:#fff;padding:12px;margin-bottom:6px';
+    $('tab-report').insertBefore(panel,$('tab-report').firstChild);
+    let busy=false;
+    async function loadStatus(){
+      if(busy)return;busy=true;
+      try{
+        const now=Date.now(),W=windows(now),next=W.find(w=>w.start>now);
+        let cur=W.filter(w=>w.start<=now).pop();
+        if(cur&&!(now<cur.due+12*HR&&(!next||now<next.start)))cur=null;
+        const nextTxt=next?'รอบถัดไป: '+next.rd+' '+next.sn+' • '+dm(next.start)+' '+hm(next.start)+'–'+hm(next.due)+' น.':'';
+        if(!cur){panel.innerHTML='<b style="font-size:13.5px">ตอนนี้ไม่มีรอบที่ต้องส่งรายงาน</b><div class="hint">'+esc(nextTxt)+'</div>';return;}
+        const rows=(await light(cur.start-HR,['area','shift','createdAt'],500)).filter(r=>r.shift===cur.rd&&r.createdAt>=cur.start-HR);
+        const late=now>=cur.due;
+        const chips=AREAS.map(a=>{
+          const r=rows.filter(x=>x.area===a).sort((x,y)=>x.createdAt-y.createdAt)[0];
+          const st=r?['ส่งแล้ว '+hm(r.createdAt)+' น.','#2d5f33','#f2f7f2']:late?['ยังไม่ส่ง','#b3261e','#fcf1f0']:['รอส่ง','#8a8a8a','#f4f4f4'];
+          return '<div style="display:flex;justify-content:space-between;padding:7px 10px;border-radius:8px;background:'+st[2]+';font-size:13px"><span>'+esc(a)+'</span><b style="color:'+st[1]+'">'+st[0]+'</b></div>';
+        }).join('');
+        const miss=AREAS.filter(a=>!rows.some(x=>x.area===a)).length;
+        panel.innerHTML='<b style="font-size:13.5px">'+esc(cur.rd)+' '+esc(cur.sn)+'</b> <span class="hint">กำหนดส่ง '+hm(cur.start)+'–'+hm(cur.due)+' น.</span>'+
+          (miss?'<div style="font-size:13px;margin:6px 0;color:'+(late?'#b3261e':'#555')+'">'+(late?'เลยกำหนด ':'')+'ยังไม่ส่ง '+miss+' พื้นที่</div>':'<div style="font-size:13px;margin:6px 0;color:#2d5f33">ส่งครบทุกพื้นที่แล้ว</div>')+
+          '<div style="display:grid;gap:5px">'+chips+'</div>'+(nextTxt?'<div class="hint">'+esc(nextTxt)+'</div>':'');
+      }catch(e){panel.innerHTML='<div class="hint">ตรวจสถานะการส่งไม่ได้ตอนนี้ ('+esc(e.message)+')</div>';}
+      finally{busy=false;}
+    }
+    loadStatus();setInterval(loadStatus,60000);
+    document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')loadStatus();});
+    document.addEventListener('mt3saved',()=>setTimeout(loadStatus,1500));
+
+    /* 4) แท็บสถิติ (ทุกคนเห็น) */
+    const D=/ชำรุด|ชารุด|เสียหาย|เสีย|หัก|พัง|แตก/,M=/ไม่มี|ไม่พบ|ไม่เจอ|สูญหาย|หาย|ขาด|ไม่ครบ/,STRIP=new RegExp(D.source+'|'+M.source+'|เบอร์','g');
+    function parse(note){
+      return String(note||'').split(/\r?\n|\s\/\s|;/).map(l=>l.trim()).filter(Boolean).map(l=>{
+        const d=D.test(l),m=M.test(l);
+        if(/ไม่มีปัญหา/.test(l)||(!d&&!m&&/ปกติ|เรียบร้อย|ครบ/.test(l)))return null;
+        const n=l.replace(STRIP,'').replace(/\s+/g,' ').trim();
+        return n?{n,s:d?'d':'m'}:null;
+      }).filter(Boolean);
+    }
+    const who=s=>String(s||'-').replace(/^\d{6,8}\s+/,'').replace(/\s•\s.*$/,'').trim()||'-';
+    const tab=document.createElement('div');tab.id='tab-dash';tab.className='tab-content container';
+    tab.innerHTML='<label style="margin-top:0">ช่วงเวลา</label><select id="dRange"><option value="7">7 วันล่าสุด</option><option value="30" selected>30 วันล่าสุด</option></select><div id="dBody"></div>';
+    $('tab-history').after(tab);
+    const btn=document.createElement('button');btn.className='tab-btn';btn.dataset.tab='dash';btn.textContent='สถิติ';
+    document.querySelector('.tab-btn[data-tab="history"]').after(btn);
+    btn.onclick=()=>{
+      document.querySelectorAll('.tab-content').forEach(e=>e.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active'));
+      tab.classList.add('active');btn.classList.add('active');loadDash();
+    };
+    $('dRange').onchange=loadDash;
+    const top=(arr,f)=>{const m=new Map();arr.forEach(x=>{const k=f(x);m.set(k,(m.get(k)||0)+1);});return [...m].sort((a,b)=>b[1]-a[1]);};
+    const card=(title,list)=>'<div class="card" style="display:block"><b>'+title+'</b>'+(list.length?list.slice(0,10).map(([k,v])=>
+      '<div style="margin-top:9px;font-size:13px;display:flex;justify-content:space-between;gap:8px"><span>'+esc(k)+'</span><b>'+v+'</b></div><div style="background:#eee;border-radius:4px;height:5px"><div style="width:'+Math.round(v/list[0][1]*100)+'%;background:#1a1a1a;height:5px;border-radius:4px"></div></div>').join(''):'<div class="hint">ไม่มีข้อมูล</div>')+'</div>';
+    async function loadDash(){
+      const body=$('dBody');body.innerHTML='<div class="empty">กำลังโหลด...</div>';
+      try{
+        const all=await light(Date.now()-(+$('dRange').value)*DAY,['batch','area','shift','inspector','note','createdAt'],5000);
+        const seen=new Set(),rows=all.filter(r=>{const k=r.batch||r._id;if(seen.has(k))return false;seen.add(k);return true;});
+        if(!rows.length){body.innerHTML='<div class="empty">ยังไม่มีข้อมูลในช่วงนี้</div>';return;}
+        const items=rows.flatMap(r=>parse(r.note).map(i=>({...i,area:r.area})));
+        body.innerHTML='<div class="stat"><div><b>'+rows.length+'</b><span>ครั้งที่ส่งรายงาน</span></div><div><b>'+items.length+'</b><span>รายการผิดปกติ</span></div></div>'+
+          card('พื้นที่ที่พบปัญหาบ่อย (รายการ)',top(items,x=>x.area))+
+          card('เครื่องมือชำรุดบ่อย',top(items.filter(x=>x.s==='d'),x=>x.n))+
+          card('เครื่องมือไม่มี/หายบ่อย',top(items.filter(x=>x.s==='m'),x=>x.n))+
+          card('ช่างที่ส่งข้อมูลบ่อย (ครั้ง)',top(rows,r=>who(r.inspector)));
+      }catch(e){body.innerHTML='<div class="status show err">โหลดสถิติไม่สำเร็จ: '+esc(e.message)+'</div>';}
+    }
   }
 })();
 </script>
