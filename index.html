@@ -196,7 +196,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
         camBtn.style.pointerEvents=v?'none':'';camBtn.style.opacity=v?.5:1;};
       submitting=true;btn.disabled=true;btn.textContent='กำลังบันทึก...';
       try{
-        const area=$('area').value,shift=$('shift').value,noteRaw=$('note').value.trim(),note=window.MT3NoteFix?window.MT3NoteFix(noteRaw):noteRaw;
+        const area=$('area').value,shift=$('shift').value,noteRaw=(window.MT3Compose?window.MT3Compose():$('note').value.trim()),note=window.MT3NoteFix?window.MT3NoteFix(noteRaw):noteRaw;
         const inspector=MT3Access.normalizeName($('inspector').value.trim());
         if(!inspector)return showStatus('status','⚠️ กรุณากรอกชื่อผู้ตรวจเช็ค','err');
         if(!photos.length)return showStatus('status','⚠️ กรุณาถ่ายภาพอย่างน้อย 1 รูป','err');
@@ -224,7 +224,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
         catch(e){items=rows.map(d=>({id:d.batch+'_'+d.idx,key:'reports/'+d.batch+'_'+d.idx,collection:'reports',data:d,ownerUid:MT3Access.uid(),attempts:0,nextAt:0}));}
         items.forEach(it=>memQ.set(it.id,it));
         if(db)rows.forEach(r=>{localReportPut({...r,id:r.batch+'_'+r.idx}).catch(()=>{});});
-        photos=photos.filter(p=>!captured.includes(p));renderThumbs();$('note').value='';$('note').dispatchEvent(new Event('input'));
+        photos=photos.filter(p=>!captured.includes(p));renderThumbs();$('note').value='';$('note').dispatchEvent(new Event('input'));document.dispatchEvent(new Event('mt3reset'));
         if($('fDate').value&&$('fDate').value!==dateKey){$('fDate').value=dateKey;changeHistoryDate();}
         const res=await Promise.all(items.map(it=>sendItem(it).then(ok=>{if(ok)memQ.delete(it.id);return ok;})));
         loadHistory();
@@ -475,8 +475,207 @@ function classify(n){
           card('พื้นที่ที่พบปัญหาบ่อย (รายการ)',top(items,x=>x.area))+
           card('เครื่องมือชำรุดบ่อย',top(items.filter(x=>x.s==='d'),x=>x.n))+
           card('เครื่องมือไม่มี/หายบ่อย',top(items.filter(x=>x.s==='m'),x=>x.n))+
-          card('ช่างที่ส่งข้อมูลบ่อย (ครั้ง)',top(rows,r=>who(r.inspector)));
+          card('ช่างที่ส่งข้อมูลบ่อย (ครั้ง)',top(rows,r=>who(r.inspector)))+(window.MT3StatsExtra?window.MT3StatsExtra(rows,all,+$('dRange').value):'');
       }catch(e){body.innerHTML='<div class="status show err">โหลดสถิติไม่สำเร็จ: '+esc(e.message)+'</div>';}
+    }
+    window.MT3Core={light,FORM,ROSTER,kind,WIN,mid,DAY,HR,AREAS,top,who,parse,hm,dm};
+  }
+})();
+</script>
+<!-- MT3 Patch v6 -->
+<script>
+(function(){
+  document.addEventListener('DOMContentLoaded',run);
+  function run(){
+    const {light,FORM,ROSTER,kind,WIN,mid,DAY,HR,AREAS,top,who,parse,hm,dm}=window.MT3Core;
+    const pc=(n,d)=>d?Math.round(n/d*100):0;
+    const goTab=(t,b)=>{document.querySelectorAll('.tab-content').forEach(e=>e.classList.remove('active'));document.querySelectorAll('.tab-btn').forEach(e=>e.classList.remove('active'));t.classList.add('active');b.classList.add('active');};
+    const mkTab=(id,label,admin,html,after,onOpen)=>{
+      const t=document.createElement('div');t.id='tab-'+id;t.className='tab-content container';t.innerHTML=html;$(after[0]).after(t);
+      const b=document.createElement('button');b.className='tab-btn'+(admin?' adminOnly':'');b.dataset.tab=id;b.textContent=label;
+      document.querySelector('.tab-btn[data-tab="'+after[1]+'"]').after(b);b.onclick=()=>{goTab(t,b);onOpen();};return b;
+    };
+    const st=document.createElement('style');
+    st.textContent='.tabs{overflow-x:auto}.tab-btn,body.isAdmin .tab-btn.adminOnly{flex:1 0 auto;padding:13px 14px;white-space:nowrap}details>summary::-webkit-details-marker{display:none}';
+    document.head.appendChild(st);
+    const bar=(t,list,sfx)=>'<div class="card" style="display:block"><b>'+t+'</b>'+list.map(([k,v])=>'<div style="margin-top:9px;font-size:13px;display:flex;justify-content:space-between;gap:8px"><span>'+esc(k)+'</span><b>'+v+(sfx||'')+'</b></div><div style="background:#eee;border-radius:4px;height:5px"><div style="width:'+Math.min(100,v)+'%;background:#1a1a1a;height:5px;border-radius:4px"></div></div>').join('')+'</div>';
+
+    /* 1) เลือกเครื่องมือจากรายการ: แตะ 1 = ชำรุด, 2 = ไม่มี, 3 = ยกเลิก */
+    const GT={'1.1':'ลูกบล๊อก 1/2"','1.2':'ประแจแหวนข้าง ปากตาย','1.3':'ประแจหางหนู','1.4':'ประแจหกเหลี่ยมหัวบอล','1.5':'ประแจหกเหลี่ยมหัวดาว','1.6':'คีมล็อกใหญ่','1.7':'ด้ามฟรีหัวไข่','1.8':'ข้อต่อบล๊อก','1.9':'คีมอื่นๆ','1.10':'ไขควง','1.11':'ตลับเมตร','1.12':'ค้อน','1.13':'ระดับน้ำ','1.14':'กรรไกร'};
+    const ck=c=>c.split('.').map(n=>n.padStart(3,'0')).join('');
+    const sel=new Map(),codes=Object.keys(FORM).sort((a,b)=>ck(a)<ck(b)?-1:1);
+    const COL={d:['#fdeedd','#b45309','#f2c48d'],m:['#fcf1f0','#b3261e','#e3b9b9'],'':['#fff','#1a1a1a','#e6e6e6']};
+    const chip=c=>{const x=COL[sel.get(c)||''];return 'padding:7px 12px;border-radius:8px;font-size:13px;background:'+x[0]+';color:'+x[1]+';border:1px solid '+x[2];};
+    const ckBox=document.createElement('div');
+    ckBox.innerHTML='<label style="margin-top:14px">เลือกเครื่องมือที่ชำรุด / ไม่มี <span id="ckN" class="hint"></span></label><div class="hint" style="margin:0 0 6px">แตะ 1 ครั้ง = ชำรุด • 2 ครั้ง = ไม่มี • 3 ครั้ง = ยกเลิก</div>'+
+      Object.keys(GT).map(g=>'<details style="border:1px solid #e6e6e6;border-radius:8px;margin-top:6px;background:#fff"><summary style="padding:10px 12px;font-size:13.5px;list-style:none;display:flex;justify-content:space-between">'+GT[g]+'<b data-g="'+g+'"></b></summary><div style="padding:2px 10px 10px;display:flex;flex-wrap:wrap;gap:6px">'+
+        codes.filter(c=>c.split('.').slice(0,2).join('.')===g).map(c=>'<button type="button" data-c="'+c+'" style="'+chip(c)+'">'+esc((FORM[c].match(/No\.(\S+)$/)||[])[1]||FORM[c])+'</button>').join('')+'</div></details>').join('');
+    const noteLabel=$('note').previousElementSibling;
+    noteLabel.before(ckBox);noteLabel.textContent='หมายเหตุอื่นๆ (ขึ้นบรรทัดใหม่ = 1 รายการ)';
+    function refresh(){
+      ckBox.querySelectorAll('[data-c]').forEach(b=>b.setAttribute('style',chip(b.dataset.c)));
+      ckBox.querySelectorAll('[data-g]').forEach(b=>{const n=[...sel.keys()].filter(c=>c.startsWith(b.dataset.g+'.')).length;b.textContent=n||'';});
+      $('ckN').textContent=sel.size?'(เลือกแล้ว '+sel.size+')':'';
+    }
+    ckBox.addEventListener('click',e=>{
+      const b=e.target.closest('[data-c]');if(!b||submitting)return;
+      const c=b.dataset.c,s=sel.get(c);
+      if(!s)sel.set(c,'d');else if(s==='d')sel.set(c,'m');else sel.delete(c);
+      refresh();
+    });
+    window.MT3Compose=()=>[...[...sel].map(([c,s])=>FORM[c]+' '+(s==='d'?'ชำรุด':'ไม่มี')),$('note').value.trim()].filter(Boolean).join('\n');
+    document.addEventListener('mt3reset',()=>{sel.clear();refresh();});
+
+    /* 2) ติดตามงานชำรุด/หาย: แจ้งแล้ว → ส่งซ่อม → เบิกแล้ว → ปิดงาน */
+    const STS=['แจ้งแล้ว','ส่งซ่อม','เบิกแล้ว','ปิดงาน'],REV=Object.fromEntries(Object.entries(FORM).map(([c,n])=>[n,c]));
+    const hsh=s=>{let h=5381;for(const ch of s)h=((h<<5)+h+ch.codePointAt(0))>>>0;return h.toString(36);};
+    document.addEventListener('mt3saved',e=>{
+      const x=e.detail;
+      String(x.note||'').split('\n').forEach(l=>{
+        const m=l.match(/^(.*\S)\s+(ชำรุด|ไม่มี)$/);if(!m)return;
+        const name=m[1],k=m[2]==='ชำรุด'?'d':'m',code=REV[name]||null,by=who(x.inspector);
+        const ref=fdb.collection('mt3_defects').doc(x.area+'~'+(code||'x'+hsh(name))+'~'+k);
+        fdb.runTransaction(async tx=>{
+          const s=await tx.get(ref),o=s.exists?s.data():null;
+          if(o&&o.status!=='ปิดงาน'){tx.update(ref,{seen:(o.seen||1)+1,lastSeenAt:x.at});return;}
+          tx.set(ref,{area:x.area,code,name,kind:k,status:'แจ้งแล้ว',reportedAt:x.at,reportedBy:by,docNo:x.docNo,seen:1,lastSeenAt:x.at,updatedAt:x.at,cycles:o?(o.cycles||0)+1:0,history:[{s:'แจ้งแล้ว',by,at:x.at}]});
+        }).catch(err=>console.warn('defect:',err.message));
+      });
+    });
+    let defects=[];
+    const dBtn=mkTab('defect','ติดตาม',false,'<label style="margin-top:0">แสดง</label><select id="dfF"><option value="open">ค้างอยู่ (ยังไม่ปิดงาน)</option><option value="all">ทั้งหมด</option><option value="closed">ปิดงานแล้ว</option></select><div id="dfBody"></div>',['tab-dash','dash'],loadDef);
+    $('dfF').onchange=renderDef;
+    async function loadDef(){
+      $('dfBody').innerHTML='<div class="empty">กำลังโหลด...</div>';
+      try{defects=(await fdb.collection('mt3_defects').orderBy('updatedAt','desc').limit(300).get()).docs.map(d=>({id:d.id,...d.data()}));renderDef();}
+      catch(err){$('dfBody').innerHTML='<div class="status show err">โหลดไม่สำเร็จ: '+esc(err.message)+'</div>';}
+    }
+    function renderDef(){
+      const f=$('dfF').value,adm=MT3Access.admin(),open=defects.filter(d=>d.status!=='ปิดงาน').length;
+      const list=defects.filter(d=>f==='all'||(f==='open')===(d.status!=='ปิดงาน'));
+      dBtn.textContent='ติดตาม'+(open?' ('+open+')':'');
+      $('dfBody').innerHTML=list.length?list.map(d=>'<div class="card" style="display:block"><b>'+esc(d.name)+'</b><br>'+
+        '<span class="tag '+(d.kind==='d'?'rt':'dup')+'" style="margin-left:0">'+(d.kind==='d'?'ชำรุด':'ไม่มี')+'</span><span class="tag">'+esc(d.status)+'</span> <span class="hint">'+esc(d.area)+(d.seen>1?' • พบซ้ำ '+d.seen+' ครั้ง':'')+'</span>'+
+        '<div class="hint" style="margin-top:6px">'+(d.history||[]).map(h=>esc(h.s)+' • '+esc(h.by||'-')+' • '+dm(h.at)+' '+hm(h.at)).join('<br>')+'</div>'+
+        (adm?STS.filter(s=>s!==d.status).map(s=>'<button type="button" class="btn btn-gallery btn-sm" style="margin:8px 6px 0 0;padding:6px 10px;width:auto" data-id="'+esc(d.id)+'" data-s="'+s+'">'+s+'</button>').join(''):'')+'</div>').join(''):'<div class="empty">ไม่มีรายการ</div>';
+    }
+    $('dfBody').addEventListener('click',async e=>{
+      const b=e.target.closest('button[data-s]');if(!b||!MT3Access.admin())return;
+      const s=b.dataset.s,at=Date.now();
+      try{await fdb.collection('mt3_defects').doc(b.dataset.id).update({status:s,updatedAt:at,closedAt:s==='ปิดงาน'?at:null,history:firebase.firestore.FieldValue.arrayUnion({s,by:MT3Access.fullName(),at})});await loadDef();}
+      catch(err){showStatus('expStatus','เปลี่ยนสถานะไม่สำเร็จ: '+err.message,'err');}
+    });
+
+    /* 3) ตรงเวลา: เทียบเวลาที่ส่งกับรอบกำหนด (ใช้ร่วมกับสถิติและรายงานรายเดือน) */
+    function windowsBetween(from,to){
+      const out=[],end=Math.min(to,Date.now());
+      for(let t=from-2*DAY;t<=to+2*DAY;t+=DAY){
+        const S=bangkokDay(t),k=kind(S);if(k==='off')continue;
+        for(const [sn,rd,sh,dh,off] of WIN[k]){const start=mid(S)+off*DAY+sh*HR,due=mid(S)+off*DAY+dh*HR;if(due>=from&&due<=end)out.push({rd,start,due});}
+      }
+      return out;
+    }
+    function punct(all,from,to){
+      const res=[];
+      for(const w of windowsBetween(from,to)){
+        const rows=all.filter(r=>r.shift===w.rd&&r.createdAt>=w.start-HR&&r.createdAt<=w.due+12*HR);
+        for(const a of AREAS){
+          const t=Math.min(...rows.filter(r=>r.area===a).map(r=>r.createdAt));
+          res.push({a,due:w.due,st:t===Infinity?'missed':t<=w.due?'ontime':'late'});
+        }
+      }
+      return res;
+    }
+    window.MT3Punct=punct;
+    window.MT3StatsExtra=(rows,all,days)=>{
+      const to=Date.now(),P=punct(all,to-days*DAY,to);if(!P.length)return '';
+      const ok=p=>p.filter(x=>x.st==='ontime').length,wk=[];
+      for(let k=Math.ceil(days/7)-1;k>=0;k--){
+        const e=to-k*7*DAY,b=e-7*DAY,p=P.filter(x=>x.due>b&&x.due<=e);if(!p.length)continue;
+        wk.push([dm(b)+'–'+dm(e-1)+' • ผิดปกติ '+rows.filter(r=>r.createdAt>b&&r.createdAt<=e).reduce((s,r)=>s+parse(r.note).length,0),pc(ok(p),p.length)]);
+      }
+      return bar('ส่งตรงเวลาแต่ละพื้นที่ ('+days+' วัน)',AREAS.map(a=>{const p=P.filter(x=>x.a===a);return [a+' ('+ok(p)+'/'+p.length+')',pc(ok(p),p.length)];}),'%')+bar('แนวโน้มรายสัปดาห์ (ส่งตรงเวลา)',wk,'%');
+    };
+
+    /* 4) รายงานสรุปรายเดือน + ลงนามดิจิทัล (Supervisor / Material Controller) */
+    let M=null;
+    const MREF=ym=>fdb.collection('mt3_monthly').doc(ym);
+    const thMonth=ym=>{const [y,m]=ym.split('-').map(Number);return ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'][m-1]+' '+(y+543);};
+    mkTab('month','รายงานเดือน',true,'<label style="margin-top:0">เดือน</label><input type="month" id="mMonth"><button type="button" class="btn btn-camera btn-sm" id="mGo" style="margin-top:10px">สร้างรายงาน</button><div id="mBody"></div>',['tab-defect','defect'],()=>{});
+    $('mMonth').value=bangkokDay().slice(0,7);$('mGo').onclick=loadMonth;
+    async function buildMonth(ym){
+      const [y,m]=ym.split('-').map(Number),from=Date.parse(ym+'-01T00:00:00+07:00'),to=Date.parse((m===12?(y+1)+'-01':y+'-'+String(m+1).padStart(2,'0'))+'-01T00:00:00+07:00');
+      const all=(await light(from,['batch','area','shift','inspector','note','createdAt'],5000)).filter(r=>r.createdAt<to);
+      let defs=[];try{defs=(await fdb.collection('mt3_defects').limit(1000).get()).docs.map(d=>d.data());}catch(e){}
+      const seen=new Set(),rows=all.filter(r=>{const k=r.batch||r._id;if(seen.has(k))return false;seen.add(k);return true;});
+      const P=punct(all,from,to),items=rows.flatMap(r=>parse(r.note).map(i=>({...i,area:r.area}))),inM=t=>t>=from&&t<to;
+      return {ym,n:rows.length,
+        ar:AREAS.map(a=>{const p=P.filter(x=>x.a===a),c=s=>p.filter(x=>x.st===s).length;return {a,exp:p.length,ok:c('ontime'),late:c('late'),miss:c('missed')};}),
+        d:top(items.filter(x=>x.s==='d'),x=>x.n).slice(0,10),m:top(items.filter(x=>x.s==='m'),x=>x.n).slice(0,10),
+        def:{opened:defs.filter(x=>inM(x.reportedAt)).length,closed:defs.filter(x=>x.closedAt&&inM(x.closedAt)).length,open:defs.filter(x=>x.status!=='ปิดงาน').length}};
+    }
+    async function loadMonth(){
+      const ym=$('mMonth').value,body=$('mBody');if(!ym)return;
+      body.innerHTML='<div class="empty">กำลังสร้างรายงาน...</div>';
+      try{
+        const sv=await MREF(ym).get(),o=sv.exists?sv.data():{};
+        let s=o.summary?JSON.parse(o.summary):null;
+        if(!s||!(o.sup||o.mc)){const f=await buildMonth(ym);if(f.n||!s)s=f;}
+        M={ym,s,sup:o.sup||null,mc:o.mc||null,saved:!!o.summary};renderMonth();
+      }catch(err){body.innerHTML='<div class="status show err">สร้างรายงานไม่สำเร็จ: '+esc(err.message)+'</div>';}
+    }
+    const myRole=()=>{const me=ROSTER.find(r=>r.n===MT3Access.fullName());return me?{me,r:me.p==='Material Control'?'mc':/Supervisor|Manager/.test(me.p)?'sup':null}:{};};
+    function renderMonth(){
+      const s=M.s,{r:role}=myRole(),tot=s.ar.reduce((a,x)=>a+x.exp,0),ok=s.ar.reduce((a,x)=>a+x.ok,0);
+      const sign=(r,t)=>{const x=M[r];return '<div class="card" style="display:block"><b>'+t+'</b><br>'+(x?'<img src="'+x.sig+'" style="height:56px;max-width:100%"><br>'+esc(x.name)+'<div class="hint">'+esc(x.pos)+' • '+dm(x.at)+' '+hm(x.at)+'</div>':
+        role===r?'<button type="button" class="btn btn-camera btn-sm" data-sign="'+r+'" style="margin-top:8px">ลงนามรับทราบ</button>':'<div class="hint">รอลงนาม</div>')+'</div>';};
+      $('mBody').innerHTML='<div class="stat"><div><b>'+s.n+'</b><span>ครั้งที่ส่ง</span></div><div><b>'+pc(ok,tot)+'%</b><span>ตรงเวลา</span></div><div><b>'+s.def.open+'</b><span>งานค้าง</span></div></div>'+
+        bar('ตรงเวลาแต่ละพื้นที่',s.ar.map(a=>[a.a+' ('+a.ok+'/'+a.exp+')',pc(a.ok,a.exp)]),'%')+bar('เครื่องมือชำรุดบ่อย',s.d,'')+bar('เครื่องมือไม่มี/หายบ่อย',s.m,'')+
+        sign('sup','Supervisor')+sign('mc','Material Controller')+
+        '<div class="row"><button type="button" class="btn btn-gallery btn-sm" id="mPrint">พิมพ์ / PDF</button><button type="button" class="btn btn-gallery btn-sm" id="mXls">Excel</button></div>'+
+        (M.sup||M.mc?'<div class="hint">รายงานนี้ถูกล็อกข้อมูลตามที่ลงนามแล้ว</div>':'');
+      $('mPrint').onclick=printMonth;$('mXls').onclick=monthXls;
+    }
+    function signPad(){
+      return new Promise(res=>{
+        const w=document.createElement('div');w.style.cssText='position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:20px';
+        w.innerHTML='<div style="background:#fff;border-radius:12px;padding:16px;width:100%;max-width:360px"><b>ลงลายมือชื่อ</b><canvas width="320" height="140" style="width:100%;height:140px;border:1px solid #e6e6e6;border-radius:8px;margin-top:8px;touch-action:none"></canvas><div class="row"><button type="button" class="btn btn-gallery btn-sm" data-a="x">ยกเลิก</button><button type="button" class="btn btn-gallery btn-sm" data-a="c">ล้าง</button><button type="button" class="btn btn-camera btn-sm" data-a="ok">ลงนาม</button></div></div>';
+        document.body.appendChild(w);
+        const cv=w.querySelector('canvas'),g=cv.getContext('2d');g.lineWidth=2.2;g.lineCap='round';let on=false,dirty=false;
+        const pt=e=>{const r=cv.getBoundingClientRect();return [(e.clientX-r.left)*cv.width/r.width,(e.clientY-r.top)*cv.height/r.height];};
+        cv.onpointerdown=e=>{on=dirty=true;cv.setPointerCapture(e.pointerId);const [x,y]=pt(e);g.beginPath();g.moveTo(x,y);};
+        cv.onpointermove=e=>{if(!on)return;const [x,y]=pt(e);g.lineTo(x,y);g.stroke();};
+        cv.onpointerup=()=>{on=false;};
+        w.onclick=e=>{const a=e.target.dataset.a;if(!a)return;if(a==='c'){g.clearRect(0,0,cv.width,cv.height);dirty=false;return;}w.remove();res(a==='ok'&&dirty?cv.toDataURL('image/png'):null);};
+      });
+    }
+    $('mBody').addEventListener('click',async e=>{
+      const r=e.target.dataset.sign,{me,r:role}=myRole();if(!r||r!==role||!MT3Access.admin())return;
+      const sig=await signPad();if(!sig)return;
+      const rec={name:me.n,pos:me.p,at:Date.now(),sig};
+      try{await MREF(M.ym).set({...(M.saved?{}:{summary:JSON.stringify(M.s)}),[r]:rec},{merge:true});M[r]=rec;M.saved=true;renderMonth();}
+      catch(err){showStatus('expStatus','ลงนามไม่สำเร็จ: '+err.message,'err');}
+    });
+    function printMonth(){
+      const s=M.s,c={...docCfg(),title:'รายงานสรุปการตรวจเช็คเครื่องมือประจำเดือน'};
+      const sig=(r,t)=>{const x=M[r];return '<div>'+(x?'<img src="'+x.sig+'" style="height:16mm"><br>':'<div class="ln"></div>')+t+'<br>( '+(x?esc(x.name):'................................')+' )<br>'+(x?esc(x.pos)+'<br>'+thDate(new Date(x.at))+' '+hm(x.at)+' น.':'วันที่ ......../......../........')+'</div>';};
+      const tb=(h,rows)=>'<table><tr>'+h.map(x=>'<th>'+x+'</th>').join('')+'</tr>'+rows.map(r=>'<tr>'+r.map((x,i)=>'<td'+(i?' class="c"':'')+'>'+esc(x)+'</td>').join('')+'</tr>').join('')+'</table>';
+      openPrint('<div class="sheet">'+docHead(c,LOGO_SRC,'')+
+        '<div class="meta"><span>ประจำเดือน <b>'+thMonth(s.ym)+'</b></span><span>จำนวนรายงาน <b>'+s.n+'</b> ครั้ง</span></div>'+
+        '<div class="ahd">1. การส่งรายงานตามเวลา</div>'+tb(['พื้นที่','ครบกำหนด','ตรงเวลา','ช้า','ไม่ส่ง','ตรงเวลา %'],s.ar.map(a=>[a.a,a.exp,a.ok,a.late,a.miss,pc(a.ok,a.exp)+'%']))+
+        '<div class="ahd">2. เครื่องมือชำรุดบ่อย</div>'+tb(['รายการ','ครั้ง'],s.d.length?s.d:[['-','-']])+
+        '<div class="ahd">3. เครื่องมือไม่มี/หายบ่อย</div>'+tb(['รายการ','ครั้ง'],s.m.length?s.m:[['-','-']])+
+        '<div class="ahd">4. การติดตามงาน</div><div class="rm" style="min-height:auto">แจ้งใหม่ '+s.def.opened+' รายการ • ปิดงาน '+s.def.closed+' รายการ • ค้างอยู่ปัจจุบัน '+s.def.open+' รายการ</div>'+
+        '<div class="sig" style="margin-top:auto">'+sig('sup','Supervisor')+sig('mc','Material Controller')+'</div>'+docFoot(c)+'</div>');
+    }
+    async function monthXls(){
+      try{
+        await MT3ExportTools.ensure('XLSX');const s=M.s,wb=XLSX.utils.book_new(),add=(rows,n)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),n);
+        add(s.ar.map(a=>({'พื้นที่':a.a,'ครบกำหนด':a.exp,'ตรงเวลา':a.ok,'ช้า':a.late,'ไม่ส่ง':a.miss,'ตรงเวลา %':pc(a.ok,a.exp)})),'ตรงเวลา');
+        add([...s.d.map(([n,c])=>({'ประเภท':'ชำรุด','รายการ':n,'ครั้ง':c})),...s.m.map(([n,c])=>({'ประเภท':'ไม่มี/หาย','รายการ':n,'ครั้ง':c}))],'รายการผิดปกติ');
+        add([{'แจ้งใหม่':s.def.opened,'ปิดงาน':s.def.closed,'ค้างอยู่':s.def.open,'ลงนาม Supervisor':M.sup?M.sup.name+' '+dm(M.sup.at):'-','ลงนาม Material Controller':M.mc?M.mc.name+' '+dm(M.mc.at):'-'}],'ติดตามและลงนาม');
+        XLSX.writeFile(wb,'รายงานสรุปรายเดือน_'+s.ym+'.xlsx');
+      }catch(err){showStatus('expStatus',err.message,'err');}
     }
   }
 })();
