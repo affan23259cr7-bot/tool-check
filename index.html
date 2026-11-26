@@ -111,8 +111,9 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
       '<button type="button" id="mt3CamOk" style="'+bs+'">เสร็จ (0)</button></div>';
     document.body.appendChild(cam);
     const vid=cam.querySelector('video');
-    let stream=null,shooting=false,camBroken=false;
-    const count=()=>{$('mt3CamOk').textContent='เสร็จ ('+photos.length+')';};
+    let stream=null,shooting=false,camBroken=false,pend=0,procQ=Promise.resolve();
+    window.MT3Busy=()=>pend>0;
+    const count=()=>{$('mt3CamOk').textContent='เสร็จ ('+(photos.length+pend)+')';};
     function stopCam(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}vid.srcObject=null;cam.style.display='none';}
     async function openCam(){
       try{
@@ -121,13 +122,17 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
       }catch(e){stopCam();return false;}
     }
     async function shoot(){
-      if(shooting||!vid.videoWidth)return;shooting=true;
+      if(!vid.videoWidth)return;shooting=true;
       vid.style.opacity=.3;setTimeout(()=>vid.style.opacity=1,90);
       try{
         const c=document.createElement('canvas');c.width=vid.videoWidth;c.height=vid.videoHeight;
         c.getContext('2d').drawImage(vid,0,0);
         const blob=await new Promise(r=>c.toBlob(r,'image/jpeg',.9));
-        if(blob){$('saveCard').classList.remove('show');await handleFiles([new File([blob],'cam.jpg',{type:'image/jpeg'})]);}
+        if(blob){
+          $('saveCard').classList.remove('show');pend++;count();
+          const f=new File([blob],'cam.jpg',{type:'image/jpeg'});
+          procQ=procQ.then(()=>handleFiles([f])).catch(()=>{}).finally(()=>{pend--;count();});
+        }
       }finally{shooting=false;count();}
     }
     $('mt3CamShot').onclick=shoot;$('mt3CamX').onclick=stopCam;$('mt3CamOk').onclick=stopCam;
@@ -139,6 +144,17 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
       if(!await openCam()){camBroken=true;showStatus('status','เปิดกล้องในหน้านี้ไม่ได้ (ตรวจสอบสิทธิ์กล้องของเบราว์เซอร์) — กดปุ่มถ่ายรูปอีกครั้งเพื่อใช้กล้องของเครื่อง','info');}
     });
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&cam.style.display==='flex'){stopCam();openCam();}});
+
+    processFile=async function(file){
+      const url=URL.createObjectURL(file);
+      try{
+        const img=await loadImage(url),b64=drawResize(img,1280,.82);
+        let hash='';try{hash=hashFromImage(img);}catch(e){}
+        const dup=await findDup(hash);
+        return {b64,hash,isDup:!!dup,dupInfo:dup};
+      }catch(e){throw new Error('อ่านภาพไม่ได้');}
+      finally{URL.revokeObjectURL(url);}
+    };
 
     /* 4) แอดมินเลือกภาพจากคลังได้ ผู้ใช้ทั่วไปใช้กล้องเท่านั้น */
     const hint=$('camInput').nextElementSibling;
@@ -196,6 +212,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
         camBtn.style.pointerEvents=v?'none':'';camBtn.style.opacity=v?.5:1;};
       submitting=true;btn.disabled=true;btn.textContent='กำลังบันทึก...';
       try{
+        if(pend){btn.textContent='เตรียมภาพ...';await procQ.catch(()=>{});}
         const area=$('area').value,shift=$('shift').value,noteRaw=(window.MT3Compose?window.MT3Compose():$('note').value.trim()),note=window.MT3NoteFix?window.MT3NoteFix(noteRaw):noteRaw;
         const inspector=MT3Access.normalizeName($('inspector').value.trim());
         if(!inspector)return showStatus('status','⚠️ กรุณากรอกชื่อผู้ตรวจเช็ค','err');
@@ -529,19 +546,18 @@ function classify(n){
     /* 2) ติดตามงานชำรุด/หาย: แจ้งแล้ว → ส่งซ่อม → เบิกแล้ว → ปิดงาน */
     const STS=['แจ้งแล้ว','ส่งซ่อม','เบิกแล้ว','ปิดงาน'],REV=Object.fromEntries(Object.entries(FORM).map(([c,n])=>[n,c]));
     const hsh=s=>{let h=5381;for(const ch of s)h=((h<<5)+h+ch.codePointAt(0))>>>0;return h.toString(36);};
-    document.addEventListener('mt3saved',e=>{
-      const x=e.detail;
-      String(x.note||'').split('\n').forEach(l=>{
-        const m=l.match(/^(.*\S)\s+(ชำรุด|ไม่มี)$/);if(!m)return;
-        const name=m[1],k=m[2]==='ชำรุด'?'d':'m',code=REV[name]||null,by=who(x.inspector);
-        const ref=fdb.collection('mt3_defects').doc(x.area+'~'+(code||'x'+hsh(name))+'~'+k);
-        fdb.runTransaction(async tx=>{
-          const s=await tx.get(ref),o=s.exists?s.data():null;
-          if(o&&o.status!=='ปิดงาน'){tx.update(ref,{seen:(o.seen||1)+1,lastSeenAt:x.at});return;}
-          tx.set(ref,{area:x.area,code,name,kind:k,status:'แจ้งแล้ว',reportedAt:x.at,reportedBy:by,docNo:x.docNo,seen:1,lastSeenAt:x.at,updatedAt:x.at,cycles:o?(o.cycles||0)+1:0,history:[{s:'แจ้งแล้ว',by,at:x.at}]});
-        }).catch(err=>console.warn('defect:',err.message));
-      });
-    });
+    const pl=note=>String(note||'').split('\n').map(l=>l.trim()).map(l=>{const m=l.match(/^(.*\S)\s+(ชำรุด|ไม่มี)$/);return m?{name:m[1],k:m[2]==='ชำรุด'?'d':'m'}:null;}).filter(Boolean);
+    const dref=(area,name,k)=>fdb.collection('mt3_defects').doc(area+'~'+(REV[name]||'x'+hsh(name))+'~'+k);
+    const regDefect=(area,name,k,by,at,docNo)=>{const ref=dref(area,name,k);return fdb.runTransaction(async tx=>{
+      const s=await tx.get(ref),o=s.exists?s.data():null;
+      if(o&&o.status!=='ปิดงาน'){tx.update(ref,{seen:(o.seen||1)+1,lastSeenAt:at});return;}
+      tx.set(ref,{area,code:REV[name]||null,name,kind:k,status:'แจ้งแล้ว',reportedAt:at,reportedBy:by,docNo,seen:1,lastSeenAt:at,updatedAt:at,cycles:o?(o.cycles||0)+1:0,history:[{s:'แจ้งแล้ว',by,at}]});
+    }).catch(err=>console.warn('defect:',err.message));};
+    const unregDefect=(area,name,k)=>{const ref=dref(area,name,k);return fdb.runTransaction(async tx=>{
+      const s=await tx.get(ref);if(!s.exists)return;const o=s.data();
+      if(o.status==='แจ้งแล้ว'&&(o.seen||1)<=1&&(o.history||[]).length<=1)tx.delete(ref);else if((o.seen||1)>1)tx.update(ref,{seen:o.seen-1});
+    }).catch(err=>console.warn('defect:',err.message));};
+    document.addEventListener('mt3saved',e=>{const x=e.detail;pl(x.note).forEach(i=>regDefect(x.area,i.name,i.k,who(x.inspector),x.at,x.docNo));});
     let defects=[];
     const dBtn=mkTab('defect','ติดตาม',false,'<label style="margin-top:0">แสดง</label><select id="dfF"><option value="open">ค้างอยู่ (ยังไม่ปิดงาน)</option><option value="all">ทั้งหมด</option><option value="closed">ปิดงานแล้ว</option></select><div id="dfBody"></div>',['tab-dash','dash'],loadDef);
     $('dfF').onchange=renderDef;
@@ -677,6 +693,52 @@ function classify(n){
         XLSX.writeFile(wb,'รายงานสรุปรายเดือน_'+s.ym+'.xlsx');
       }catch(err){showStatus('expStatus',err.message,'err');}
     }
+
+    /* 5) ตรวจภาพซ้ำแบบเบา: ดึงเฉพาะ hash (ไม่ดึงรูป) และโหลดไว้ล่วงหน้า */
+    let mhP=null;
+    const mhLoad=()=>mhP||(mhP=light(Date.now()-33*DAY,['hash','timestamp','area','createdAt','inspectedAt','dateKey'],5000).then(rows=>{
+      hashIndex=rows.filter(r=>r.hash&&!expired(r)).map(r=>({hash:r.hash,timestamp:r.timestamp,area:r.area}));hashIndexAt=Date.now();return hashIndex;
+    }).finally(()=>{mhP=null;}));
+    monthHashes=async function(){
+      if(hashIndex){if(Date.now()-hashIndexAt>300000)mhLoad().catch(()=>{});return hashIndex;}
+      return Promise.race([mhLoad(),new Promise(r=>setTimeout(()=>r([]),3000))]).catch(()=>[]);
+    };
+    setTimeout(()=>mhLoad().catch(()=>{}),1500);setInterval(()=>mhLoad().catch(()=>{}),240000);
+
+    /* 6) แอดมินแก้รายงาน: พื้นที่ / รอบ / ชำรุด↔ไม่มี / ลบรายการ */
+    window.editRecord=function(id){
+      if(!guard())return;
+      const all=mergedRecs(),one=all.find(r=>String(r.id)===String(id));if(!one)return;
+      const grp=one.batch?all.filter(r=>r.batch===one.batch):[one];
+      const rows=String(one.note||'').split('\n').map(s=>s.trim()).filter(Boolean).map(l=>{const m=l.match(/^(.*\S)\s+(ชำรุด|ไม่มี)$/);return m?{n:m[1],v:m[2]}:{t:l};});
+      const opt=(list,v)=>list.map(x=>'<option'+(x===v?' selected':'')+'>'+esc(x)+'</option>').join('');
+      const w=document.createElement('div');
+      w.style.cssText='position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:16px';
+      w.innerHTML='<div style="background:#fff;border-radius:12px;padding:16px;width:100%;max-width:420px;max-height:90vh;overflow:auto"><b>แก้ไขรายงาน '+esc(one.docNo||'')+'</b>'+
+        '<label>พื้นที่</label><select id="edA">'+opt([...$('area').options].map(o=>o.value),one.area)+'</select><label>รอบ</label><select id="edS">'+opt(['รับกะ','ส่งคืน'],one.shift)+'</select><label>รายการ</label>'+
+        (rows.length?rows.map((r,i)=>r.n?'<div style="display:flex;gap:6px;margin-top:6px;align-items:center"><span style="flex:1;font-size:13px">'+esc(r.n)+'</span><select data-i="'+i+'" style="width:112px">'+opt(['ชำรุด','ไม่มี','ลบรายการ'],r.v)+'</select></div>':
+          '<input type="text" data-i="'+i+'" value="'+esc(r.t)+'" style="margin-top:6px">').join(''):'<div class="hint">ไม่มีรายการ (ครบถ้วน)</div>')+
+        '<div class="row"><button type="button" class="btn btn-gallery btn-sm" data-a="x">ยกเลิก</button><button type="button" class="btn btn-camera btn-sm" data-a="ok">บันทึก</button></div></div>';
+      document.body.appendChild(w);
+      w.onclick=async e=>{
+        const a=e.target.dataset.a;if(!a)return;w.remove();if(a!=='ok')return;
+        const area=w.querySelector('#edA').value,shift=w.querySelector('#edS').value,out=[],nl=[];
+        rows.forEach((r,i)=>{
+          const el=w.querySelector('[data-i="'+i+'"]');
+          if(r.n){if(el.value!=='ลบรายการ'){out.push(r.n+' '+el.value);nl.push({name:r.n,k:el.value==='ชำรุด'?'d':'m'});}}
+          else if(el.value.trim())out.push(el.value.trim());
+        });
+        const note=out.join('\n'),oldS=pl(one.note),kk=(ar,i)=>ar+'|'+i.name+'|'+i.k;
+        const oldK=new Set(oldS.map(i=>kk(one.area,i))),newK=new Set(nl.map(i=>kk(area,i)));
+        showStatus('expStatus','กำลังบันทึกการแก้ไข...','info');
+        try{
+          await Promise.all(grp.map(r=>COL.doc(r.id).update({area,shift,note,editedBy:MT3Access.fullName(),editedAt:Date.now()})));
+          for(const i of oldS)if(!newK.has(kk(one.area,i)))await unregDefect(one.area,i.name,i.k);
+          for(const i of nl)if(!oldK.has(kk(area,i)))await regDefect(area,i.name,i.k,who(one.inspector),one.createdAt||Date.now(),one.docNo);
+          showStatus('expStatus','แก้ไขรายงานแล้ว '+grp.length+' ภาพ','ok');loadHistory();
+        }catch(err){showStatus('expStatus','แก้ไขไม่สำเร็จ: '+err.message,'err');}
+      };
+    };
   }
 })();
 </script>
