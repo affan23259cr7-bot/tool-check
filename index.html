@@ -521,8 +521,8 @@ function classify(n){
     const GT={'1.1':'ลูกบล๊อก 1/2"','1.2':'ประแจแหวนข้าง ปากตาย','1.3':'ประแจหางหนู','1.4':'ประแจหกเหลี่ยมหัวบอล','1.5':'ประแจหกเหลี่ยมหัวดาว','1.6':'คีมล็อกใหญ่','1.7':'ด้ามฟรีหัวไข่','1.8':'ข้อต่อบล๊อก','1.9':'คีมอื่นๆ','1.10':'ไขควง','1.11':'ตลับเมตร','1.12':'ค้อน','1.13':'ระดับน้ำ','1.14':'กรรไกร'};
     const ck=c=>c.split('.').map(n=>n.padStart(3,'0')).join('');
     const sel=new Map(),codes=Object.keys(FORM).sort((a,b)=>ck(a)<ck(b)?-1:1);
-    const CKCOL={d:['#fdeedd','#b45309','#f2c48d'],m:['#fcf1f0','#b3261e','#e3b9b9'],'':['#fff','#1a1a1a','#e6e6e6']};
-    const chip=c=>{const x=CKCOL[sel.get(c)||''];return 'padding:7px 12px;border-radius:8px;font-size:13px;background:'+x[0]+';color:'+x[1]+';border:1px solid '+x[2];};
+    const COL={d:['#fdeedd','#b45309','#f2c48d'],m:['#fcf1f0','#b3261e','#e3b9b9'],'':['#fff','#1a1a1a','#e6e6e6']};
+    const chip=c=>{const x=COL[sel.get(c)||''];return 'padding:7px 12px;border-radius:8px;font-size:13px;background:'+x[0]+';color:'+x[1]+';border:1px solid '+x[2];};
     const ckBox=document.createElement('div');
     ckBox.innerHTML='<label style="margin-top:14px">เลือกเครื่องมือที่ชำรุด / ไม่มี <span id="ckN" class="hint"></span></label><div class="hint" style="margin:0 0 6px">แตะ 1 ครั้ง = ชำรุด • 2 ครั้ง = ไม่มี • 3 ครั้ง = ยกเลิก</div>'+
       Object.keys(GT).map(g=>'<details style="border:1px solid #e6e6e6;border-radius:8px;margin-top:6px;background:#fff"><summary style="padding:10px 12px;font-size:13.5px;list-style:none;display:flex;justify-content:space-between">'+GT[g]+'<b data-g="'+g+'"></b></summary><div style="padding:2px 10px 10px;display:flex;flex-wrap:wrap;gap:6px">'+
@@ -732,9 +732,9 @@ function classify(n){
         const oldK=new Set(oldS.map(i=>kk(one.area,i))),newK=new Set(nl.map(i=>kk(area,i)));
         showStatus('expStatus','กำลังบันทึกการแก้ไข...','info');
         try{
-          await Promise.all(grp.map(r=>fdb.collection('reports').doc(r.id).update({area,shift,note,editedBy:MT3Access.fullName(),editedAt:Date.now()})));
+          await Promise.all(grp.map(r=>COL.doc(r.id).update({area,shift,note,editedBy:MT3Access.fullName(),editedAt:Date.now()})));
           for(const i of oldS)if(!newK.has(kk(one.area,i)))await unregDefect(one.area,i.name,i.k);
-          for(const i of nl)if(!oldK.has(kk(area,i)))await regDefect(area,i.name,i.k,who(one.inspector),one.createdAt||Date.now(),one.docNo||'-');
+          for(const i of nl)if(!oldK.has(kk(area,i)))await regDefect(area,i.name,i.k,who(one.inspector),one.createdAt||Date.now(),one.docNo);
           showStatus('expStatus','แก้ไขรายงานแล้ว '+grp.length+' ภาพ','ok');loadHistory();
         }catch(err){showStatus('expStatus','แก้ไขไม่สำเร็จ: '+err.message,'err');}
       };
