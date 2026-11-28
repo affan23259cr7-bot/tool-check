@@ -185,17 +185,36 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
 
     /* 6) ส่งรายงาน: จองเลขครั้งเดียว ส่งภาพพร้อมกัน ไม่ผูกกับ IndexedDB */
     const memQ=new Map();let draining=false;
+    const direct=it=>{
+      const p={...it.data},ex=expiryMs(p);if(ex)p.expiresAt=firebase.firestore.Timestamp.fromMillis(ex);
+      return fdb.collection('reports').doc(it.id).set(p);
+    };
+    const laterSet=new Set();
+    function later(it){
+      if(laterSet.has(it.id))return;laterSet.add(it.id);
+      (async()=>{
+        for(let i=0;i<12;i++){
+          await new Promise(r=>setTimeout(r,Math.min(60000,15000*(i+1))));
+          try{await MT3Reliability.send(it);memQ.delete(it.id);loadHistory();break;}catch(e){}
+        }
+        laterSet.delete(it.id);
+      })();
+    }
     async function sendItem(it){
+      if(it.data.pendingNumber){
+        /* เลขที่เอกสารยังจองไม่ได้: บันทึกรายงานทันที (ขึ้นประวัติเลย) แล้วค่อยยืนยันเลขทีหลัง */
+        if(!it.written){
+          try{
+            const w=direct(it);w.catch(()=>{});
+            await Promise.race([w,tmo(1500)]).catch(e=>{if(!(e&&e.message==='timeout'))throw e;});
+            it.written=true;
+          }catch(e){return false;}
+        }
+        later(it);return true;
+      }
       try{await Promise.race([MT3Reliability.send(it),tmo(15000)]);return true;}
       catch(e){if(e&&e.message==='timeout')return false;}
-      try{
-        const p={...it.data};
-        if(p.pendingNumber)p.docNo=await MT3Cycles.allocate(p.area,p.shift,p.batch,p.inspectedAt,true);
-        delete p.pendingNumber;
-        const ex=expiryMs(p);if(ex)p.expiresAt=firebase.firestore.Timestamp.fromMillis(ex);
-        await Promise.race([fdb.collection('reports').doc(it.id).set(p),tmo(15000)]);
-        return true;
-      }catch(e){return false;}
+      try{await Promise.race([direct(it),tmo(15000)]);return true;}catch(e){return false;}
     }
     async function drain(){
       for(const it of [...memQ.values()])if(await sendItem(it))memQ.delete(it.id);
@@ -233,7 +252,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
         }
         btn.textContent='กำลังส่ง...';
         let docNo='';
-        try{docNo=await Promise.race([MT3Cycles.allocate(area,shift,batch,at,true),tmo(8000)]);}catch(e){}
+        try{docNo=await Promise.race([MT3Cycles.allocate(area,shift,batch,at,true),tmo(3000)]);}catch(e){}
         const rows=imgs.map((img,idx)=>({timestamp:ts,dateKey,area,shift,inspector,note,noteRaw,hash:captured[idx].hash,img,isDup:captured[idx].isDup,
           batch,idx,inspectedAt:at,createdAt:at,docNo:docNo||'รอยืนยัน',pendingNumber:!docNo,docNoV:3}));
         let items;
@@ -248,7 +267,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
         const left=res.filter(x=>!x).length;
         if(left){showStatus('status','รับรายงานไว้แล้ว '+rows.length+' ภาพ • ส่งไม่สำเร็จ '+left+' ภาพ ระบบจะส่งซ้ำอัตโนมัติ กรุณาเปิดหน้านี้ค้างไว้','info');return;}
         const dno=docNo||items[0].data.docNo,hasDup=rows.some(r=>r.isDup);
-        showStatus('status','บันทึกแล้ว '+rows.length+' ภาพ • '+dno,'ok');
+        showStatus('status','บันทึกแล้ว '+rows.length+' ภาพ • '+(dno==='รอยืนยัน'?'เลขที่เอกสารกำลังยืนยัน':dno),'ok');
         showSaveCard({area,shift,inspector,docNo:dno,ts,count:rows.length,note,dup:hasDup});
         document.dispatchEvent(new CustomEvent('mt3saved',{detail:{batch,area,shift,inspector,note,dateKey,docNo:dno,count:rows.length,at,ts,hashes:rows.map(r=>r.hash)}}));
         notifyLine({ts,dateKey,area,shift,inspector,note,docNo:dno,count:rows.length,dup:hasDup,batch})
