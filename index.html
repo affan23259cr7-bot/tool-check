@@ -250,7 +250,7 @@ select:focus,input:focus,textarea:focus{border-color:var(--ink)}
         const dno=docNo||items[0].data.docNo,hasDup=rows.some(r=>r.isDup);
         showStatus('status','บันทึกแล้ว '+rows.length+' ภาพ • '+dno,'ok');
         showSaveCard({area,shift,inspector,docNo:dno,ts,count:rows.length,note,dup:hasDup});
-        document.dispatchEvent(new CustomEvent('mt3saved',{detail:{batch,area,shift,inspector,note,dateKey,docNo:dno,count:rows.length,at}}));
+        document.dispatchEvent(new CustomEvent('mt3saved',{detail:{batch,area,shift,inspector,note,dateKey,docNo:dno,count:rows.length,at,ts,hashes:rows.map(r=>r.hash)}}));
         notifyLine({ts,dateKey,area,shift,inspector,note,docNo:dno,count:rows.length,dup:hasDup,batch})
           .then(ok=>{if(!ok)showStatus('status','บันทึกแล้ว • แจ้ง LINE ไม่สำเร็จ','info');});
       }catch(err){
@@ -397,14 +397,20 @@ function classify(n){
 
     /* 2) ดึงข้อมูลแบบเบาจากฐานข้อมูลกลาง (ไม่ดึงรูป) */
     const REST='https://firestore.googleapis.com/v1/projects/'+firebaseConfig.projectId+'/databases/(default)/documents:runQuery?key='+firebaseConfig.apiKey;
-    async function light(t0,fields,limit){
+    const LC=new Map();
+    async function light(t0,fields,limit,ttl){
+      const key=JSON.stringify([Math.floor(t0/600000),fields,limit]),hit=ttl&&LC.get(key);
+      if(hit&&Date.now()-hit.t<ttl)return hit.v;
+      const v=await lightRaw(t0,fields,limit);if(ttl)LC.set(key,{t:Date.now(),v});return v;
+    }
+    async function lightRaw(t0,fields,limit){
       const c=new AbortController(),tm=setTimeout(()=>c.abort(),12000);
       try{
         const r=await fetch(REST,{method:'POST',signal:c.signal,headers:{'Content-Type':'application/json'},body:JSON.stringify({structuredQuery:{
           from:[{collectionId:'reports'}],
           where:{fieldFilter:{field:{fieldPath:'createdAt'},op:'GREATER_THAN_OR_EQUAL',value:{integerValue:String(Math.floor(t0))}}},
           select:{fields:fields.map(f=>({fieldPath:f}))},limit}})});
-        if(!r.ok)throw new Error('HTTP '+r.status);
+        if(!r.ok)throw new Error(r.status===429?'โควตาการอ่านข้อมูลเต็มชั่วคราว (HTTP 429)':'HTTP '+r.status);
         return (await r.json()).filter(x=>x.document).map(x=>{
           const o={_id:x.document.name};
           for(const k in x.document.fields){const v=x.document.fields[k];o[k]=v.stringValue!==undefined?v.stringValue:v.integerValue!==undefined?Number(v.integerValue):v.doubleValue;}
@@ -429,32 +435,47 @@ function classify(n){
     const panel=document.createElement('div');
     panel.style.cssText='border:1px solid #e6e6e6;border-radius:10px;background:#fff;padding:12px;margin-bottom:6px';
     $('tab-report').insertBefore(panel,$('tab-report').firstChild);
-    let busy=false;
-    async function loadStatus(){
-      if(busy)return;busy=true;
+    let busy=false,last=0;
+    const lbOf=w=>w.rd==='ส่งคืน'?w.start-10.5*HR:w.start-HR;
+    const chipHtml=(a,t,c,bg)=>'<div style="display:flex;justify-content:space-between;padding:7px 10px;border-radius:8px;background:'+bg+';font-size:13px"><span>'+esc(a)+'</span><b style="color:'+c+'">'+t+'</b></div>';
+    async function loadStatus(force){
+      if(busy||(!force&&Date.now()-last<120000))return;busy=true;last=Date.now();
       try{
+        if(!window.MT3Day)return;
         const now=Date.now(),W=windows(now),next=W.find(w=>w.start>now);
         let cur=W.filter(w=>w.start<=now).pop();
         if(cur&&!(now<cur.due+12*HR&&(!next||now<next.start)))cur=null;
         const nextTxt=next?'รอบถัดไป: '+next.rd+' '+next.sn+' • '+dm(next.start)+' '+hm(next.start)+'–'+hm(next.due)+' น.':'';
-        if(!cur){panel.innerHTML='<b style="font-size:13.5px">ตอนนี้ไม่มีรอบที่ต้องส่งรายงาน</b><div class="hint">'+esc(nextTxt)+'</div>';return;}
-        const rows=(await light(cur.start-HR,['area','shift','createdAt'],500)).filter(r=>r.shift===cur.rd&&r.createdAt>=cur.start-HR);
-        const late=now>=cur.due;
-        const chips=AREAS.map(a=>{
-          const r=rows.filter(x=>x.area===a).sort((x,y)=>x.createdAt-y.createdAt)[0];
-          const st=r?['ส่งแล้ว '+hm(r.createdAt)+' น.','#2d5f33','#f2f7f2']:late?['ยังไม่ส่ง','#b3261e','#fcf1f0']:['รอส่ง','#8a8a8a','#f4f4f4'];
-          return '<div style="display:flex;justify-content:space-between;padding:7px 10px;border-radius:8px;background:'+st[2]+';font-size:13px"><span>'+esc(a)+'</span><b style="color:'+st[1]+'">'+st[0]+'</b></div>';
-        }).join('');
-        const miss=AREAS.filter(a=>!rows.some(x=>x.area===a)).length;
-        panel.innerHTML='<b style="font-size:13.5px">'+esc(cur.rd)+' '+esc(cur.sn)+'</b> <span class="hint">กำหนดส่ง '+hm(cur.start)+'–'+hm(cur.due)+' น.</span>'+
-          (miss?'<div style="font-size:13px;margin:6px 0;color:'+(late?'#b3261e':'#555')+'">'+(late?'เลยกำหนด ':'')+'ยังไม่ส่ง '+miss+' พื้นที่</div>':'<div style="font-size:13px;margin:6px 0;color:#2d5f33">ส่งครบทุกพื้นที่แล้ว</div>')+
-          '<div style="display:grid;gap:5px">'+chips+'</div>'+(nextTxt?'<div class="hint">'+esc(nextTxt)+'</div>':'');
-      }catch(e){panel.innerHTML='<div class="hint">ตรวจสถานะการส่งไม่ได้ตอนนี้ ('+esc(e.message)+')</div>';}
-      finally{busy=false;}
+        const early=next&&next.rd==='ส่งคืน'&&!(cur&&cur.rd==='ส่งคืน')?next:null;
+        const from=Math.min(cur?lbOf(cur):Infinity,early?lbOf(early):Infinity);
+        const all=window.MT3Day.live().map(e=>({area:e.a,shift:e.s,createdAt:e.t}));
+        const first=(rows,a)=>rows.filter(x=>x.area===a).sort((x,y)=>x.createdAt-y.createdAt)[0];
+        let html='';
+        if(cur){
+          const rows=all.filter(r=>r.shift===cur.rd&&r.createdAt>=lbOf(cur)),late=now>=cur.due;
+          const chips=AREAS.map(a=>{
+            const r=first(rows,a);
+            return r?(cur.rd==='ส่งคืน'&&r.createdAt<cur.start?chipHtml(a,'ส่งก่อนกำหนด '+hm(r.createdAt)+' น.','#0b5f8a','#e8f4fb'):chipHtml(a,'ส่งแล้ว '+hm(r.createdAt)+' น.','#2d5f33','#f2f7f2')):
+              late?chipHtml(a,'ยังไม่ส่ง','#b3261e','#fcf1f0'):chipHtml(a,'รอส่ง','#8a8a8a','#f4f4f4');
+          }).join('');
+          const miss=AREAS.filter(a=>!first(rows,a)).length;
+          html='<b style="font-size:13.5px">'+esc(cur.rd)+' '+esc(cur.sn)+'</b> <span class="hint">กำหนดส่ง '+hm(cur.start)+'–'+hm(cur.due)+' น.</span>'+
+            (miss?'<div style="font-size:13px;margin:6px 0;color:'+(late?'#b3261e':'#555')+'">'+(late?'เลยกำหนด ':'')+'ยังไม่ส่ง '+miss+' พื้นที่</div>':'<div style="font-size:13px;margin:6px 0;color:#2d5f33">ส่งครบทุกพื้นที่แล้ว</div>')+
+            '<div style="display:grid;gap:5px">'+chips+'</div>';
+        }else html='<b style="font-size:13.5px">ตอนนี้ไม่มีรอบที่ต้องส่งรายงาน</b>';
+        if(early){
+          const er=all.filter(x=>x.shift==='ส่งคืน'&&x.createdAt>=lbOf(early)&&x.createdAt<early.start),ar=AREAS.filter(a=>first(er,a));
+          if(ar.length)html+='<div class="hint" style="margin-top:10px">ส่งคืนล่วงหน้า (ก่อนกำหนด)</div><div style="display:grid;gap:5px">'+ar.map(a=>chipHtml(a,'ส่งก่อนกำหนด '+hm(first(er,a).createdAt)+' น.','#0b5f8a','#e8f4fb')).join('')+'</div>';
+        }
+        panel.innerHTML=html+(nextTxt?'<div class="hint">'+esc(nextTxt)+'</div>':'');
+      }catch(e){
+        last=Date.now()+480000;
+        panel.innerHTML='<div class="hint">'+(/429/.test(e.message)?'ตรวจสถานะไม่ได้ชั่วคราว (โควตาการอ่านข้อมูลเต็ม) ระบบจะลองใหม่เอง':'ตรวจสถานะการส่งไม่ได้ตอนนี้ ('+esc(e.message)+')')+'</div>';
+      }finally{busy=false;}
     }
-    loadStatus();setInterval(loadStatus,60000);
+    loadStatus(true);setInterval(()=>loadStatus(true),60000);window.MT3RefreshStatus=()=>loadStatus(true);
     document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')loadStatus();});
-    document.addEventListener('mt3saved',()=>setTimeout(loadStatus,1500));
+    document.addEventListener('mt3saved',()=>setTimeout(()=>loadStatus(true),1500));
 
     /* 4) แท็บสถิติ (ทุกคนเห็น) */
     const D=/ชำรุด|ชารุด|เสียหาย|เสีย|หัก|พัง|แตก/,M=/ไม่มี|ไม่พบ|ไม่เจอ|สูญหาย|หาย|ขาด|ไม่ครบ/,STRIP=new RegExp(D.source+'|'+M.source+'|เบอร์','g');
@@ -468,7 +489,7 @@ function classify(n){
     }
     const who=s=>String(s||'-').replace(/^\d{6,8}\s+/,'').replace(/\s•\s.*$/,'').trim()||'-';
     const tab=document.createElement('div');tab.id='tab-dash';tab.className='tab-content container';
-    tab.innerHTML='<label style="margin-top:0">ช่วงเวลา</label><select id="dRange"><option value="7">7 วันล่าสุด</option><option value="30" selected>30 วันล่าสุด</option></select><div id="dBody"></div>';
+    tab.innerHTML='<label style="margin-top:0">ช่วงเวลา</label><select id="dRange"><option value="7" selected>7 วันล่าสุด</option><option value="30">30 วันล่าสุด</option></select><div id="dBody"></div>';
     $('tab-history').after(tab);
     const btn=document.createElement('button');btn.className='tab-btn';btn.dataset.tab='dash';btn.textContent='สถิติ';
     document.querySelector('.tab-btn[data-tab="history"]').after(btn);
@@ -484,9 +505,9 @@ function classify(n){
     async function loadDash(){
       const body=$('dBody');body.innerHTML='<div class="empty">กำลังโหลด...</div>';
       try{
-        const all=await light(Date.now()-(+$('dRange').value)*DAY,['batch','area','shift','inspector','note','createdAt'],5000);
+        const all=(await window.MT3Day.range(Date.now()-(+$('dRange').value)*DAY,Date.now())).map(e=>({batch:e.k,area:e.a,shift:e.s,inspector:e.i,note:e.n,createdAt:e.t}));
         const seen=new Set(),rows=all.filter(r=>{const k=r.batch||r._id;if(seen.has(k))return false;seen.add(k);return true;});
-        if(!rows.length){body.innerHTML='<div class="empty">ยังไม่มีข้อมูลในช่วงนี้</div>';return;}
+        if(!rows.length){body.innerHTML='<div class="empty">ยังไม่มีข้อมูลในช่วงนี้ (ข้อมูลก่อนอัปเดต ให้แอดมินกด “นำเข้าประวัติเดิม” ในแท็บรายงานเดือน)</div>';return;}
         const items=rows.flatMap(r=>parse(r.note).map(i=>({...i,area:r.area})));
         body.innerHTML='<div class="stat"><div><b>'+rows.length+'</b><span>ครั้งที่ส่งรายงาน</span></div><div><b>'+items.length+'</b><span>รายการผิดปกติ</span></div></div>'+
           card('พื้นที่ที่พบปัญหาบ่อย (รายการ)',top(items,x=>x.area))+
@@ -521,8 +542,8 @@ function classify(n){
     const GT={'1.1':'ลูกบล๊อก 1/2"','1.2':'ประแจแหวนข้าง ปากตาย','1.3':'ประแจหางหนู','1.4':'ประแจหกเหลี่ยมหัวบอล','1.5':'ประแจหกเหลี่ยมหัวดาว','1.6':'คีมล็อกใหญ่','1.7':'ด้ามฟรีหัวไข่','1.8':'ข้อต่อบล๊อก','1.9':'คีมอื่นๆ','1.10':'ไขควง','1.11':'ตลับเมตร','1.12':'ค้อน','1.13':'ระดับน้ำ','1.14':'กรรไกร'};
     const ck=c=>c.split('.').map(n=>n.padStart(3,'0')).join('');
     const sel=new Map(),codes=Object.keys(FORM).sort((a,b)=>ck(a)<ck(b)?-1:1);
-    const COL={d:['#fdeedd','#b45309','#f2c48d'],m:['#fcf1f0','#b3261e','#e3b9b9'],'':['#fff','#1a1a1a','#e6e6e6']};
-    const chip=c=>{const x=COL[sel.get(c)||''];return 'padding:7px 12px;border-radius:8px;font-size:13px;background:'+x[0]+';color:'+x[1]+';border:1px solid '+x[2];};
+    const CKCOL={d:['#fdeedd','#b45309','#f2c48d'],m:['#fcf1f0','#b3261e','#e3b9b9'],'':['#fff','#1a1a1a','#e6e6e6']};
+    const chip=c=>{const x=CKCOL[sel.get(c)||''];return 'padding:7px 12px;border-radius:8px;font-size:13px;background:'+x[0]+';color:'+x[1]+';border:1px solid '+x[2];};
     const ckBox=document.createElement('div');
     ckBox.innerHTML='<label style="margin-top:14px">เลือกเครื่องมือที่ชำรุด / ไม่มี <span id="ckN" class="hint"></span></label><div class="hint" style="margin:0 0 6px">แตะ 1 ครั้ง = ชำรุด • 2 ครั้ง = ไม่มี • 3 ครั้ง = ยกเลิก</div>'+
       Object.keys(GT).map(g=>'<details style="border:1px solid #e6e6e6;border-radius:8px;margin-top:6px;background:#fff"><summary style="padding:10px 12px;font-size:13.5px;list-style:none;display:flex;justify-content:space-between">'+GT[g]+'<b data-g="'+g+'"></b></summary><div style="padding:2px 10px 10px;display:flex;flex-wrap:wrap;gap:6px">'+
@@ -587,17 +608,17 @@ function classify(n){
       const out=[],end=Math.min(to,Date.now());
       for(let t=from-2*DAY;t<=to+2*DAY;t+=DAY){
         const S=bangkokDay(t),k=kind(S);if(k==='off')continue;
-        for(const [sn,rd,sh,dh,off] of WIN[k]){const start=mid(S)+off*DAY+sh*HR,due=mid(S)+off*DAY+dh*HR;if(due>=from&&due<=end)out.push({rd,start,due});}
+        for(const [sn,rd,sh,dh,off] of WIN[k]){const start=mid(S)+off*DAY+sh*HR,due=mid(S)+off*DAY+dh*HR;if(due>=from&&due<=end)out.push({rd,start,due,lb:rd==='ส่งคืน'?start-10.5*HR:start-HR});}
       }
       return out;
     }
     function punct(all,from,to){
       const res=[];
       for(const w of windowsBetween(from,to)){
-        const rows=all.filter(r=>r.shift===w.rd&&r.createdAt>=w.start-HR&&r.createdAt<=w.due+12*HR);
+        const rows=all.filter(r=>r.shift===w.rd&&r.createdAt>=w.lb&&r.createdAt<=w.due+12*HR);
         for(const a of AREAS){
           const t=Math.min(...rows.filter(r=>r.area===a).map(r=>r.createdAt));
-          res.push({a,due:w.due,st:t===Infinity?'missed':t<=w.due?'ontime':'late'});
+          res.push({a,due:w.due,st:t===Infinity?'missed':t<=w.due?(w.rd==='ส่งคืน'&&t<w.start?'early':'ontime'):'late'});
         }
       }
       return res;
@@ -605,7 +626,7 @@ function classify(n){
     window.MT3Punct=punct;
     window.MT3StatsExtra=(rows,all,days)=>{
       const to=Date.now(),P=punct(all,to-days*DAY,to);if(!P.length)return '';
-      const ok=p=>p.filter(x=>x.st==='ontime').length,wk=[];
+      const ok=p=>p.filter(x=>x.st==='ontime'||x.st==='early').length,wk=[];
       for(let k=Math.ceil(days/7)-1;k>=0;k--){
         const e=to-k*7*DAY,b=e-7*DAY,p=P.filter(x=>x.due>b&&x.due<=e);if(!p.length)continue;
         wk.push([dm(b)+'–'+dm(e-1)+' • ผิดปกติ '+rows.filter(r=>r.createdAt>b&&r.createdAt<=e).reduce((s,r)=>s+parse(r.note).length,0),pc(ok(p),p.length)]);
@@ -617,16 +638,16 @@ function classify(n){
     let M=null;
     const MREF=ym=>fdb.collection('mt3_monthly').doc(ym);
     const thMonth=ym=>{const [y,m]=ym.split('-').map(Number);return ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'][m-1]+' '+(y+543);};
-    mkTab('month','รายงานเดือน',true,'<label style="margin-top:0">เดือน</label><input type="month" id="mMonth"><button type="button" class="btn btn-camera btn-sm" id="mGo" style="margin-top:10px">สร้างรายงาน</button><div id="mBody"></div>',['tab-defect','defect'],()=>{});
-    $('mMonth').value=bangkokDay().slice(0,7);$('mGo').onclick=loadMonth;
+    mkTab('month','รายงานเดือน',true,'<label style="margin-top:0">เดือน</label><input type="month" id="mMonth"><button type="button" class="btn btn-camera btn-sm" id="mGo" style="margin-top:10px">สร้างรายงาน</button><button type="button" class="btn btn-gallery btn-sm" id="mBackfill" style="margin-top:8px">นำเข้าประวัติเดิม (ทำครั้งเดียว)</button><div class="hint">ใช้หลังอัปเดตครั้งนี้ เพื่อให้สถิติและรายงานเดือนมีข้อมูลย้อนหลัง</div><div id="mBody"></div>',['tab-defect','defect'],()=>{});
+    $('mMonth').value=bangkokDay().slice(0,7);$('mGo').onclick=loadMonth;$('mBackfill').onclick=backfill;
     async function buildMonth(ym){
       const [y,m]=ym.split('-').map(Number),from=Date.parse(ym+'-01T00:00:00+07:00'),to=Date.parse((m===12?(y+1)+'-01':y+'-'+String(m+1).padStart(2,'0'))+'-01T00:00:00+07:00');
-      const all=(await light(from,['batch','area','shift','inspector','note','createdAt'],5000)).filter(r=>r.createdAt<to);
+      const all=(await window.MT3Day.range(from,to-1)).map(e=>({batch:e.k,area:e.a,shift:e.s,inspector:e.i,note:e.n,createdAt:e.t}));
       let defs=[];try{defs=(await fdb.collection('mt3_defects').limit(1000).get()).docs.map(d=>d.data());}catch(e){}
       const seen=new Set(),rows=all.filter(r=>{const k=r.batch||r._id;if(seen.has(k))return false;seen.add(k);return true;});
       const P=punct(all,from,to),items=rows.flatMap(r=>parse(r.note).map(i=>({...i,area:r.area}))),inM=t=>t>=from&&t<to;
       return {ym,n:rows.length,
-        ar:AREAS.map(a=>{const p=P.filter(x=>x.a===a),c=s=>p.filter(x=>x.st===s).length;return {a,exp:p.length,ok:c('ontime'),late:c('late'),miss:c('missed')};}),
+        ar:AREAS.map(a=>{const p=P.filter(x=>x.a===a),c=s=>p.filter(x=>x.st===s).length;return {a,exp:p.length,ok:c('ontime')+c('early'),late:c('late'),miss:c('missed')};}),
         d:top(items.filter(x=>x.s==='d'),x=>x.n).slice(0,10),m:top(items.filter(x=>x.s==='m'),x=>x.n).slice(0,10),
         def:{opened:defs.filter(x=>inM(x.reportedAt)).length,closed:defs.filter(x=>x.closedAt&&inM(x.closedAt)).length,open:defs.filter(x=>x.status!=='ปิดงาน').length}};
     }
@@ -694,16 +715,91 @@ function classify(n){
       }catch(err){showStatus('expStatus',err.message,'err');}
     }
 
-    /* 5) ตรวจภาพซ้ำแบบเบา: ดึงเฉพาะ hash (ไม่ดึงรูป) และโหลดไว้ล่วงหน้า */
-    let mhP=null;
-    const mhLoad=()=>mhP||(mhP=light(Date.now()-33*DAY,['hash','timestamp','area','createdAt','inspectedAt','dateKey'],5000).then(rows=>{
-      hashIndex=rows.filter(r=>r.hash&&!expired(r)).map(r=>({hash:r.hash,timestamp:r.timestamp,area:r.area}));hashIndexAt=Date.now();return hashIndex;
-    }).finally(()=>{mhP=null;}));
+    /* 5) สรุปรายวัน (mt3_cycle_requests/sub_วันที่) — อ่านน้อย ไม่สแกนรูป ใช้กับสถานะ สถิติ รายงานเดือน และตรวจภาพซ้ำ */
+    const DREF=id=>fdb.collection('mt3_cycle_requests').doc(id),dayCache=new Map(),liveE={};
+    let liveDay='',unsubs=[];
+    const dedupe=list=>{const m=new Map();list.forEach(e=>m.set(e.k,e));return [...m.values()];};
+    function startLive(){
+      const d0=bangkokDay(Date.now());if(d0===liveDay)return;
+      liveDay=d0;unsubs.forEach(f=>f());unsubs=[];Object.keys(liveE).forEach(k=>delete liveE[k]);
+      [d0,bangkokDay(Date.now()-DAY)].forEach(d=>{const id='sub_'+d;
+        unsubs.push(DREF(id).onSnapshot(s=>{const b=(s.exists?s.data().b:null)||[];liveE[id]=b;dayCache.set(id,{at:Date.now(),b});if(window.MT3RefreshStatus)window.MT3RefreshStatus();},err=>console.warn('live:',err.message)));});
+    }
+    async function range(from,to){
+      const ids=[];for(let t=from;t<=to+DAY;t+=DAY){const id='sub_'+bangkokDay(t);if(!ids.includes(id))ids.push(id);}
+      const lists=await Promise.all(ids.map(async id=>{
+        const c=dayCache.get(id);if(c&&(liveE[id]||Date.now()-c.at<1800000))return c.b;
+        try{const s=await DREF(id).get(),b=(s.exists?s.data().b:null)||[];dayCache.set(id,{at:Date.now(),b});return b;}catch(e){return c?c.b:[];}
+      }));
+      return dedupe(lists.flat()).filter(e=>e.t>=from&&e.t<=to);
+    }
+    window.MT3Day={live:()=>dedupe(Object.values(liveE).flat()),range};
+    startLive();setInterval(startLive,300000);
+    document.addEventListener('mt3saved',e=>{
+      const x=e.detail;
+      DREF('sub_'+bangkokDay(x.at)).set({b:firebase.firestore.FieldValue.arrayUnion({k:x.batch,a:x.area,s:x.shift,i:who(x.inspector),n:x.note||'',t:x.at,ts:x.ts||'',d:x.docNo||'-',c:x.count||0,h:(x.hashes||[]).filter(Boolean)})},{merge:true})
+        .catch(err=>console.warn('sub:',err.message));
+    });
     monthHashes=async function(){
-      if(hashIndex){if(Date.now()-hashIndexAt>300000)mhLoad().catch(()=>{});return hashIndex;}
-      return Promise.race([mhLoad(),new Promise(r=>setTimeout(()=>r([]),3000))]).catch(()=>[]);
+      const es=await Promise.race([range(Date.now()-7*DAY,Date.now()),new Promise(r=>setTimeout(()=>r(null),3000))]);
+      return (es||dedupe([...dayCache.values()].flatMap(c=>c.b))).flatMap(e=>(e.h||[]).map(h=>({hash:h,timestamp:e.ts||'',area:e.a})));
     };
-    setTimeout(()=>mhLoad().catch(()=>{}),1500);setInterval(()=>mhLoad().catch(()=>{}),240000);
+    setTimeout(()=>range(Date.now()-7*DAY,Date.now()),1500);
+    async function backfill(){
+      if(!MT3Access.admin())return showStatus('expStatus','เฉพาะแอดมิน','err');
+      showStatus('expStatus','กำลังนำเข้าประวัติเดิม (อ่านข้อมูลครั้งเดียว) ...','info');
+      try{
+        const rows=await light(Date.now()-33*DAY,['batch','area','shift','inspector','note','createdAt','hash','timestamp','docNo'],5000),by=new Map();
+        rows.forEach(r=>{const k=r.batch||r._id;let e=by.get(k);
+          if(!e){e={k,a:r.area||'-',s:r.shift||'-',i:who(r.inspector),n:r.note||'',t:r.createdAt,ts:r.timestamp||'',d:r.docNo||'-',c:0,h:[]};by.set(k,e);}
+          e.c++;if(r.hash)e.h.push(r.hash);if(r.createdAt<e.t)e.t=r.createdAt;});
+        const days=new Map();by.forEach(e=>{const d='sub_'+bangkokDay(e.t);if(!days.has(d))days.set(d,[]);days.get(d).push(e);});
+        for(const [d,list] of days)await DREF(d).set({b:firebase.firestore.FieldValue.arrayUnion(...list)},{merge:true});
+        dayCache.clear();if(window.MT3RefreshStatus)window.MT3RefreshStatus();
+        showStatus('expStatus','นำเข้าแล้ว '+by.size+' รายงาน ใน '+days.size+' วัน','ok');
+      }catch(err){showStatus('expStatus','นำเข้าไม่สำเร็จ: '+err.message,'err');}
+    }
+    async function fixEntry(rec,patch){
+      const ref=DREF('sub_'+bangkokDay(rec.createdAt||Date.now()));
+      await fdb.runTransaction(async tx=>{const s=await tx.get(ref);if(!s.exists)return;tx.set(ref,{b:(s.data().b||[]).map(e=>e.k===rec.batch?{...e,...patch}:e)},{merge:true});});
+      dayCache.delete(ref.id);
+    }
+    async function dropEntry(rec){
+      const ref=DREF('sub_'+bangkokDay(rec.createdAt||Date.now()));
+      await fdb.runTransaction(async tx=>{const s=await tx.get(ref);if(!s.exists)return;tx.set(ref,{b:(s.data().b||[]).filter(e=>e.k!==rec.batch)},{merge:true});});
+      dayCache.delete(ref.id);
+    }
+    const delIds=new Set(),_cd=cloudDel;
+    cloudDel=async id=>{
+      const rec=mergedRecs().find(r=>String(r.id)===String(id));
+      await _cd(id);delIds.add(String(id));
+      if(rec&&rec.batch&&!mergedRecs().some(r=>r.batch===rec.batch&&!delIds.has(String(r.id))))dropEntry(rec).catch(()=>{});
+    };
+    async function cleanOld(){
+      const today=bangkokDay(Date.now());
+      if(!MT3Access.admin()||localStorage.getItem('mt3_sub_clean')===today)return;
+      localStorage.setItem('mt3_sub_clean',today);
+      for(let i=35;i<=65;i++)await DREF('sub_'+bangkokDay(Date.now()-i*DAY)).delete().catch(()=>{});
+    }
+    setTimeout(cleanOld,20000);setInterval(cleanOld,600000);
+
+    /* ป้าย “ส่งก่อนกำหนด” บนการ์ดประวัติ (รอบส่งคืนที่ส่งก่อนเวลาเริ่มรับรายงาน) */
+    function winsAround(t){
+      const out=[];
+      for(let i=-2;i<=2;i++){const S=bangkokDay(t+i*DAY),k=kind(S);if(k==='off')continue;
+        for(const [sn,rd,sh,dh,off] of WIN[k])if(rd==='ส่งคืน'){const start=mid(S)+off*DAY+sh*HR;out.push({start,lo:start-10.5*HR});}}
+      return out;
+    }
+    const isEarly=t=>winsAround(t).some(w=>t>=w.lo&&t<w.start);
+    function tagEarly(){
+      document.querySelectorAll('#list .card').forEach(c=>{
+        const rt=c.querySelector('.tag.rt');if(!rt||c.querySelector('[data-early]'))return;
+        const m=c.textContent.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);if(!m)return;
+        const y=+m[3]>2400?+m[3]-543:+m[3],t=Date.parse(y+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0')+'T'+m[4].padStart(2,'0')+':'+m[5]+':00+07:00');
+        if(isEarly(t))rt.insertAdjacentHTML('afterend','<span class="tag" data-early="1" style="background:#e8f4fb;color:#0b5f8a">ส่งก่อนกำหนด</span>');
+      });
+    }
+    new MutationObserver(tagEarly).observe($('list'),{childList:true});tagEarly();
 
     /* 6) แอดมินแก้รายงาน: พื้นที่ / รอบ / ชำรุด↔ไม่มี / ลบรายการ */
     window.editRecord=function(id){
@@ -732,9 +828,10 @@ function classify(n){
         const oldK=new Set(oldS.map(i=>kk(one.area,i))),newK=new Set(nl.map(i=>kk(area,i)));
         showStatus('expStatus','กำลังบันทึกการแก้ไข...','info');
         try{
-          await Promise.all(grp.map(r=>COL.doc(r.id).update({area,shift,note,editedBy:MT3Access.fullName(),editedAt:Date.now()})));
+          await Promise.all(grp.map(r=>fdb.collection('reports').doc(r.id).update({area,shift,note,editedBy:MT3Access.fullName(),editedAt:Date.now()})));
+          await fixEntry(one,{a:area,s:shift,n:note}).catch(()=>{});
           for(const i of oldS)if(!newK.has(kk(one.area,i)))await unregDefect(one.area,i.name,i.k);
-          for(const i of nl)if(!oldK.has(kk(area,i)))await regDefect(area,i.name,i.k,who(one.inspector),one.createdAt||Date.now(),one.docNo);
+          for(const i of nl)if(!oldK.has(kk(area,i)))await regDefect(area,i.name,i.k,who(one.inspector),one.createdAt||Date.now(),one.docNo||'-');
           showStatus('expStatus','แก้ไขรายงานแล้ว '+grp.length+' ภาพ','ok');loadHistory();
         }catch(err){showStatus('expStatus','แก้ไขไม่สำเร็จ: '+err.message,'err');}
       };
